@@ -1,6 +1,11 @@
 package config
 
-import "github.com/spf13/viper"
+import (
+	"log/slog"
+	"os"
+
+	"github.com/spf13/viper"
+)
 
 type Config struct {
 	Server ServerConfig `mapstructure:"server"`
@@ -38,6 +43,15 @@ type AnthropicConfig struct {
 	BaseURL        string `mapstructure:"base_url"`
 	Model          string `mapstructure:"model"`
 	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
+}
+
+func MustLoad(path string) *Config {
+	cfg, err := Load(path)
+	if err != nil {
+		slog.Error("failed to load config", "error", err)
+		os.Exit(1)
+	}
+	return cfg
 }
 
 func Load(path string) (*Config, error) {
