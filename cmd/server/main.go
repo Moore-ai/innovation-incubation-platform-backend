@@ -5,6 +5,8 @@ import (
 	"os"
 
 	"innovation-incubation-platform-backend/config"
+	"innovation-incubation-platform-backend/internal/model"
+	"innovation-incubation-platform-backend/internal/pkg/database"
 	"innovation-incubation-platform-backend/internal/pkg/response"
 	"github.com/gin-gonic/gin"
 )
@@ -13,6 +15,29 @@ func main() {
 	cfg, err := config.Load("config/config.yaml")
 	if err != nil {
 		slog.Error("failed to load config", "error", err)
+		os.Exit(1)
+	}
+
+	db, err := database.NewDB(cfg.DB)
+	if err != nil {
+		slog.Error("failed to connect database", "error", err)
+		os.Exit(1)
+	}
+	if err := db.AutoMigrate(
+		&model.User{},
+		&model.Enterprise{},
+		&model.Carrier{},
+		&model.IncubationRecord{},
+		&model.MajorChange{},
+		&model.PolicyTemplate{},
+		&model.Policy{},
+		&model.PolicyApplication{},
+		&model.Approval{},
+		&model.PerformanceTemplate{},
+		&model.PerformanceCampaign{},
+		&model.PerformanceSubmission{},
+	); err != nil {
+		slog.Error("failed to auto migrate", "error", err)
 		os.Exit(1)
 	}
 
