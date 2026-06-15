@@ -5,14 +5,15 @@ import (
 	"innovation-incubation-platform-backend/internal/controller"
 	"innovation-incubation-platform-backend/internal/middleware"
 	"innovation-incubation-platform-backend/internal/pkg/response"
+
 	"github.com/casbin/casbin/v2"
 	"github.com/gin-gonic/gin"
 )
 
 type Deps struct {
-	Config             *config.Config
-	Enforcer           *casbin.Enforcer
-	AuthController     *controller.AuthController
+	Config               *config.Config
+	Enforcer             *casbin.Enforcer
+	AuthController       *controller.AuthController
 	EnterpriseController *controller.EnterpriseController
 	CarrierController    *controller.CarrierController
 	GovernmentController *controller.GovernmentController
@@ -23,43 +24,42 @@ func RegisterRoutes(r *gin.Engine, deps *Deps) {
 	r.Use(middleware.CorsMiddleware())
 	r.Use(gin.Recovery())
 
+	registerAuthRoutes(r, deps)
+	registerEnterpriseRoutes(r, deps)
+	registerCarrierRoutes(r, deps)
+	registerGovernmentRoutes(r, deps)
+
 	r.GET("/api/v1/health", func(c *gin.Context) {
 		response.Success(c, gin.H{"status": "ok"})
 	})
+}
 
-	pub := r.Group("/api/v1")
-	registerAuthRoutes(pub, deps)
-
-	api := r.Group("/api/v1")
-	api.Use(middleware.AuthMiddleware(deps.Config.JWT))
+func protectedGroup(r *gin.Engine, prefix string, deps *Deps) *gin.RouterGroup {
+	g := r.Group("/api/v1" + prefix)
+	g.Use(middleware.AuthMiddleware(deps.Config.JWT))
 	if deps.Enforcer != nil {
-		api.Use(middleware.RbacMiddleware(deps.Enforcer))
+		g.Use(middleware.RbacMiddleware(deps.Enforcer))
 	}
-	registerProtectedAuthRoutes(api, deps)
-	registerEnterpriseRoutes(api, deps)
-	registerCarrierRoutes(api, deps)
-	registerGovernmentRoutes(api, deps)
+	return g
 }
 
-func registerAuthRoutes(rg *gin.RouterGroup, deps *Deps) {
-	auth := rg.Group("/auth")
-	if deps.AuthController != nil {
-		auth.POST("/register", deps.AuthController.Register)
-		auth.POST("/login", deps.AuthController.Login)
+func registerAuthRoutes(r *gin.Engine, deps *Deps) {
+	if deps.AuthController == nil {
+		return
 	}
+	pub := r.Group("/api/v1/auth")
+	pub.POST("/register", deps.AuthController.Register)
+	pub.POST("/login", deps.AuthController.Login)
+
+	me := protectedGroup(r, "/auth", deps)
+	me.GET("/me", deps.AuthController.GetMe)
 }
 
-func registerProtectedAuthRoutes(rg *gin.RouterGroup, deps *Deps) {
-	if deps.AuthController != nil {
-		rg.GET("/auth/me", deps.AuthController.GetMe)
-	}
-}
-
-func registerEnterpriseRoutes(rg *gin.RouterGroup, deps *Deps) {
+func registerEnterpriseRoutes(r *gin.Engine, deps *Deps) {
 	if deps.EnterpriseController == nil {
 		return
 	}
-	e := rg.Group("/enterprise")
+	e := protectedGroup(r, "/enterprise", deps)
 	e.POST("/incubation", deps.EnterpriseController.ApplyIncubation)
 	e.GET("/incubation/:id", deps.EnterpriseController.GetIncubation)
 	e.GET("/incubation/list", deps.EnterpriseController.ListMyIncubation)
@@ -74,11 +74,11 @@ func registerEnterpriseRoutes(rg *gin.RouterGroup, deps *Deps) {
 	e.POST("/applications/:id/prefill", deps.EnterpriseController.PrefillApplication)
 }
 
-func registerCarrierRoutes(rg *gin.RouterGroup, deps *Deps) {
+func registerCarrierRoutes(r *gin.Engine, deps *Deps) {
 	if deps.CarrierController == nil {
 		return
 	}
-	c := rg.Group("/carrier")
+	c := protectedGroup(r, "/carrier", deps)
 	c.GET("/incubation/list", deps.CarrierController.ListPendingIncubations)
 	c.POST("/incubation/:id/approve", deps.CarrierController.ReviewIncubation)
 	c.POST("/incubation/:id/reject", deps.CarrierController.ReviewIncubation)
@@ -97,11 +97,11 @@ func registerCarrierRoutes(rg *gin.RouterGroup, deps *Deps) {
 	c.POST("/performances/:id/submit", deps.CarrierController.SubmitPerformance)
 }
 
-func registerGovernmentRoutes(rg *gin.RouterGroup, deps *Deps) {
+func registerGovernmentRoutes(r *gin.Engine, deps *Deps) {
 	if deps.GovernmentController == nil {
 		return
 	}
-	g := rg.Group("/gov")
+	g := protectedGroup(r, "/gov", deps)
 	g.POST("/policies/templates", deps.GovernmentController.CreatePolicyTemplate)
 	g.POST("/policies", deps.GovernmentController.PublishPolicy)
 	g.GET("/policies/list", deps.GovernmentController.ListPolicies)

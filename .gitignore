@@ -1,4 +1,5 @@
 bin/
+*.md
 *.exe
 .DS_Store
 config/config.yaml
