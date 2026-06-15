@@ -1,0 +1,26 @@
+server:
+  port: 8080
+  mode: debug
+
+db:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: postgres
+  name: incubation_platform
+  sslmode: disable
+
+jwt:
+  secret: change-me-in-production
+  expire_hours: 24
+
+casbin:
+  model_path: config/casbin_model.conf
+
+ai:
+  provider: anthropic
+  anthropic:
+    api_key: ""
+    base_url: https://api.anthropic.com
+    model: claude-sonnet-4-6
+    timeout_seconds: 30
