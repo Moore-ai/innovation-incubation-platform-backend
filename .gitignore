@@ -1,2 +1,4 @@
-*.md
+bin/
 *.exe
+.DS_Store
+config/config.yaml
