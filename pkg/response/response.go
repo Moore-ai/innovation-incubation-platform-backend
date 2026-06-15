@@ -3,7 +3,7 @@ package response
 import (
 	"net/http"
 
-	"innovation-incubation-platform-backend/internal/pkg/errcode"
+	"innovation-incubation-platform-backend/pkg/errcode"
 	"github.com/gin-gonic/gin"
 )
 

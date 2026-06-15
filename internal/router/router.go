@@ -4,7 +4,7 @@ import (
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/controller"
 	"innovation-incubation-platform-backend/internal/middleware"
-	"innovation-incubation-platform-backend/internal/pkg/response"
+	"innovation-incubation-platform-backend/pkg/response"
 
 	"github.com/casbin/casbin/v2"
 	"github.com/gin-gonic/gin"

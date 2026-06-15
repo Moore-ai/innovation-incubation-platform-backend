@@ -6,7 +6,7 @@ import (
 
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/model"
-	"innovation-incubation-platform-backend/internal/pkg/database"
+	"innovation-incubation-platform-backend/pkg/database"
 	"gorm.io/gorm"
 )
 

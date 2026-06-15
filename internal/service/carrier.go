@@ -2,8 +2,8 @@ package service
 
 import (
 	"innovation-incubation-platform-backend/internal/model"
-	"innovation-incubation-platform-backend/internal/pkg/errcode"
-	"innovation-incubation-platform-backend/internal/pkg/statemachine"
+	"innovation-incubation-platform-backend/pkg/errcode"
+	"innovation-incubation-platform-backend/pkg/statemachine"
 	"innovation-incubation-platform-backend/internal/repository"
 	"gorm.io/gorm"
 )

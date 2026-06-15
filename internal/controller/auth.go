@@ -3,8 +3,8 @@ package controller
 import (
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/middleware"
-	"innovation-incubation-platform-backend/internal/pkg/errcode"
-	"innovation-incubation-platform-backend/internal/pkg/response"
+	"innovation-incubation-platform-backend/pkg/errcode"
+	"innovation-incubation-platform-backend/pkg/response"
 	"innovation-incubation-platform-backend/internal/service"
 	"github.com/gin-gonic/gin"
 )
