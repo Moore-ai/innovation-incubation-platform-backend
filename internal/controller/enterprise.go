@@ -1,8 +1,9 @@
-package controller
+﻿package controller
 
 import (
 	"strconv"
 
+	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/middleware"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/response"
@@ -19,7 +20,7 @@ func NewEnterpriseController(svc *service.EnterpriseService) *EnterpriseControll
 }
 
 func (ctl *EnterpriseController) ApplyIncubation(c *gin.Context) {
-	var req service.IncubationApplyReq
+	var req dto.IncubationApplyReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
@@ -54,7 +55,7 @@ func (ctl *EnterpriseController) ListMyIncubation(c *gin.Context) {
 }
 
 func (ctl *EnterpriseController) ApplyChange(c *gin.Context) {
-	var req service.ChangeApplyReq
+	var req dto.ChangeApplyReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
@@ -90,7 +91,7 @@ func (ctl *EnterpriseController) ListMyChanges(c *gin.Context) {
 
 func (ctl *EnterpriseController) ReeditChange(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	var req service.ChangeApplyReq
+	var req dto.ChangeApplyReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
@@ -116,7 +117,7 @@ func (ctl *EnterpriseController) ListPolicies(c *gin.Context) {
 
 func (ctl *EnterpriseController) ApplyPolicy(c *gin.Context) {
 	policyID, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	var req service.PolicyApplyReq
+	var req dto.PolicyApplyReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return

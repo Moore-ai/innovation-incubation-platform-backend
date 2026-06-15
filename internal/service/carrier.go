@@ -1,6 +1,7 @@
 package service
 
 import (
+	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/statemachine"
@@ -19,12 +20,7 @@ func NewCarrierService(repo *repository.CarrierRepo, commonRepo *repository.Comm
 	return &CarrierService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM()}
 }
 
-type ReviewReq struct {
-	Action  string `json:"action"`  // approve, reject, return
-	Comment string `json:"comment"`
-}
-
-func (s *CarrierService) ReviewIncubation(carrierUserID uint, incubationID uint, req *ReviewReq) error {
+func (s *CarrierService) ReviewIncubation(carrierUserID uint, incubationID uint, req *dto.ReviewReq) error {
 	carrier, _ := s.repo.FindCarrierByUserID(carrierUserID)
 	record, err := s.repo.FindIncubationByID(incubationID)
 	if err != nil {
@@ -57,7 +53,7 @@ func (s *CarrierService) ListPendingIncubations(userID uint, page, pageSize int)
 	return s.repo.ListPendingIncubations(carrier.ID, page, pageSize)
 }
 
-func (s *CarrierService) ReviewChange(carrierUserID uint, changeID uint, req *ReviewReq) error {
+func (s *CarrierService) ReviewChange(carrierUserID uint, changeID uint, req *dto.ReviewReq) error {
 	_, _ = s.repo.FindCarrierByUserID(carrierUserID)
 	change, err := s.repo.FindChangeByID(changeID)
 	if err != nil {
@@ -87,17 +83,7 @@ func (s *CarrierService) ListPendingChanges(userID uint, page, pageSize int) ([]
 	return s.repo.ListPendingChanges(carrier.ID, page, pageSize)
 }
 
-type CarrierInfoReq struct {
-	Name         string `json:"name"`
-	Type         string `json:"type"`
-	Address      string `json:"address"`
-	Area         string `json:"area"`
-	ManagerName  string `json:"manager_name"`
-	ContactPhone string `json:"contact_phone"`
-	Description  string `json:"description"`
-}
-
-func (s *CarrierService) UpdateInfo(userID uint, req *CarrierInfoReq) (*model.Carrier, error) {
+func (s *CarrierService) UpdateInfo(userID uint, req *dto.CarrierInfoReq) (*model.Carrier, error) {
 	carrier, err := s.repo.FindCarrierByUserID(userID)
 	if err != nil {
 		return nil, errcode.ErrNotFound
@@ -123,7 +109,7 @@ func (s *CarrierService) ListAvailableCarrierPolicies(page, pageSize int) ([]mod
 	return s.commonRepo.ListPoliciesByTarget("carrier", page, pageSize)
 }
 
-func (s *CarrierService) ApplyCarrierPolicy(userID uint, policyID uint, req *PolicyApplyReq) (*model.PolicyApplication, error) {
+func (s *CarrierService) ApplyCarrierPolicy(userID uint, policyID uint, req *dto.PolicyApplyReq) (*model.PolicyApplication, error) {
 	carrier, _ := s.repo.FindCarrierByUserID(userID)
 	_, err := s.commonRepo.FindPolicyByID(policyID)
 	if err != nil {
@@ -151,7 +137,7 @@ func (s *CarrierService) ListEnterpriseApplications(userID uint, page, pageSize 
 	return s.repo.ListEnterpriseApplicationsForCarrier(carrier.ID, page, pageSize)
 }
 
-func (s *CarrierService) ReviewEnterprisePolicyApplication(carrierUserID uint, appID uint, req *ReviewReq) error {
+func (s *CarrierService) ReviewEnterprisePolicyApplication(carrierUserID uint, appID uint, req *dto.ReviewReq) error {
 	_, _ = s.repo.FindCarrierByUserID(carrierUserID)
 	app, err := s.repo.FindPolicyApplicationByID(appID)
 	if err != nil {
@@ -176,15 +162,11 @@ func (s *CarrierService) ReviewEnterprisePolicyApplication(carrierUserID uint, a
 	return nil
 }
 
-type PerformanceSubmitReq struct {
-	FormData model.JSONMap `json:"form_data"`
-}
-
 func (s *CarrierService) ListActiveCampaigns(page, pageSize int) ([]model.PerformanceCampaign, int64, error) {
 	return s.repo.ListActiveCampaigns(page, pageSize)
 }
 
-func (s *CarrierService) SubmitPerformance(userID uint, campaignID uint, req *PerformanceSubmitReq) (*model.PerformanceSubmission, error) {
+func (s *CarrierService) SubmitPerformance(userID uint, campaignID uint, req *dto.PerformanceSubmitReq) (*model.PerformanceSubmission, error) {
 	carrier, _ := s.repo.FindCarrierByUserID(userID)
 	sub := &model.PerformanceSubmission{
 		CampaignID: campaignID,

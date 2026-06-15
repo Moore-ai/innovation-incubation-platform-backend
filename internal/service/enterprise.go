@@ -1,6 +1,7 @@
 package service
 
 import (
+	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/statemachine"
@@ -19,14 +20,7 @@ func NewEnterpriseService(repo *repository.EnterpriseRepo, commonRepo *repositor
 	return &EnterpriseService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM()}
 }
 
-type IncubationApplyReq struct {
-	CarrierID     uint   `json:"carrier_id"`
-	IncubateStart string `json:"incubate_start"`
-	IncubateEnd   string `json:"incubate_end"`
-	AgreementFile string `json:"agreement_file"`
-}
-
-func (s *EnterpriseService) ApplyIncubation(userID uint, req *IncubationApplyReq) (*model.IncubationRecord, error) {
+func (s *EnterpriseService) ApplyIncubation(userID uint, req *dto.IncubationApplyReq) (*model.IncubationRecord, error) {
 	ent, err := s.repo.FindEnterpriseByUserID(userID)
 	if err != nil {
 		return nil, errcode.ErrNotFound.WithMsg("企业信息未找到")
@@ -69,13 +63,7 @@ func (s *EnterpriseService) ListMyIncubation(userID uint, page, pageSize int) ([
 	return s.repo.ListIncubationByEnterprise(ent.ID, page, pageSize)
 }
 
-type ChangeApplyReq struct {
-	ChangeType    string        `json:"change_type"`
-	ChangeContent string        `json:"change_content"`
-	NewValue      model.JSONMap `json:"new_value"`
-}
-
-func (s *EnterpriseService) ApplyChange(userID uint, req *ChangeApplyReq) (*model.MajorChange, error) {
+func (s *EnterpriseService) ApplyChange(userID uint, req *dto.ChangeApplyReq) (*model.MajorChange, error) {
 	ent, err := s.repo.FindEnterpriseByUserID(userID)
 	if err != nil {
 		return nil, errcode.ErrNotFound
@@ -113,7 +101,7 @@ func (s *EnterpriseService) ListMyChanges(userID uint, page, pageSize int) ([]mo
 	return s.repo.ListChangesByEnterprise(ent.ID, page, pageSize)
 }
 
-func (s *EnterpriseService) ReeditChange(id uint, userID uint, req *ChangeApplyReq) (*model.MajorChange, error) {
+func (s *EnterpriseService) ReeditChange(id uint, userID uint, req *dto.ChangeApplyReq) (*model.MajorChange, error) {
 	change, err := s.repo.FindChangeByID(id)
 	if err != nil {
 		return nil, errcode.ErrNotFound
@@ -137,15 +125,11 @@ func (s *EnterpriseService) ReeditChange(id uint, userID uint, req *ChangeApplyR
 	return change, nil
 }
 
-type PolicyApplyReq struct {
-	FormData model.JSONMap `json:"form_data"`
-}
-
 func (s *EnterpriseService) ListAvailablePolicies(role string, page, pageSize int) ([]model.Policy, int64, error) {
 	return s.commonRepo.ListPoliciesByTarget(role, page, pageSize)
 }
 
-func (s *EnterpriseService) ApplyPolicy(userID uint, policyID uint, req *PolicyApplyReq) (*model.PolicyApplication, error) {
+func (s *EnterpriseService) ApplyPolicy(userID uint, policyID uint, req *dto.PolicyApplyReq) (*model.PolicyApplication, error) {
 	ent, _ := s.repo.FindEnterpriseByUserID(userID)
 	policy, err := s.commonRepo.FindPolicyByID(policyID)
 	if err != nil {

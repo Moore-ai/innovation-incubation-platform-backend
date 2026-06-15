@@ -1,8 +1,9 @@
-package controller
+﻿package controller
 
 import (
 	"strconv"
 
+	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/middleware"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/response"
@@ -20,7 +21,7 @@ func NewCarrierController(svc *service.CarrierService) *CarrierController {
 
 func (ctl *CarrierController) ReviewIncubation(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	var req service.ReviewReq
+	var req dto.ReviewReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
@@ -45,7 +46,7 @@ func (ctl *CarrierController) ListPendingIncubations(c *gin.Context) {
 
 func (ctl *CarrierController) ReviewChange(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	var req service.ReviewReq
+	var req dto.ReviewReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
@@ -69,7 +70,7 @@ func (ctl *CarrierController) ListPendingChanges(c *gin.Context) {
 }
 
 func (ctl *CarrierController) UpdateInfo(c *gin.Context) {
-	var req service.CarrierInfoReq
+	var req dto.CarrierInfoReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
@@ -104,7 +105,7 @@ func (ctl *CarrierController) ListPolicies(c *gin.Context) {
 
 func (ctl *CarrierController) ApplyPolicy(c *gin.Context) {
 	policyID, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	var req service.PolicyApplyReq
+	var req dto.PolicyApplyReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
@@ -130,7 +131,7 @@ func (ctl *CarrierController) ListEnterpriseApplications(c *gin.Context) {
 
 func (ctl *CarrierController) ReviewEnterpriseApplication(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	var req service.ReviewReq
+	var req dto.ReviewReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
@@ -155,7 +156,7 @@ func (ctl *CarrierController) ListCampaigns(c *gin.Context) {
 
 func (ctl *CarrierController) SubmitPerformance(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	var req service.PerformanceSubmitReq
+	var req dto.PerformanceSubmitReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return

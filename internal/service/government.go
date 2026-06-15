@@ -3,6 +3,7 @@ package service
 import (
 	"time"
 
+	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/statemachine"
@@ -20,14 +21,7 @@ func NewGovernmentService(repo *repository.GovernmentRepo, db *gorm.DB) *Governm
 	return &GovernmentService{repo: repo, db: db, sm: statemachine.DefaultApprovalSM()}
 }
 
-type PolicyTemplateReq struct {
-	Name        string        `json:"name"`
-	Description string        `json:"description"`
-	FormSchema  model.JSONMap `json:"form_schema"`
-	TargetRole  string        `json:"target_role"`
-}
-
-func (s *GovernmentService) CreatePolicyTemplate(req *PolicyTemplateReq) (*model.PolicyTemplate, error) {
+func (s *GovernmentService) CreatePolicyTemplate(req *dto.PolicyTemplateReq) (*model.PolicyTemplate, error) {
 	t := &model.PolicyTemplate{
 		Name: req.Name, Description: req.Description,
 		FormSchema: req.FormSchema, TargetRole: req.TargetRole,
@@ -38,16 +32,7 @@ func (s *GovernmentService) CreatePolicyTemplate(req *PolicyTemplateReq) (*model
 	return t, nil
 }
 
-type PublishPolicyReq struct {
-	TemplateID    uint          `json:"template_id"`
-	Title         string        `json:"title"`
-	Conditions    model.JSONMap `json:"conditions"`
-	SubsidyAmount string        `json:"subsidy_amount"`
-	StartDate     string        `json:"start_date"`
-	EndDate       string        `json:"end_date"`
-}
-
-func (s *GovernmentService) PublishPolicy(req *PublishPolicyReq) (*model.Policy, error) {
+func (s *GovernmentService) PublishPolicy(req *dto.PublishPolicyReq) (*model.Policy, error) {
 	now := time.Now()
 	p := &model.Policy{
 		TemplateID:    req.TemplateID,
@@ -77,17 +62,7 @@ func (s *GovernmentService) GetEnterprise(id uint) (*model.Enterprise, error) {
 	return s.repo.FindEnterpriseByID(id)
 }
 
-type EnterpriseEditReq struct {
-	Name         string `json:"name"`
-	Industry     string `json:"industry"`
-	Scale        string `json:"scale"`
-	Address      string `json:"address"`
-	LegalPerson  string `json:"legal_person"`
-	ContactName  string `json:"contact_name"`
-	ContactPhone string `json:"contact_phone"`
-}
-
-func (s *GovernmentService) EditEnterprise(id uint, req *EnterpriseEditReq) (*model.Enterprise, error) {
+func (s *GovernmentService) EditEnterprise(id uint, req *dto.EnterpriseEditReq) (*model.Enterprise, error) {
 	ent, err := s.repo.FindEnterpriseByID(id)
 	if err != nil {
 		return nil, errcode.ErrNotFound
@@ -109,7 +84,7 @@ func (s *GovernmentService) SearchCarriers(keyword string, page, pageSize int) (
 	return s.repo.SearchCarriers(keyword, page, pageSize)
 }
 
-func (s *GovernmentService) ReviewPolicyApplication(appID uint, req *ReviewReq) error {
+func (s *GovernmentService) ReviewPolicyApplication(appID uint, req *dto.ReviewReq) error {
 	newStatus, err := s.sm.Transition("pending", req.Action)
 	if err != nil {
 		return errcode.ErrStatusInvalid.WithMsg(err.Error())
@@ -129,13 +104,7 @@ func (s *GovernmentService) ListPolicyApplications(page, pageSize int) ([]model.
 	return s.repo.ListPolicyApplicationsForReview(page, pageSize)
 }
 
-type PerformanceTemplateReq struct {
-	Name       string        `json:"name"`
-	Year       int           `json:"year"`
-	FormSchema model.JSONMap `json:"form_schema"`
-}
-
-func (s *GovernmentService) CreatePerformanceTemplate(req *PerformanceTemplateReq) (*model.PerformanceTemplate, error) {
+func (s *GovernmentService) CreatePerformanceTemplate(req *dto.PerformanceTemplateReq) (*model.PerformanceTemplate, error) {
 	t := &model.PerformanceTemplate{Name: req.Name, Year: req.Year, FormSchema: req.FormSchema}
 	if err := s.repo.CreatePerformanceTemplate(t); err != nil {
 		return nil, errcode.ErrInternal
@@ -143,15 +112,7 @@ func (s *GovernmentService) CreatePerformanceTemplate(req *PerformanceTemplateRe
 	return t, nil
 }
 
-type PerformanceCampaignReq struct {
-	TemplateID uint   `json:"template_id"`
-	Name       string `json:"name"`
-	Year       int    `json:"year"`
-	StartDate  string `json:"start_date"`
-	EndDate    string `json:"end_date"`
-}
-
-func (s *GovernmentService) StartPerformanceCampaign(req *PerformanceCampaignReq) (*model.PerformanceCampaign, error) {
+func (s *GovernmentService) StartPerformanceCampaign(req *dto.PerformanceCampaignReq) (*model.PerformanceCampaign, error) {
 	c := &model.PerformanceCampaign{
 		TemplateID: req.TemplateID,
 		Name:       req.Name,
@@ -170,14 +131,8 @@ func (s *GovernmentService) ListPerformanceSubmissions(page, pageSize int) ([]mo
 	return s.repo.ListPerformanceSubmissions(page, pageSize)
 }
 
-type ScoreReq struct {
-	Score   float64 `json:"score"`
-	Status  string  `json:"status"` // approved, rejected
-	Comment string  `json:"comment"`
-}
-
-func (s *GovernmentService) ScoreSubmission(subID uint, req *ScoreReq) error {
-	sub, err := s.repo.FindPerformanceSubmission(subID)
+func (s *GovernmentService) ScoreSubmission(subID uint, req *dto.ScoreReq) error {
+	_, err := s.repo.FindPerformanceSubmission(subID)
 	if err != nil {
 		return errcode.ErrNotFound
 	}
@@ -189,6 +144,5 @@ func (s *GovernmentService) ScoreSubmission(subID uint, req *ScoreReq) error {
 		Action:     req.Status,
 		Comment:    req.Comment,
 	})
-	_ = sub
 	return nil
 }

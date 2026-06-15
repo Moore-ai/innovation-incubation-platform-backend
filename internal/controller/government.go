@@ -1,8 +1,9 @@
-package controller
+﻿package controller
 
 import (
 	"strconv"
 
+	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/response"
 	"innovation-incubation-platform-backend/internal/service"
@@ -18,7 +19,7 @@ func NewGovernmentController(svc *service.GovernmentService) *GovernmentControll
 }
 
 func (ctl *GovernmentController) CreatePolicyTemplate(c *gin.Context) {
-	var req service.PolicyTemplateReq
+	var req dto.PolicyTemplateReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
@@ -32,7 +33,7 @@ func (ctl *GovernmentController) CreatePolicyTemplate(c *gin.Context) {
 }
 
 func (ctl *GovernmentController) PublishPolicy(c *gin.Context) {
-	var req service.PublishPolicyReq
+	var req dto.PublishPolicyReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
@@ -80,7 +81,7 @@ func (ctl *GovernmentController) GetEnterprise(c *gin.Context) {
 
 func (ctl *GovernmentController) EditEnterprise(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	var req service.EnterpriseEditReq
+	var req dto.EnterpriseEditReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
@@ -107,7 +108,7 @@ func (ctl *GovernmentController) SearchCarriers(c *gin.Context) {
 
 func (ctl *GovernmentController) ReviewPolicyApplication(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	var req service.ReviewReq
+	var req dto.ReviewReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
@@ -131,7 +132,7 @@ func (ctl *GovernmentController) ListPolicyApplications(c *gin.Context) {
 }
 
 func (ctl *GovernmentController) CreatePerformanceTemplate(c *gin.Context) {
-	var req service.PerformanceTemplateReq
+	var req dto.PerformanceTemplateReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
@@ -145,7 +146,7 @@ func (ctl *GovernmentController) CreatePerformanceTemplate(c *gin.Context) {
 }
 
 func (ctl *GovernmentController) StartCampaign(c *gin.Context) {
-	var req service.PerformanceCampaignReq
+	var req dto.PerformanceCampaignReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
@@ -171,7 +172,7 @@ func (ctl *GovernmentController) ListSubmissions(c *gin.Context) {
 
 func (ctl *GovernmentController) ScoreSubmission(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	var req service.ScoreReq
+	var req dto.ScoreReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
