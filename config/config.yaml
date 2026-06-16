@@ -1,17 +1,17 @@
 server:
-  port: 8080
-  mode: debug
+  port: ${SERVER_PORT}
+  mode: ${SERVER_MODE}
 
 db:
-  host: localhost
-  port: 5432
-  user: postgres
-  password: postgres
-  name: incubation_platform
+  host: ${DB_HOST}
+  port: ${DB_PORT}
+  user: ${DB_USER}
+  password: ${DB_PASSWORD}
+  name: ${DB_NAME}
   sslmode: disable
 
 jwt:
-  secret: change-me-in-production
+  secret: ${JWT_SECRET}
   expire_hours: 24
 
 casbin:
@@ -20,15 +20,15 @@ casbin:
 ai:
   provider: anthropic
   anthropic:
-    api_key: ""
-    base_url: https://api.anthropic.com
+    api_key: ${AI_API_KEY}
+    base_url: ${AI_BASE_URL}
     model: claude-sonnet-4-6
     timeout_seconds: 30
 
 redis:
-  addr: localhost:6379
+  addr: ${REDIS_ADDR}
   password: ""
-  db: 0
+  db: ${REDIS_DB}
 
 rate_limit:
   enabled: true

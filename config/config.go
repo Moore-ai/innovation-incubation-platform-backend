@@ -1,9 +1,12 @@
 package config
 
 import (
+	"bytes"
+	"fmt"
 	"log/slog"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -74,15 +77,47 @@ func MustLoad(path string) *Config {
 	return cfg
 }
 
-func Load(path string) (*Config, error) {
-	viper.SetConfigFile(path)
-	viper.AutomaticEnv()
-	if err := viper.ReadInConfig(); err != nil {
-		return nil, err
+func loadDotEnv(path string) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return
 	}
+	for line := range strings.SplitSeq(string(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if os.Getenv(k) == "" {
+			os.Setenv(k, v)
+		}
+	}
+}
+
+func Load(path string) (*Config, error) {
+	loadDotEnv(".env")
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config: %w", err)
+	}
+	expanded := os.ExpandEnv(string(raw))
+
+	v := viper.New()
+	v.SetConfigType("yaml")
+	v.AutomaticEnv()
+	if err := v.ReadConfig(bytes.NewReader([]byte(expanded))); err != nil {
+		return nil, fmt.Errorf("failed to parse config: %w", err)
+	}
+
 	var cfg Config
-	if err := viper.Unmarshal(&cfg); err != nil {
-		return nil, err
+	if err := v.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 	return &cfg, nil
 }
