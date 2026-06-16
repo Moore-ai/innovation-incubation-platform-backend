@@ -5,8 +5,8 @@ import (
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/middleware"
 	"innovation-incubation-platform-backend/internal/model"
-	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/internal/repository"
+	"innovation-incubation-platform-backend/pkg/errcode"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -20,12 +20,16 @@ func NewAuthService(repo *repository.AuthRepo, cfg config.JWTConfig) *AuthServic
 }
 
 func (s *AuthService) Register(req *dto.RegisterRequest) (*dto.LoginResponse, error) {
+	if req.Phone == "" {
+		return nil, errcode.ErrInvalidParams.WithMsg("手机号不能为空")
+	}
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, errcode.ErrInternal
 	}
+
 	user := &model.User{
-		Username:     req.Username,
 		PasswordHash: string(hash),
 		Role:         req.Role,
 		Phone:        req.Phone,
@@ -33,7 +37,7 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*dto.LoginResponse, er
 	}
 	err = s.repo.CreateUser(user)
 	if err != nil {
-		return nil, errcode.ErrDuplicate.WithMsg("用户已存在")
+		return nil, errcode.ErrDuplicate.WithMsg("手机号已注册")
 	}
 	if req.Role == "enterprise" {
 		ent := &model.Enterprise{
@@ -63,12 +67,12 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*dto.LoginResponse, er
 }
 
 func (s *AuthService) Login(req *dto.LoginRequest) (*dto.LoginResponse, error) {
-	user, err := s.repo.FindByUsername(req.Username)
+	user, err := s.repo.FindByCredential(req.Credential, req.Role)
 	if err != nil {
-		return nil, errcode.ErrUnauthorized.WithMsg("用户名或密码错误")
+		return nil, errcode.ErrUnauthorized.WithMsg("账号或密码错误")
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		return nil, errcode.ErrUnauthorized.WithMsg("用户名或密码错误")
+		return nil, errcode.ErrUnauthorized.WithMsg("账号或密码错误")
 	}
 	token, _ := middleware.GenerateToken(s.cfg, user.ID, user.Role)
 	return &dto.LoginResponse{Token: token, User: toUserInfo(user)}, nil
@@ -84,5 +88,5 @@ func (s *AuthService) GetMe(userID uint) (*dto.UserInfo, error) {
 }
 
 func toUserInfo(u *model.User) dto.UserInfo {
-	return dto.UserInfo{ID: u.ID, Username: u.Username, Role: u.Role, Phone: u.Phone, Email: u.Email}
+	return dto.UserInfo{ID: u.ID, Role: u.Role, Phone: u.Phone, Email: u.Email}
 }

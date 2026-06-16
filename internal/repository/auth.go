@@ -17,11 +17,19 @@ func (r *AuthRepo) CreateUser(user *model.User) error {
 	return r.db.Create(user).Error
 }
 
-func (r *AuthRepo) FindByUsername(username string) (*model.User, error) {
+func (r *AuthRepo) FindByCredential(credential, role string) (*model.User, error) {
 	var user model.User
-	err := r.db.Where("username = ?", username).First(&user).Error
-	if err != nil {
-		return nil, err
+	if role == "enterprise" {
+		err := r.db.Joins("JOIN enterprises ON enterprises.user_id = users.id").
+			Where("enterprises.credit_code = ?", credential).First(&user).Error
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		err := r.db.Where("phone = ? AND role = ?", credential, role).First(&user).Error
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &user, nil
 }
