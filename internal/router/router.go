@@ -17,6 +17,7 @@ type Deps struct {
 	EnterpriseController *controller.EnterpriseController
 	CarrierController    *controller.CarrierController
 	GovernmentController *controller.GovernmentController
+	FileController       *controller.FileController
 }
 
 func RegisterRoutes(r *gin.Engine, deps *Deps) {
@@ -28,6 +29,7 @@ func RegisterRoutes(r *gin.Engine, deps *Deps) {
 	registerEnterpriseRoutes(r, deps)
 	registerCarrierRoutes(r, deps)
 	registerGovernmentRoutes(r, deps)
+	registerFileRoutes(r, deps)
 
 	r.GET("/api/v1/health", func(c *gin.Context) {
 		response.Success(c, gin.H{"status": "ok"})
@@ -124,4 +126,14 @@ func registerGovernmentRoutes(r *gin.Engine, deps *Deps) {
 	g.POST("/performances/campaigns", deps.GovernmentController.StartCampaign)
 	g.GET("/performances/submissions", deps.GovernmentController.ListSubmissions)
 	g.POST("/performances/:id/score", deps.GovernmentController.ScoreSubmission)
+}
+
+func registerFileRoutes(r *gin.Engine, deps *Deps) {
+	if deps.FileController == nil {
+		return
+	}
+	f := r.Group("/api/v1/files")
+	f.Use(middleware.AuthMiddleware(deps.Config.JWT))
+	f.POST("/upload", deps.FileController.Upload)
+	f.GET("/:id/download", deps.FileController.Download)
 }

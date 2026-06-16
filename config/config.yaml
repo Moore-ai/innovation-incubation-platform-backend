@@ -30,6 +30,9 @@ redis:
   password: ""
   db: ${REDIS_DB}
 
+upload:
+  max_size_mb: 2
+
 rate_limit:
   enabled: true
   algorithm: token_bucket

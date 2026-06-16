@@ -9,11 +9,12 @@ import (
 )
 
 type repositories struct {
-	auth   *repository.AuthRepo
-	ent    *repository.EnterpriseRepo
-	carrier *repository.CarrierRepo
-	gov    *repository.GovernmentRepo
-	common *repository.CommonRepo
+	auth    *repository.AuthRepo
+	ent     *repository.EnterpriseRepo
+	carrier  *repository.CarrierRepo
+	gov     *repository.GovernmentRepo
+	common  *repository.CommonRepo
+	file    *repository.FileRepo
 }
 
 type services struct {
@@ -28,15 +29,17 @@ type controllers struct {
 	ent     *controller.EnterpriseController
 	carrier *controller.CarrierController
 	gov     *controller.GovernmentController
+	file    *controller.FileController
 }
 
 func initRepositories(db *gorm.DB) *repositories {
 	return &repositories{
-		auth:   repository.NewAuthRepo(db),
-		ent:    repository.NewEnterpriseRepo(db),
-		carrier: repository.NewCarrierRepo(db),
-		gov:    repository.NewGovernmentRepo(db),
-		common: repository.NewCommonRepo(db),
+		auth:    repository.NewAuthRepo(db),
+		ent:     repository.NewEnterpriseRepo(db),
+		carrier:  repository.NewCarrierRepo(db),
+		gov:     repository.NewGovernmentRepo(db),
+		common:  repository.NewCommonRepo(db),
+		file:    repository.NewFileRepo(db),
 	}
 }
 
@@ -49,11 +52,12 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB) *services {
 	}
 }
 
-func initControllers(s *services) *controllers {
+func initControllers(r *repositories, s *services, cfg *config.Config) *controllers {
 	return &controllers{
 		auth:    controller.NewAuthController(s.auth),
 		ent:     controller.NewEnterpriseController(s.ent),
 		carrier: controller.NewCarrierController(s.carrier),
 		gov:     controller.NewGovernmentController(s.gov),
+		file:    controller.NewFileController(r.file, cfg),
 	}
 }

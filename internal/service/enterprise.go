@@ -26,13 +26,13 @@ func (s *EnterpriseService) ApplyIncubation(userID uint, req *dto.IncubationAppl
 		return nil, errcode.ErrNotFound.WithMsg("企业信息未找到")
 	}
 	record := &model.IncubationRecord{
-		EnterpriseID:   ent.ID,
-		CarrierID:      req.CarrierID,
-		IncubateStatus: "in_incubation",
-		IncubateStart:  req.IncubateStart,
-		IncubateEnd:    req.IncubateEnd,
-		AgreementFile:  req.AgreementFile,
-		Status:         "pending",
+		EnterpriseID:    ent.ID,
+		CarrierID:       req.CarrierID,
+		IncubateStatus:  "in_incubation",
+		IncubateStart:   req.IncubateStart,
+		IncubateEnd:     req.IncubateEnd,
+		AgreementFileID: req.AgreementFileID,
+		Status:          "pending",
 	}
 	if err := s.repo.CreateIncubation(record); err != nil {
 		return nil, errcode.ErrInternal

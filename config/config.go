@@ -12,12 +12,13 @@ import (
 )
 
 type Config struct {
-	Server ServerConfig `mapstructure:"server"`
-	DB     DBConfig     `mapstructure:"db"`
-	JWT      JWTConfig        `mapstructure:"jwt"`
-	AI       AIConfig         `mapstructure:"ai"`
-	Redis    RedisConfig      `mapstructure:"redis"`
+	Server    ServerConfig    `mapstructure:"server"`
+	DB        DBConfig        `mapstructure:"db"`
+	JWT       JWTConfig       `mapstructure:"jwt"`
+	AI        AIConfig        `mapstructure:"ai"`
+	Redis     RedisConfig     `mapstructure:"redis"`
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
+	Upload    UploadConfig    `mapstructure:"upload"`
 }
 
 type ServerConfig struct {
@@ -44,10 +45,21 @@ type AIConfig struct {
 	Anthropic AnthropicConfig `mapstructure:"anthropic"`
 }
 
+type AnthropicConfig struct {
+	APIKey         string `mapstructure:"api_key"`
+	BaseURL        string `mapstructure:"base_url"`
+	Model          string `mapstructure:"model"`
+	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
+}
+
 type RedisConfig struct {
 	Addr     string `mapstructure:"addr"`
 	Password string `mapstructure:"password"`
 	DB       int    `mapstructure:"db"`
+}
+
+type UploadConfig struct {
+	MaxSizeMB int64 `mapstructure:"max_size_mb"`
 }
 
 type RateLimitConfig struct {
@@ -59,13 +71,6 @@ type RateLimitConfig struct {
 
 func (c *RateLimitConfig) IsWhitelisted(userID uint) bool {
 	return slices.Contains(c.Whitelist, userID)
-}
-
-type AnthropicConfig struct {
-	APIKey         string `mapstructure:"api_key"`
-	BaseURL        string `mapstructure:"base_url"`
-	Model          string `mapstructure:"model"`
-	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
 }
 
 func MustLoad(path string) *Config {

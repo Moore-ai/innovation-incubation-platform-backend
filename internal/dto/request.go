@@ -26,10 +26,10 @@ type RegisterRequest struct {
 }
 
 type IncubationApplyReq struct {
-	CarrierID     uint   `json:"carrier_id"`
-	IncubateStart string `json:"incubate_start"`
-	IncubateEnd   string `json:"incubate_end"`
-	AgreementFile string `json:"agreement_file"`
+	CarrierID      uint   `json:"carrier_id"`
+	IncubateStart  string `json:"incubate_start"`
+	IncubateEnd    string `json:"incubate_end"`
+	AgreementFileID *uint `json:"agreement_file_id"`
 }
 
 type ChangeApplyReq struct {
