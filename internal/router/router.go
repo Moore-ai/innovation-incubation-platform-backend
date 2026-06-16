@@ -23,7 +23,6 @@ func RegisterRoutes(r *gin.Engine, deps *Deps) {
 	r.Use(middleware.LoggerMiddleware())
 	r.Use(middleware.CorsMiddleware())
 	r.Use(gin.Recovery())
-	r.Use(middleware.GlobalRateLimit())
 
 	registerAuthRoutes(r, deps)
 	registerEnterpriseRoutes(r, deps)
@@ -41,6 +40,7 @@ func protectedGroup(r *gin.Engine, prefix string, deps *Deps) *gin.RouterGroup {
 	if deps.Enforcer != nil {
 		g.Use(middleware.RbacMiddleware(deps.Enforcer))
 	}
+	g.Use(middleware.GlobalRateLimit())
 	return g
 }
 
@@ -49,6 +49,7 @@ func registerAuthRoutes(r *gin.Engine, deps *Deps) {
 		return
 	}
 	pub := r.Group("/api/v1/auth")
+	pub.Use(middleware.RouteRateLimit(10))
 	pub.POST("/register", deps.AuthController.Register)
 	pub.POST("/login", deps.AuthController.Login)
 
@@ -72,7 +73,11 @@ func registerEnterpriseRoutes(r *gin.Engine, deps *Deps) {
 	e.POST("/policies/:id/apply", deps.EnterpriseController.ApplyPolicy)
 	e.GET("/applications/list", deps.EnterpriseController.ListMyApplications)
 
-	ai := e.Group("")
+	ai := r.Group("/api/v1/enterprise")
+	ai.Use(middleware.AuthMiddleware(deps.Config.JWT))
+	if deps.Enforcer != nil {
+		ai.Use(middleware.RbacMiddleware(deps.Enforcer))
+	}
 	ai.Use(middleware.RouteRateLimit(5))
 	ai.GET("/policies/:id/recommend", deps.EnterpriseController.RecommendPolicy)
 	ai.POST("/applications/:id/prefill", deps.EnterpriseController.PrefillApplication)

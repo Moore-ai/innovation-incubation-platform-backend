@@ -26,8 +26,8 @@ const (
 )
 
 var (
-	rlCfg              *config.RateLimitConfig
-	tokenBucketScript  = redis.NewScript(tokenBucketScriptSrc)
+	rlCfg             *config.RateLimitConfig
+	tokenBucketScript = redis.NewScript(tokenBucketScriptSrc)
 )
 
 func InitRateLimit(cfg *config.RateLimitConfig) {
@@ -51,13 +51,15 @@ func RouteRateLimit(rpm int) gin.HandlerFunc {
 	return rateLimit(rpm, algo)
 }
 
+type rateKey string
+
 func rateLimit(rpm int, algo string) gin.HandlerFunc {
 	cfg := rlCfg
 	if rpm <= 0 {
 		rpm = 60
 	}
 
-	var limiter func(ctx *gin.Context, userID uint) (bool, int)
+	var limiter func(ctx *gin.Context, key rateKey) (bool, int)
 	switch algo {
 	case algoTokenBucket:
 		limiter = tokenBucketLimiter(rpm)
@@ -71,12 +73,18 @@ func rateLimit(rpm int, algo string) gin.HandlerFunc {
 	}
 
 	return func(c *gin.Context) {
+		var identifier string
 		userID := c.GetUint("user_id")
+		if userID > 0 {
+			identifier = fmt.Sprintf("%d", userID)
+		} else {
+			identifier = "ip:" + c.ClientIP()
+		}
 		if cfg.IsWhitelisted(userID) {
 			c.Next()
 			return
 		}
-		ok, retryAfter := limiter(c, userID)
+		ok, retryAfter := limiter(c, rateKey(identifier))
 		if !ok {
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 			response.Error(c, errcode.ErrRateLimited)
@@ -87,9 +95,9 @@ func rateLimit(rpm int, algo string) gin.HandlerFunc {
 	}
 }
 
-func fixedWindowLimiter(rpm int) func(*gin.Context, uint) (bool, int) {
-	return func(c *gin.Context, userID uint) (bool, int) {
-		key := fmt.Sprintf("ratelimit:fw:%d", userID)
+func fixedWindowLimiter(rpm int) func(*gin.Context, rateKey) (bool, int) {
+	return func(c *gin.Context, k rateKey) (bool, int) {
+		key := fmt.Sprintf("ratelimit:fw:%s", k)
 		ctx := c.Request.Context()
 
 		pipe := database.RDB.TxPipeline()
@@ -109,9 +117,9 @@ func fixedWindowLimiter(rpm int) func(*gin.Context, uint) (bool, int) {
 	}
 }
 
-func tokenBucketLimiter(rpm int) func(*gin.Context, uint) (bool, int) {
-	return func(c *gin.Context, userID uint) (bool, int) {
-		key := fmt.Sprintf("ratelimit:tb:%d", userID)
+func tokenBucketLimiter(rpm int) func(*gin.Context, rateKey) (bool, int) {
+	return func(c *gin.Context, k rateKey) (bool, int) {
+		key := fmt.Sprintf("ratelimit:tb:%s", k)
 		tsKey := key + ":ts"
 		ctx := c.Request.Context()
 
@@ -131,9 +139,9 @@ func tokenBucketLimiter(rpm int) func(*gin.Context, uint) (bool, int) {
 	}
 }
 
-func slidingWindowLimiter(rpm int) func(*gin.Context, uint) (bool, int) {
-	return func(c *gin.Context, userID uint) (bool, int) {
-		key := fmt.Sprintf("ratelimit:sw:%d", userID)
+func slidingWindowLimiter(rpm int) func(*gin.Context, rateKey) (bool, int) {
+	return func(c *gin.Context, k rateKey) (bool, int) {
+		key := fmt.Sprintf("ratelimit:sw:%s", k)
 		ctx := c.Request.Context()
 		now := time.Now().UnixMilli()
 		cutoff := now - time.Minute.Milliseconds()
