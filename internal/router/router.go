@@ -23,6 +23,7 @@ func RegisterRoutes(r *gin.Engine, deps *Deps) {
 	r.Use(middleware.LoggerMiddleware())
 	r.Use(middleware.CorsMiddleware())
 	r.Use(gin.Recovery())
+	r.Use(middleware.GlobalRateLimit())
 
 	registerAuthRoutes(r, deps)
 	registerEnterpriseRoutes(r, deps)
@@ -70,8 +71,11 @@ func registerEnterpriseRoutes(r *gin.Engine, deps *Deps) {
 	e.GET("/policies", deps.EnterpriseController.ListPolicies)
 	e.POST("/policies/:id/apply", deps.EnterpriseController.ApplyPolicy)
 	e.GET("/applications/list", deps.EnterpriseController.ListMyApplications)
-	e.GET("/policies/:id/recommend", deps.EnterpriseController.RecommendPolicy)
-	e.POST("/applications/:id/prefill", deps.EnterpriseController.PrefillApplication)
+
+	ai := e.Group("")
+	ai.Use(middleware.RouteRateLimit(5))
+	ai.GET("/policies/:id/recommend", deps.EnterpriseController.RecommendPolicy)
+	ai.POST("/applications/:id/prefill", deps.EnterpriseController.PrefillApplication)
 }
 
 func registerCarrierRoutes(r *gin.Engine, deps *Deps) {

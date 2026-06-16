@@ -26,6 +26,7 @@ var (
 
 	ErrUnauthorized  = New(10101, "未登录或Token过期")
 	ErrForbidden     = New(10102, "无权限访问")
+	ErrRateLimited   = New(10103, "请求过于频繁，请稍后再试")
 
 	ErrStatusInvalid  = New(10201, "当前状态不允许此操作")
 	ErrApprovalFailed = New(10202, "审核操作失败")

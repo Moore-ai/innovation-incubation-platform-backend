@@ -24,3 +24,12 @@ ai:
     base_url: https://api.anthropic.com
     model: claude-sonnet-4-6
     timeout_seconds: 30
+
+rate_limit:
+  enabled: true
+  algorithm: token_bucket
+  default_rpm: 60
+  addr: localhost:6379
+  password: ""
+  db: 0
+  whitelist: []

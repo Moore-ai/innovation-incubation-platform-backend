@@ -14,6 +14,8 @@ import (
 func main() {
 	cfg := config.MustLoad("config/config.yaml")
 	db := database.MustInit(cfg)
+	database.NewRedisClient(cfg.RateLimit.Addr, cfg.RateLimit.Password, cfg.RateLimit.DB)
+	middleware.InitRateLimit(&cfg.RateLimit)
 	enforcer := middleware.MustInitEnforcer(db)
 
 	repo := initRepositories(db)
