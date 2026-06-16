@@ -11,8 +11,9 @@ import (
 type Config struct {
 	Server ServerConfig `mapstructure:"server"`
 	DB     DBConfig     `mapstructure:"db"`
-	JWT    JWTConfig    `mapstructure:"jwt"`
+	JWT      JWTConfig        `mapstructure:"jwt"`
 	AI       AIConfig         `mapstructure:"ai"`
+	Redis    RedisConfig      `mapstructure:"redis"`
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
 }
 
@@ -40,14 +41,17 @@ type AIConfig struct {
 	Anthropic AnthropicConfig `mapstructure:"anthropic"`
 }
 
+type RedisConfig struct {
+	Addr     string `mapstructure:"addr"`
+	Password string `mapstructure:"password"`
+	DB       int    `mapstructure:"db"`
+}
+
 type RateLimitConfig struct {
 	Enabled    bool   `mapstructure:"enabled"`
 	Algorithm  string `mapstructure:"algorithm"`
 	DefaultRPM int    `mapstructure:"default_rpm"`
 	Whitelist  []uint `mapstructure:"whitelist"`
-	Addr       string `mapstructure:"addr"`
-	Password   string `mapstructure:"password"`
-	DB         int    `mapstructure:"db"`
 }
 
 func (c *RateLimitConfig) IsWhitelisted(userID uint) bool {

@@ -25,11 +25,13 @@ ai:
     model: claude-sonnet-4-6
     timeout_seconds: 30
 
+redis:
+  addr: localhost:6379
+  password: ""
+  db: 0
+
 rate_limit:
   enabled: true
   algorithm: token_bucket
   default_rpm: 60
-  addr: localhost:6379
-  password: ""
-  db: 0
   whitelist: []
