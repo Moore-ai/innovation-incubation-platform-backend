@@ -21,6 +21,23 @@ func (r *GovernmentRepo) CreatePolicy(p *model.Policy) error {
 	return r.db.Create(p).Error
 }
 
+func (r *GovernmentRepo) FindPolicyByID(id uint) (*model.Policy, error) {
+	var p model.Policy
+	err := r.db.Preload("Template").First(&p, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+func (r *GovernmentRepo) UpdatePolicy(p *model.Policy) error {
+	return r.db.Save(p).Error
+}
+
+func (r *GovernmentRepo) DeletePolicy(id uint) error {
+	return r.db.Delete(&model.Policy{}, id).Error
+}
+
 func (r *GovernmentRepo) ListPolicies(page, pageSize int) ([]model.Policy, int64, error) {
 	var policies []model.Policy
 	var total int64

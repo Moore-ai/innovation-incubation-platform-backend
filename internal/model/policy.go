@@ -14,15 +14,16 @@ func (PolicyTemplate) TableName() string { return "policy_templates" }
 
 type Policy struct {
 	BaseModel
-	TemplateID    uint           `gorm:"index;not null" json:"template_id"`
-	Title         string         `gorm:"size:255;not null" json:"title"`
-	Conditions    JSONMap        `gorm:"type:jsonb" json:"conditions"`
-	SubsidyAmount string         `gorm:"size:128" json:"subsidy_amount"`
-	StartDate     string         `gorm:"size:32" json:"start_date"`
-	EndDate       string         `gorm:"size:32" json:"end_date"`
-	Status        string         `gorm:"size:16;default:draft" json:"status"` // draft, published, closed
-	PublishedAt   *time.Time     `json:"published_at"`
-	Template      PolicyTemplate `gorm:"foreignKey:TemplateID" json:"-"`
+	TemplateID      uint           `gorm:"index;not null" json:"template_id"`
+	Title           string         `gorm:"size:255;not null" json:"title"`
+	Conditions      JSONMap        `gorm:"type:jsonb" json:"conditions"`
+	SubsidyAmount   string         `gorm:"size:128" json:"subsidy_amount"`
+	StartDate       string         `gorm:"size:32" json:"start_date"`
+	EndDate         string         `gorm:"size:32" json:"end_date"`
+	Status          string         `gorm:"size:16;default:draft" json:"status"` // draft, published, closed
+	PublishedAt     *time.Time     `json:"published_at"`
+	ExtractedFields JSONMap        `gorm:"type:jsonb" json:"extracted_fields"`
+	Template        PolicyTemplate `gorm:"foreignKey:TemplateID" json:"-"`
 }
 
 func (Policy) TableName() string { return "policies" }

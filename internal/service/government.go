@@ -1,6 +1,8 @@
 package service
 
 import (
+	"context"
+	"log/slog"
 	"time"
 
 	"innovation-incubation-platform-backend/internal/dto"
@@ -12,13 +14,14 @@ import (
 )
 
 type GovernmentService struct {
-	repo *repository.GovernmentRepo
-	db   *gorm.DB
-	sm   *statemachine.StateMachine
+	repo  *repository.GovernmentRepo
+	db    *gorm.DB
+	sm    *statemachine.StateMachine
+	aiSvc *AIService
 }
 
-func NewGovernmentService(repo *repository.GovernmentRepo, db *gorm.DB) *GovernmentService {
-	return &GovernmentService{repo: repo, db: db, sm: statemachine.DefaultApprovalSM()}
+func NewGovernmentService(repo *repository.GovernmentRepo, db *gorm.DB, aiSvc *AIService) *GovernmentService {
+	return &GovernmentService{repo: repo, db: db, sm: statemachine.DefaultApprovalSM(), aiSvc: aiSvc}
 }
 
 func (s *GovernmentService) CreatePolicyTemplate(req *dto.PolicyTemplateReq) (*model.PolicyTemplate, error) {
@@ -47,6 +50,14 @@ func (s *GovernmentService) PublishPolicy(req *dto.PublishPolicyReq) (*model.Pol
 	if err := s.repo.CreatePolicy(p); err != nil {
 		return nil, errcode.ErrInternal
 	}
+
+	// 同步 AI 提取 — 失败则删除 policy 并返回错误
+	if err := s.aiSvc.ExtractPolicy(context.Background(), p.ID); err != nil {
+		slog.Error("AI extract policy failed, rolling back", "policy_id", p.ID, "error", err)
+		s.repo.DeletePolicy(p.ID)
+		return nil, errcode.ErrAIService.WithMsg("AI提取政策字段失败，请重试")
+	}
+
 	return p, nil
 }
 

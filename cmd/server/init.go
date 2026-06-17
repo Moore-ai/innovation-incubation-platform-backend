@@ -5,6 +5,7 @@ import (
 	"innovation-incubation-platform-backend/internal/controller"
 	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/internal/service"
+	"innovation-incubation-platform-backend/pkg/aiclient"
 	"gorm.io/gorm"
 )
 
@@ -44,11 +45,13 @@ func initRepositories(db *gorm.DB) *repositories {
 }
 
 func initServices(r *repositories, cfg *config.Config, db *gorm.DB) *services {
+	aiClient := aiclient.NewAnthropicChatModel(aiclient.New(cfg.AI.Anthropic))
+	aiSvc := service.NewAIService(aiClient, r.ent, r.gov, cfg)
 	return &services{
 		auth:    service.NewAuthService(r.auth, cfg.JWT),
 		ent:     service.NewEnterpriseService(r.ent, r.common, db),
 		carrier: service.NewCarrierService(r.carrier, r.common, db),
-		gov:     service.NewGovernmentService(r.gov, db),
+		gov:     service.NewGovernmentService(r.gov, db, aiSvc),
 	}
 }
 
