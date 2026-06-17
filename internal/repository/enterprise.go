@@ -70,3 +70,10 @@ func (r *EnterpriseRepo) ListChangesByEnterprise(entID uint, page, pageSize int)
 func (r *EnterpriseRepo) UpdateChange(change *model.MajorChange) error {
 	return r.db.Save(change).Error
 }
+
+func (r *EnterpriseRepo) FindApprovedApplications(entID uint) ([]model.PolicyApplication, error) {
+	var apps []model.PolicyApplication
+	err := r.db.Where("applicant_type = 'enterprise' AND applicant_id = ? AND status IN ?", entID, []string{"approved"}).
+		Preload("Policy").Order("created_at DESC").Find(&apps).Error
+	return apps, err
+}

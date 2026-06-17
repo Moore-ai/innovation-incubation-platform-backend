@@ -13,11 +13,12 @@ import (
 )
 
 type EnterpriseController struct {
-	svc *service.EnterpriseService
+	svc   *service.EnterpriseService
+	aiSvc *service.AIService
 }
 
-func NewEnterpriseController(svc *service.EnterpriseService) *EnterpriseController {
-	return &EnterpriseController{svc: svc}
+func NewEnterpriseController(svc *service.EnterpriseService, aiSvc *service.AIService) *EnterpriseController {
+	return &EnterpriseController{svc: svc, aiSvc: aiSvc}
 }
 
 func (ctl *EnterpriseController) ApplyIncubation(c *gin.Context) {
@@ -156,11 +157,20 @@ func (ctl *EnterpriseController) ListChangeTypes(c *gin.Context) {
 }
 
 func (ctl *EnterpriseController) RecommendPolicy(c *gin.Context) {
-	// TODO: implement after AI service is ready
-	response.Success(c, gin.H{"message": "AI recommend endpoint"})
+	policyID, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	result, err := ctl.aiSvc.MatchPolicy(c.Request.Context(), middleware.GetUserID(c), uint(policyID))
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, result)
 }
 
 func (ctl *EnterpriseController) PrefillApplication(c *gin.Context) {
-	// TODO: implement after AI service is ready
-	response.Success(c, gin.H{"message": "AI prefill endpoint"})
+	data, err := ctl.aiSvc.PrefillApplication(c.Request.Context(), middleware.GetUserID(c))
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, data)
 }

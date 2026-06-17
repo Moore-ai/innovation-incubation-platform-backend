@@ -21,6 +21,7 @@ type repositories struct {
 type services struct {
 	auth    *service.AuthService
 	ent     *service.EnterpriseService
+	ai      *service.AIService
 	carrier *service.CarrierService
 	gov     *service.GovernmentService
 }
@@ -50,6 +51,7 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB) *services {
 	return &services{
 		auth:    service.NewAuthService(r.auth, cfg.JWT),
 		ent:     service.NewEnterpriseService(r.ent, r.common, db),
+		ai:      aiSvc,
 		carrier: service.NewCarrierService(r.carrier, r.common, db),
 		gov:     service.NewGovernmentService(r.gov, db, aiSvc),
 	}
@@ -58,7 +60,7 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB) *services {
 func initControllers(r *repositories, s *services, cfg *config.Config) *controllers {
 	return &controllers{
 		auth:    controller.NewAuthController(s.auth),
-		ent:     controller.NewEnterpriseController(s.ent),
+		ent:     controller.NewEnterpriseController(s.ent, s.ai),
 		carrier: controller.NewCarrierController(s.carrier),
 		gov:     controller.NewGovernmentController(s.gov),
 		file:    controller.NewFileController(r.file, cfg),
