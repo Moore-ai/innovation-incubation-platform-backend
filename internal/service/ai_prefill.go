@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/components/prompt"
@@ -18,7 +19,7 @@ type prefillParser struct{}
 func (p *prefillParser) Parse(_ context.Context, msg *schema.Message) (model.JSONMap, error) {
 	var data model.JSONMap
 	if err := json.Unmarshal([]byte(msg.Content), &data); err != nil {
-		return model.JSONMap{}, nil
+		return nil, err
 	}
 	return data, nil
 }
@@ -44,7 +45,10 @@ func (s *AIService) PrefillApplication(ctx context.Context, userID uint) (model.
 		return nil, errcode.ErrNotFound
 	}
 
-	history, _ := s.entRepo.FindApprovedApplications(ent.ID)
+	history, err := s.entRepo.FindApprovedApplications(ent.ID)
+	if err != nil {
+		slog.Warn("failed to load approved applications for prefill", "error", err)
+	}
 	historyJSON := "[]"
 	if len(history) > 0 {
 		historyJSON = toJSONString(history)

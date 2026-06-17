@@ -35,7 +35,7 @@ func (s *GovernmentService) CreatePolicyTemplate(req *dto.PolicyTemplateReq) (*m
 	return t, nil
 }
 
-func (s *GovernmentService) PublishPolicy(req *dto.PublishPolicyReq) (*model.Policy, error) {
+func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishPolicyReq) (*model.Policy, error) {
 	now := time.Now()
 	p := &model.Policy{
 		TemplateID:    req.TemplateID,
@@ -52,9 +52,11 @@ func (s *GovernmentService) PublishPolicy(req *dto.PublishPolicyReq) (*model.Pol
 	}
 
 	// 同步 AI 提取 — 失败则删除 policy 并返回错误
-	if err := s.aiSvc.ExtractPolicy(context.Background(), p.ID); err != nil {
+	if err := s.aiSvc.ExtractPolicy(ctx, p.ID); err != nil {
 		slog.Error("AI extract policy failed, rolling back", "policy_id", p.ID, "error", err)
-		s.repo.DeletePolicy(p.ID)
+		if delErr := s.repo.DeletePolicy(p.ID); delErr != nil {
+			slog.Error("failed to rollback policy after AI extract failure", "policy_id", p.ID, "delete_error", delErr)
+		}
 		return nil, errcode.ErrAIService.WithMsg("AI提取政策字段失败，请重试")
 	}
 

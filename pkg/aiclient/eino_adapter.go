@@ -18,6 +18,8 @@ func NewAnthropicChatModel(c *Client) *AnthropicChatModel {
 	return &AnthropicChatModel{client: c}
 }
 
+// Generate implements BaseChatModel[*schema.Message].
+// Known limitation: opts ...model.Option (callbacks, model params) are not forwarded to the Anthropic API.
 func (m *AnthropicChatModel) Generate(ctx context.Context, input []*schema.Message, opts ...model.Option) (*schema.Message, error) {
 	var systemPrompt string
 	var parts []string

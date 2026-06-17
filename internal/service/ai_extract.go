@@ -20,11 +20,11 @@ type extractedFields struct {
 	SubsidyType          string   `json:"subsidy_type"`
 	SubsidyAmount        string   `json:"subsidy_amount"`
 	SubsidyCondition     string   `json:"subsidy_condition"`
-	ApplicableRegion     string   `json:"applicable_region"`
+	ApplicableRegion     string   `json:"applicable_region"` // could also be a JSON array - handled by FieldMatchRule
 	RequiredDocuments    []string `json:"required_documents"`
 }
 
-// extractParser implements schema.MessageParser[*extractedFields] by JSON-unmarshaling the message content.
+// extractParser implements schema.MessageParser[*extractedFields] by JSON-unmarshaling.
 type extractParser struct{}
 
 func (p *extractParser) Parse(_ context.Context, msg *schema.Message) (*extractedFields, error) {
@@ -80,5 +80,8 @@ func (s *AIService) ExtractPolicy(ctx context.Context, policyID uint) error {
 
 func toJSONString(v interface{}) string {
 	b, _ := json.Marshal(v)
+	if len(b) == 0 {
+		return "{}"
+	}
 	return string(b)
 }

@@ -3,6 +3,7 @@ package service
 import (
 	"regexp"
 	"strings"
+	"log/slog"
 
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/model"
@@ -190,8 +191,9 @@ func (s *EnterpriseService) ListAvailablePolicies(userID uint, role string, page
 		return nil, 0, err
 	}
 
-	ent, _ := s.repo.FindEnterpriseByUserID(userID)
-	if ent == nil {
+	ent, err := s.repo.FindEnterpriseByUserID(userID)
+	if err != nil {
+		slog.Warn("ListAvailablePolicies: enterprise not found for match level", "user_id", userID, "error", err)
 		return policies, total, nil
 	}
 

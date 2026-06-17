@@ -157,10 +157,14 @@ func (ctl *EnterpriseController) ListChangeTypes(c *gin.Context) {
 }
 
 func (ctl *EnterpriseController) RecommendPolicy(c *gin.Context) {
-	policyID, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	result, err := ctl.aiSvc.MatchPolicy(c.Request.Context(), middleware.GetUserID(c), uint(policyID))
+	policyID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		response.Error(c, err)
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("政策ID参数无效"))
+		return
+	}
+	result, rErr := ctl.aiSvc.MatchPolicy(c.Request.Context(), middleware.GetUserID(c), uint(policyID))
+	if rErr != nil {
+		response.Error(c, rErr)
 		return
 	}
 	response.Success(c, result)

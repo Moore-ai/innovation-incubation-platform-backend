@@ -10,7 +10,7 @@ func FieldMatchRule(ent *model.Enterprise, policy *model.Policy) string {
 
 	industries, _ := fields["applicable_industries"].([]interface{})
 	scales, _ := fields["applicable_scales"].([]interface{})
-	regions, _ := fields["applicable_region"].([]interface{})
+	regions := toSlice(fields["applicable_region"])
 
 	matched := 0
 	total := 0
@@ -44,6 +44,19 @@ func FieldMatchRule(ent *model.Enterprise, policy *model.Policy) string {
 		return "partial"
 	}
 	return "none"
+}
+
+// toSlice converts a JSON value to []interface{}, handling both []interface{} and single string.
+func toSlice(v interface{}) []interface{} {
+	switch val := v.(type) {
+	case []interface{}:
+		return val
+	case string:
+		if val != "" {
+			return []interface{}{val}
+		}
+	}
+	return nil
 }
 
 func containsAny(str string, candidates []interface{}) bool {

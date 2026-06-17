@@ -25,8 +25,7 @@ type matchParser struct{}
 func (p *matchParser) Parse(_ context.Context, msg *schema.Message) (*PolicyMatchResult, error) {
 	var result PolicyMatchResult
 	if err := json.Unmarshal([]byte(msg.Content), &result); err != nil {
-		// If LLM output is not valid JSON, degrade to partial with raw content as reason.
-		return &PolicyMatchResult{Level: "partial", Reason: msg.Content}, nil
+		return &PolicyMatchResult{Level: "partial", Reason: "AI分析结果格式异常，当前显示为自动匹配结果"}, nil
 	}
 	return &result, nil
 }

@@ -38,7 +38,7 @@ func (ctl *GovernmentController) PublishPolicy(c *gin.Context) {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
 	}
-	p, err := ctl.svc.PublishPolicy(&req)
+	p, err := ctl.svc.PublishPolicy(c.Request.Context(), &req)
 	if err != nil {
 		response.Error(c, err)
 		return
