@@ -85,6 +85,9 @@ func (s *GovernmentService) SearchCarriers(keyword string, page, pageSize int) (
 }
 
 func (s *GovernmentService) ReviewPolicyApplication(appID uint, req *dto.ReviewReq) error {
+	if err := validateReviewAction(req.Action); err != nil {
+		return err
+	}
 	newStatus, err := s.sm.Transition("pending", req.Action)
 	if err != nil {
 		return errcode.ErrStatusInvalid.WithMsg(err.Error())

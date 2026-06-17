@@ -3,11 +3,24 @@ package service
 import (
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/model"
+	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/statemachine"
-	"innovation-incubation-platform-backend/internal/repository"
 	"gorm.io/gorm"
 )
+
+var validReviewActions = map[string]bool{
+	"approve": true,
+	"reject":  true,
+	"return":  true,
+}
+
+func validateReviewAction(action string) error {
+	if !validReviewActions[action] {
+		return errcode.ErrInvalidParams.WithMsg("审核操作无效，必须为 approve、reject 或 return")
+	}
+	return nil
+}
 
 type CarrierService struct {
 	repo       *repository.CarrierRepo
@@ -21,6 +34,9 @@ func NewCarrierService(repo *repository.CarrierRepo, commonRepo *repository.Comm
 }
 
 func (s *CarrierService) ReviewIncubation(carrierUserID uint, incubationID uint, req *dto.ReviewReq) error {
+	if err := validateReviewAction(req.Action); err != nil {
+		return err
+	}
 	carrier, _ := s.repo.FindCarrierByUserID(carrierUserID)
 	record, err := s.repo.FindIncubationByID(incubationID)
 	if err != nil {
@@ -54,6 +70,9 @@ func (s *CarrierService) ListPendingIncubations(userID uint, page, pageSize int)
 }
 
 func (s *CarrierService) ReviewChange(carrierUserID uint, changeID uint, req *dto.ReviewReq) error {
+	if err := validateReviewAction(req.Action); err != nil {
+		return err
+	}
 	_, _ = s.repo.FindCarrierByUserID(carrierUserID)
 	change, err := s.repo.FindChangeByID(changeID)
 	if err != nil {
@@ -138,6 +157,9 @@ func (s *CarrierService) ListEnterpriseApplications(userID uint, page, pageSize 
 }
 
 func (s *CarrierService) ReviewEnterprisePolicyApplication(carrierUserID uint, appID uint, req *dto.ReviewReq) error {
+	if err := validateReviewAction(req.Action); err != nil {
+		return err
+	}
 	_, _ = s.repo.FindCarrierByUserID(carrierUserID)
 	app, err := s.repo.FindPolicyApplicationByID(appID)
 	if err != nil {
