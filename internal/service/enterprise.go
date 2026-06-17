@@ -1,11 +1,13 @@
 package service
 
 import (
+	"strings"
+
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/model"
+	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/statemachine"
-	"innovation-incubation-platform-backend/internal/repository"
 	"gorm.io/gorm"
 )
 
@@ -18,6 +20,14 @@ type EnterpriseService struct {
 
 func NewEnterpriseService(repo *repository.EnterpriseRepo, commonRepo *repository.CommonRepo, db *gorm.DB) *EnterpriseService {
 	return &EnterpriseService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM()}
+}
+
+func (s *EnterpriseService) GetMyEnterpriseInfo(userID uint) (*model.Enterprise, error) {
+	ent, err := s.repo.FindEnterpriseByUserID(userID)
+	if err != nil {
+		return nil, errcode.ErrNotFound.WithMsg("企业信息未找到")
+	}
+	return ent, nil
 }
 
 func (s *EnterpriseService) ApplyIncubation(userID uint, req *dto.IncubationApplyReq) (*model.IncubationRecord, error) {
@@ -63,7 +73,34 @@ func (s *EnterpriseService) ListMyIncubation(userID uint, page, pageSize int) ([
 	return s.repo.ListIncubationByEnterprise(ent.ID, page, pageSize)
 }
 
+var allowedChangeTypes = []string{
+	"企业名称",
+	"统一社会信用代码",
+	"所属行业",
+	"企业规模",
+	"企业地址",
+	"法定代表人",
+}
+
+func validateChangeType(t string) error {
+	for _, v := range allowedChangeTypes {
+		if v == t {
+			return nil
+		}
+	}
+	return errcode.ErrInvalidParams.WithMsg("不允许修改该指标，请选择可变更指标：" + strings.Join(allowedChangeTypes, "、"))
+}
+
+func ListChangeTypes() []string {
+	r := make([]string, len(allowedChangeTypes))
+	copy(r, allowedChangeTypes)
+	return r
+}
+
 func (s *EnterpriseService) ApplyChange(userID uint, req *dto.ChangeApplyReq) (*model.MajorChange, error) {
+	if err := validateChangeType(req.ChangeType); err != nil {
+		return nil, err
+	}
 	ent, err := s.repo.FindEnterpriseByUserID(userID)
 	if err != nil {
 		return nil, errcode.ErrNotFound
@@ -102,6 +139,9 @@ func (s *EnterpriseService) ListMyChanges(userID uint, page, pageSize int) ([]mo
 }
 
 func (s *EnterpriseService) ReeditChange(id uint, userID uint, req *dto.ChangeApplyReq) (*model.MajorChange, error) {
+	if err := validateChangeType(req.ChangeType); err != nil {
+		return nil, err
+	}
 	change, err := s.repo.FindChangeByID(id)
 	if err != nil {
 		return nil, errcode.ErrNotFound

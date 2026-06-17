@@ -5,9 +5,10 @@ import (
 
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/middleware"
+	"innovation-incubation-platform-backend/internal/service"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/response"
-	"innovation-incubation-platform-backend/internal/service"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -139,6 +140,19 @@ func (ctl *EnterpriseController) ListMyApplications(c *gin.Context) {
 		return
 	}
 	response.SuccessPage(c, apps, total, page, pageSize)
+}
+
+func (ctl *EnterpriseController) GetMyEnterpriseInfo(c *gin.Context) {
+	ent, err := ctl.svc.GetMyEnterpriseInfo(middleware.GetUserID(c))
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, ent)
+}
+
+func (ctl *EnterpriseController) ListChangeTypes(c *gin.Context) {
+	response.Success(c, service.ListChangeTypes())
 }
 
 func (ctl *EnterpriseController) RecommendPolicy(c *gin.Context) {

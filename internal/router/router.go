@@ -64,10 +64,12 @@ func registerEnterpriseRoutes(r *gin.Engine, deps *Deps) {
 		return
 	}
 	e := protectedGroup(r, "/enterprise", deps)
+	e.GET("/my-info", deps.EnterpriseController.GetMyEnterpriseInfo)
 	e.POST("/incubation", deps.EnterpriseController.ApplyIncubation)
 	e.GET("/incubation/:id", deps.EnterpriseController.GetIncubation)
 	e.GET("/incubation/list", deps.EnterpriseController.ListMyIncubation)
 	e.POST("/changes", deps.EnterpriseController.ApplyChange)
+	e.GET("/changes/types", deps.EnterpriseController.ListChangeTypes)
 	e.GET("/changes/:id", deps.EnterpriseController.GetChange)
 	e.GET("/changes/list", deps.EnterpriseController.ListMyChanges)
 	e.PUT("/changes/:id", deps.EnterpriseController.ReeditChange)
