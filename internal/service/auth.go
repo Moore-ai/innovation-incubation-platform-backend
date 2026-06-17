@@ -23,6 +23,9 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*dto.LoginResponse, er
 	if req.Phone == "" {
 		return nil, errcode.ErrInvalidParams.WithMsg("手机号不能为空")
 	}
+	if req.Role != "enterprise" && req.Role != "carrier" {
+		return nil, errcode.ErrInvalidParams.WithMsg("角色无效")
+	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {

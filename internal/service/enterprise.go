@@ -1,6 +1,7 @@
 package service
 
 import (
+	"regexp"
 	"strings"
 
 	"innovation-incubation-platform-backend/internal/dto"
@@ -30,7 +31,25 @@ func (s *EnterpriseService) GetMyEnterpriseInfo(userID uint) (*model.Enterprise,
 	return ent, nil
 }
 
+var datePattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
+func validateDateRange(start, end string) error {
+	if !datePattern.MatchString(start) {
+		return errcode.ErrInvalidParams.WithMsg("入孵开始日期格式错误，应为 YYYY-MM-DD")
+	}
+	if end != "" && !datePattern.MatchString(end) {
+		return errcode.ErrInvalidParams.WithMsg("入孵结束日期格式错误，应为 YYYY-MM-DD")
+	}
+	return nil
+}
+
 func (s *EnterpriseService) ApplyIncubation(userID uint, req *dto.IncubationApplyReq) (*model.IncubationRecord, error) {
+	if req.CarrierID == 0 {
+		return nil, errcode.ErrInvalidParams.WithMsg("请选择所属载体")
+	}
+	if err := validateDateRange(req.IncubateStart, req.IncubateEnd); err != nil {
+		return nil, err
+	}
 	ent, err := s.repo.FindEnterpriseByUserID(userID)
 	if err != nil {
 		return nil, errcode.ErrNotFound.WithMsg("企业信息未找到")
