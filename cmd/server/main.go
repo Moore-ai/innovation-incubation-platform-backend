@@ -20,7 +20,7 @@ func main() {
 
 	repo := initRepositories(db)
 	svc := initServices(repo, cfg, db)
-	ctl := initControllers(svc)
+	ctl := initControllers(repo, svc, cfg)
 
 	r := gin.New()
 	router.RegisterRoutes(r, &router.Deps{

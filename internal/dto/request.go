@@ -3,12 +3,12 @@ package dto
 import "innovation-incubation-platform-backend/internal/model"
 
 type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Credential string `json:"credential" binding:"required"`
+	Password   string `json:"password" binding:"required"`
+	Role       string `json:"role" binding:"required"`
 }
 
 type RegisterRequest struct {
-	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required,min=6"`
 	Role     string `json:"role" binding:"required"`
 	Phone    string `json:"phone"`
@@ -26,10 +26,10 @@ type RegisterRequest struct {
 }
 
 type IncubationApplyReq struct {
-	CarrierID     uint   `json:"carrier_id"`
-	IncubateStart string `json:"incubate_start"`
-	IncubateEnd   string `json:"incubate_end"`
-	AgreementFile string `json:"agreement_file"`
+	CarrierID      uint   `json:"carrier_id"`
+	IncubateStart  string `json:"incubate_start"`
+	IncubateEnd    string `json:"incubate_end"`
+	AgreementFileID *uint `json:"agreement_file_id"`
 }
 
 type ChangeApplyReq struct {

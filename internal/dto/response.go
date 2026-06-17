@@ -6,9 +6,8 @@ type LoginResponse struct {
 }
 
 type UserInfo struct {
-	ID       uint   `json:"id"`
-	Username string `json:"username"`
-	Role     string `json:"role"`
-	Phone    string `json:"phone"`
-	Email    string `json:"email"`
+	ID    uint   `json:"id"`
+	Role  string `json:"role"`
+	Phone string `json:"phone"`
+	Email string `json:"email"`
 }

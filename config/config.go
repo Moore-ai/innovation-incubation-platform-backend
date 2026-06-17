@@ -1,20 +1,24 @@
 package config
 
 import (
+	"bytes"
+	"fmt"
 	"log/slog"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/spf13/viper"
 )
 
 type Config struct {
-	Server ServerConfig `mapstructure:"server"`
-	DB     DBConfig     `mapstructure:"db"`
-	JWT      JWTConfig        `mapstructure:"jwt"`
-	AI       AIConfig         `mapstructure:"ai"`
-	Redis    RedisConfig      `mapstructure:"redis"`
+	Server    ServerConfig    `mapstructure:"server"`
+	DB        DBConfig        `mapstructure:"db"`
+	JWT       JWTConfig       `mapstructure:"jwt"`
+	AI        AIConfig        `mapstructure:"ai"`
+	Redis     RedisConfig     `mapstructure:"redis"`
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
+	Upload    UploadConfig    `mapstructure:"upload"`
 }
 
 type ServerConfig struct {
@@ -41,10 +45,21 @@ type AIConfig struct {
 	Anthropic AnthropicConfig `mapstructure:"anthropic"`
 }
 
+type AnthropicConfig struct {
+	APIKey         string `mapstructure:"api_key"`
+	BaseURL        string `mapstructure:"base_url"`
+	Model          string `mapstructure:"model"`
+	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
+}
+
 type RedisConfig struct {
 	Addr     string `mapstructure:"addr"`
 	Password string `mapstructure:"password"`
 	DB       int    `mapstructure:"db"`
+}
+
+type UploadConfig struct {
+	MaxSizeMB int64 `mapstructure:"max_size_mb"`
 }
 
 type RateLimitConfig struct {
@@ -58,13 +73,6 @@ func (c *RateLimitConfig) IsWhitelisted(userID uint) bool {
 	return slices.Contains(c.Whitelist, userID)
 }
 
-type AnthropicConfig struct {
-	APIKey         string `mapstructure:"api_key"`
-	BaseURL        string `mapstructure:"base_url"`
-	Model          string `mapstructure:"model"`
-	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
-}
-
 func MustLoad(path string) *Config {
 	cfg, err := Load(path)
 	if err != nil {
@@ -74,15 +82,47 @@ func MustLoad(path string) *Config {
 	return cfg
 }
 
-func Load(path string) (*Config, error) {
-	viper.SetConfigFile(path)
-	viper.AutomaticEnv()
-	if err := viper.ReadInConfig(); err != nil {
-		return nil, err
+func loadDotEnv(path string) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return
 	}
+	for line := range strings.SplitSeq(string(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if os.Getenv(k) == "" {
+			os.Setenv(k, v)
+		}
+	}
+}
+
+func Load(path string) (*Config, error) {
+	loadDotEnv(".env")
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config: %w", err)
+	}
+	expanded := os.ExpandEnv(string(raw))
+
+	v := viper.New()
+	v.SetConfigType("yaml")
+	v.AutomaticEnv()
+	if err := v.ReadConfig(bytes.NewReader([]byte(expanded))); err != nil {
+		return nil, fmt.Errorf("failed to parse config: %w", err)
+	}
+
 	var cfg Config
-	if err := viper.Unmarshal(&cfg); err != nil {
-		return nil, err
+	if err := v.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 	return &cfg, nil
 }
