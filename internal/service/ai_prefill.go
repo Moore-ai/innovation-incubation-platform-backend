@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 
 	"github.com/cloudwego/eino/compose"
@@ -13,27 +14,40 @@ import (
 	"innovation-incubation-platform-backend/pkg/errcode"
 )
 
-// prefillParser implements schema.MessageParser[model.JSONMap] by JSON-unmarshaling the message content.
-type prefillParser struct{}
-
-func (p *prefillParser) Parse(_ context.Context, msg *schema.Message) (model.JSONMap, error) {
-	var data model.JSONMap
-	if err := json.Unmarshal([]byte(msg.Content), &data); err != nil {
-		return nil, err
-	}
-	return data, nil
-}
-
 func (s *AIService) compilePrefillChain(ctx context.Context) (compose.Runnable[map[string]any, model.JSONMap], error) {
+	// prep: 在 Chain 内将 ent 对象序列化为模板变量
+	prep := compose.InvokableLambda(func(_ context.Context, input map[string]any) (map[string]any, error) {
+		ent, ok := input["enterprise"].(*model.Enterprise)
+		if !ok {
+			return nil, fmt.Errorf("prep: missing or invalid enterprise")
+		}
+		return map[string]any{
+			"name":         ent.Name,
+			"credit_code":  ent.CreditCode,
+			"industry":     ent.Industry,
+			"scale":        ent.Scale,
+			"address":      ent.Address,
+			"legal_person": ent.LegalPerson,
+			"history":      input["history"],
+		}, nil
+	})
+
 	tmpl := prompt.FromMessages(schema.FString,
 		schema.SystemMessage(s.prompts.prefill),
 		schema.UserMessage("企业信息：名称={name}、信用代码={credit_code}、行业={industry}、规模={scale}、地址={address}、法人={legal_person}\n历史申报数据（已通过审批）：{history}"),
 	)
 
 	chain := compose.NewChain[map[string]any, model.JSONMap]()
+	chain.AppendLambda(prep)
 	chain.AppendChatTemplate(tmpl)
 	chain.AppendChatModel(s.cm)
-	chain.AppendLambda(compose.MessageParser[model.JSONMap](&prefillParser{}))
+	chain.AppendLambda(compose.InvokableLambda(func(_ context.Context, msg *schema.Message) (model.JSONMap, error) {
+		var data model.JSONMap
+		if err := json.Unmarshal([]byte(msg.Content), &data); err != nil {
+			return nil, err
+		}
+		return data, nil
+	}))
 	return chain.Compile(ctx)
 }
 
@@ -60,12 +74,7 @@ func (s *AIService) PrefillApplication(ctx context.Context, userID uint) (model.
 	}
 
 	return chain.Invoke(ctx, map[string]any{
-		"name":         ent.Name,
-		"credit_code":  ent.CreditCode,
-		"industry":     ent.Industry,
-		"scale":        ent.Scale,
-		"address":      ent.Address,
-		"legal_person": ent.LegalPerson,
-		"history":      historyJSON,
+		"enterprise": ent,
+		"history":    historyJSON,
 	})
 }

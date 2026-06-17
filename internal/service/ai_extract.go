@@ -24,27 +24,20 @@ type extractedFields struct {
 	RequiredDocuments    []string `json:"required_documents"`
 }
 
-// extractParser implements schema.MessageParser[*extractedFields] by JSON-unmarshaling.
-type extractParser struct{}
-
-func (p *extractParser) Parse(_ context.Context, msg *schema.Message) (*extractedFields, error) {
-	var fields extractedFields
-	err := json.Unmarshal([]byte(msg.Content), &fields)
-	return &fields, err
-}
-
 func (s *AIService) compileExtractChain(ctx context.Context) (compose.Runnable[map[string]any, *extractedFields], error) {
 	tmpl := prompt.FromMessages(schema.FString,
 		schema.SystemMessage(s.prompts.extract),
 		schema.UserMessage("政策标题：{title}\n政策内容：{content}\n\n请按以下格式返回 JSON：\n{output_schema}"),
 	)
 
-	parser := compose.MessageParser[*extractedFields](&extractParser{})
-
 	chain := compose.NewChain[map[string]any, *extractedFields]()
 	chain.AppendChatTemplate(tmpl)
 	chain.AppendChatModel(s.cm)
-	chain.AppendLambda(parser)
+	chain.AppendLambda(compose.InvokableLambda(func(_ context.Context, msg *schema.Message) (*extractedFields, error) {
+		var fields extractedFields
+		err := json.Unmarshal([]byte(msg.Content), &fields)
+		return &fields, err
+	}))
 	return chain.Compile(ctx)
 }
 
