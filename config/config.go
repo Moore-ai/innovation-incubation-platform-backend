@@ -43,6 +43,13 @@ type JWTConfig struct {
 type AIConfig struct {
 	Provider  string          `mapstructure:"provider"`
 	Anthropic AnthropicConfig `mapstructure:"anthropic"`
+	Prompts   PromptsConfig   `mapstructure:"prompts"`
+}
+
+type PromptsConfig struct {
+	Extract string `mapstructure:"extract"`
+	Match   string `mapstructure:"match"`
+	Prefill string `mapstructure:"prefill"`
 }
 
 type AnthropicConfig struct {
