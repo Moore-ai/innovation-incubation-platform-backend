@@ -23,6 +23,7 @@ type Policy struct {
 	Status          string         `gorm:"size:16;default:draft" json:"status"` // draft, published, closed
 	PublishedAt     *time.Time     `json:"published_at"`
 	ExtractedFields JSONMap        `gorm:"type:jsonb" json:"extracted_fields"`
+	MatchLevel      string         `gorm:"-" json:"match_level,omitempty"`
 	Template        PolicyTemplate `gorm:"foreignKey:TemplateID" json:"-"`
 }
 

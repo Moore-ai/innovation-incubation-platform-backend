@@ -184,8 +184,21 @@ func (s *EnterpriseService) ReeditChange(id uint, userID uint, req *dto.ChangeAp
 	return change, nil
 }
 
-func (s *EnterpriseService) ListAvailablePolicies(role string, page, pageSize int) ([]model.Policy, int64, error) {
-	return s.commonRepo.ListPoliciesByTarget(role, page, pageSize)
+func (s *EnterpriseService) ListAvailablePolicies(userID uint, role string, page, pageSize int) ([]model.Policy, int64, error) {
+	policies, total, err := s.commonRepo.ListPoliciesByTarget(role, page, pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	ent, _ := s.repo.FindEnterpriseByUserID(userID)
+	if ent == nil {
+		return policies, total, nil
+	}
+
+	for i := range policies {
+		policies[i].MatchLevel = FieldMatchRule(ent, &policies[i])
+	}
+	return policies, total, nil
 }
 
 func (s *EnterpriseService) ApplyPolicy(userID uint, policyID uint, req *dto.PolicyApplyReq) (*model.PolicyApplication, error) {

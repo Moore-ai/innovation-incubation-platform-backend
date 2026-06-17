@@ -108,7 +108,7 @@ func (ctl *EnterpriseController) ReeditChange(c *gin.Context) {
 func (ctl *EnterpriseController) ListPolicies(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	policies, total, err := ctl.svc.ListAvailablePolicies("enterprise", page, pageSize)
+	policies, total, err := ctl.svc.ListAvailablePolicies(middleware.GetUserID(c), "enterprise", page, pageSize)
 	if err != nil {
 		response.Error(c, err)
 		return
