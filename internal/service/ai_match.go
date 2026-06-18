@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/components/prompt"
+	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 
 	"innovation-incubation-platform-backend/internal/model"
@@ -38,18 +38,20 @@ func (s *AIService) compileMatchGraph(ctx context.Context) (compose.Runnable[map
 		}
 
 		return map[string]any{
-			"industry":   ent.Industry,
-			"scale":      ent.Scale,
-			"address":    ent.Address,
-			"title":      policy.Title,
-			"conditions": toJSONString(policy.Conditions),
-			"extracted":  toJSONString(extracted),
+			"industry":      ent.Industry,
+			"scale":         ent.Scale,
+			"address":       ent.Address,
+			"title":         policy.Title,
+			"conditions":    toJSONString(policy.Conditions),
+			"extracted":     toJSONString(extracted),
+			"output_schema": `{"level":"high|partial|none|unknown","reason":"给出详细的匹配分析理由, 必须包含适用条件和补贴额度等信息(你的对话对象是执行本次政策匹配的企业)"}`,
 		}, nil
 	})
 
 	tmpl := prompt.FromMessages(schema.FString,
 		schema.SystemMessage(s.prompts.match),
-		schema.UserMessage("企业画像：行业={industry}、规模={scale}、地址={address}\n政策标题：{title}\n政策条件：{conditions}\n提取字段：{extracted}"),
+		schema.UserMessage("企业画像：行业={industry}、规模={scale}、地址={address}\n政策标题: {title}\n政策条件: {conditions}\n提取字段: {extracted}\n\n"+
+			"请按以下格式返回 JSON, 不要附带其他内容：\n{output_schema}"),
 	)
 
 	graph := compose.NewGraph[map[string]any, *PolicyMatchResult]()
@@ -59,7 +61,7 @@ func (s *AIService) compileMatchGraph(ctx context.Context) (compose.Runnable[map
 	graph.AddLambdaNode("parse", compose.InvokableLambda(func(_ context.Context, msg *schema.Message) (*PolicyMatchResult, error) {
 		var result PolicyMatchResult
 		if err := json.Unmarshal([]byte(msg.Content), &result); err != nil {
-			return &PolicyMatchResult{Level: "partial", Reason: "AI分析结果格式异常，当前显示为自动匹配结果"}, nil
+			return &PolicyMatchResult{Level: "partial", Reason: "AI分析结果格式异常, 当前显示为自动匹配结果"}, nil
 		}
 		return &result, nil
 	}))

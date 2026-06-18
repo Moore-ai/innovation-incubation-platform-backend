@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/components/prompt"
+	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 
 	"innovation-incubation-platform-backend/internal/model"
@@ -34,7 +34,7 @@ func (s *AIService) compilePrefillChain(ctx context.Context) (compose.Runnable[m
 
 	tmpl := prompt.FromMessages(schema.FString,
 		schema.SystemMessage(s.prompts.prefill),
-		schema.UserMessage("企业信息：名称={name}、信用代码={credit_code}、行业={industry}、规模={scale}、地址={address}、法人={legal_person}\n历史申报数据（已通过审批）：{history}"),
+		schema.UserMessage("企业信息：名称={name}、信用代码={credit_code}、行业={industry}、规模={scale}、地址={address}、法人={legal_person}\n历史申报数据(已通过审批): {history}"),
 	)
 
 	chain := compose.NewChain[map[string]any, model.JSONMap]()
