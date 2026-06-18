@@ -111,6 +111,18 @@ func loadDotEnv(path string) {
 	}
 }
 
+func MustLoadPromptFile(path string, target *string) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		slog.Error("failed to read prompt", "error", err)
+		os.Exit(1)
+	}
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed != "" {
+		*target = trimmed
+	}
+}
+
 func Load(path string) (*Config, error) {
 	loadDotEnv(".env")
 
@@ -131,5 +143,8 @@ func Load(path string) (*Config, error) {
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+	MustLoadPromptFile("config/prompts/extract.txt", &cfg.AI.Prompts.Extract)
+	MustLoadPromptFile("config/prompts/match.txt", &cfg.AI.Prompts.Match)
+	MustLoadPromptFile("config/prompts/prefill.txt", &cfg.AI.Prompts.Prefill)
 	return &cfg, nil
 }
