@@ -60,7 +60,7 @@ func (s *AIService) compileMatchGraph(ctx context.Context) (compose.Runnable[map
 	graph.AddChatModelNode("model", s.cm)
 	graph.AddLambdaNode("parse", compose.InvokableLambda(func(_ context.Context, msg *schema.Message) (*PolicyMatchResult, error) {
 		var result PolicyMatchResult
-		if err := json.Unmarshal([]byte(msg.Content), &result); err != nil {
+		if err := json.Unmarshal([]byte(cleanLLMOutput(msg.Content)), &result); err != nil {
 			return &PolicyMatchResult{Level: "partial", Reason: "AI分析结果格式异常, 当前显示为自动匹配结果"}, nil
 		}
 		return &result, nil

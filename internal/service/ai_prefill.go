@@ -47,7 +47,7 @@ func (s *AIService) compilePrefillChain(ctx context.Context) (compose.Runnable[m
 	chain.AppendChatModel(s.cm)
 	chain.AppendLambda(compose.InvokableLambda(func(_ context.Context, msg *schema.Message) (model.JSONMap, error) {
 		var data model.JSONMap
-		if err := json.Unmarshal([]byte(msg.Content), &data); err != nil {
+		if err := json.Unmarshal([]byte(cleanLLMOutput(msg.Content)), &data); err != nil {
 			return nil, err
 		}
 		return data, nil

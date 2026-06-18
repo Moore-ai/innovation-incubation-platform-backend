@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strings"
 
-	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/components/prompt"
+	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 
 	"innovation-incubation-platform-backend/internal/model"
@@ -27,7 +28,8 @@ type extractedFields struct {
 func (s *AIService) compileExtractChain(ctx context.Context) (compose.Runnable[map[string]any, *extractedFields], error) {
 	tmpl := prompt.FromMessages(schema.FString,
 		schema.SystemMessage(s.prompts.extract),
-		schema.UserMessage("政策标题：{title}\n政策内容：{content}\n\n请按以下格式返回 JSON：\n{output_schema}"),
+		schema.UserMessage("政策标题：{title}\n政策内容: {content}\n\n"+
+			"请严格按以下格式返回 JSON, 不要附带其他内容：\n{output_schema}"),
 	)
 
 	chain := compose.NewChain[map[string]any, *extractedFields]()
@@ -35,7 +37,7 @@ func (s *AIService) compileExtractChain(ctx context.Context) (compose.Runnable[m
 	chain.AppendChatModel(s.cm)
 	chain.AppendLambda(compose.InvokableLambda(func(_ context.Context, msg *schema.Message) (*extractedFields, error) {
 		var fields extractedFields
-		err := json.Unmarshal([]byte(msg.Content), &fields)
+		err := json.Unmarshal([]byte(cleanLLMOutput(msg.Content)), &fields)
 		return &fields, err
 	}))
 	return chain.Compile(ctx)
@@ -69,6 +71,15 @@ func (s *AIService) ExtractPolicy(ctx context.Context, policyID uint) error {
 	}
 	policy.ExtractedFields = extracted
 	return s.govRepo.UpdatePolicy(policy)
+}
+
+// cleanLLMOutput strips markdown code block wrapping and extra whitespace from LLM JSON output.
+func cleanLLMOutput(s string) string {
+	cleaned := strings.TrimSpace(s)
+	cleaned = strings.TrimPrefix(cleaned, "```json")
+	cleaned = strings.TrimPrefix(cleaned, "```")
+	cleaned = strings.TrimSuffix(cleaned, "```")
+	return strings.TrimSpace(cleaned)
 }
 
 func toJSONString(v interface{}) string {
