@@ -65,6 +65,12 @@ func (ctl *FileController) Upload(c *gin.Context) {
 	})
 }
 
+func (ctl *FileController) GetUploadLimit(c *gin.Context) {
+	response.Success(c, gin.H{
+		"max_size_mb": ctl.cfg.Upload.MaxSizeMB,
+	})
+}
+
 func (ctl *FileController) Download(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
