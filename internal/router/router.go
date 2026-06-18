@@ -84,7 +84,7 @@ func registerEnterpriseRoutes(r *gin.Engine, deps *Deps) {
 	}
 	ai.Use(middleware.RouteRateLimit(5))
 	ai.GET("/policies/:id/recommend", deps.EnterpriseController.RecommendPolicy)
-	ai.POST("/applications/prefill", deps.EnterpriseController.PrefillApplication)
+	ai.POST("/policies/prefill", deps.EnterpriseController.PrefillApplication)
 }
 
 func registerCarrierRoutes(r *gin.Engine, deps *Deps) {

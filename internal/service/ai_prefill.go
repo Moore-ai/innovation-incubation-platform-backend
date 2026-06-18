@@ -29,12 +29,16 @@ func (s *AIService) compilePrefillChain(ctx context.Context) (compose.Runnable[m
 			"address":      ent.Address,
 			"legal_person": ent.LegalPerson,
 			"history":      input["history"],
+			"form_schema":  input["form_schema"],
 		}, nil
 	})
 
 	tmpl := prompt.FromMessages(schema.FString,
 		schema.SystemMessage(s.prompts.prefill),
-		schema.UserMessage("企业信息：名称={name}、信用代码={credit_code}、行业={industry}、规模={scale}、地址={address}、法人={legal_person}\n历史申报数据(已通过审批): {history}"),
+		schema.UserMessage("企业信息：名称={name}、信用代码={credit_code}、行业={industry}、规模={scale}、地址={address}、法人={legal_person}\n"+
+			"历史申报数据(已通过审批): {history}\n\n"+
+			"目标表单 Schema: \n{form_schema}\n\n"+
+			"请严格按表单 Schema 的字段结构输出预填充数据，只返回 JSON"),
 	)
 
 	chain := compose.NewChain[map[string]any, model.JSONMap]()
@@ -51,12 +55,22 @@ func (s *AIService) compilePrefillChain(ctx context.Context) (compose.Runnable[m
 	return chain.Compile(ctx)
 }
 
-// PrefillApplication generates prefilled form data for an enterprise based on its profile
-// and approved application history. Falls back gracefully on AI failure.
-func (s *AIService) PrefillApplication(ctx context.Context, userID uint) (model.JSONMap, error) {
+// PrefillApplication generates prefilled form data for an enterprise based on its profile,
+// the target policy's form schema, and approved application history.
+func (s *AIService) PrefillApplication(ctx context.Context, userID uint, policyID uint) (model.JSONMap, error) {
 	ent, err := s.entRepo.FindEnterpriseByUserID(userID)
 	if err != nil {
 		return nil, errcode.ErrNotFound
+	}
+
+	policy, err := s.govRepo.FindPolicyByID(policyID)
+	if err != nil {
+		return nil, errcode.ErrNotFound.WithMsg("政策不存在")
+	}
+	formSchema := "{}"
+	if policy.Template.FormSchema != nil {
+		b, _ := json.Marshal(policy.Template.FormSchema)
+		formSchema = string(b)
 	}
 
 	history, err := s.entRepo.FindApprovedApplications(ent.ID)
@@ -74,7 +88,8 @@ func (s *AIService) PrefillApplication(ctx context.Context, userID uint) (model.
 	}
 
 	return chain.Invoke(ctx, map[string]any{
-		"enterprise": ent,
-		"history":    historyJSON,
+		"enterprise":  ent,
+		"history":     historyJSON,
+		"form_schema": formSchema,
 	})
 }

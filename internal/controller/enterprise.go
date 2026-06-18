@@ -171,9 +171,18 @@ func (ctl *EnterpriseController) RecommendPolicy(c *gin.Context) {
 }
 
 func (ctl *EnterpriseController) PrefillApplication(c *gin.Context) {
-	data, err := ctl.aiSvc.PrefillApplication(c.Request.Context(), middleware.GetUserID(c))
-	if err != nil {
-		response.Error(c, err)
+	var req dto.PrefillReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
+		return
+	}
+	if req.PolicyID == 0 {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("policy_id 不能为空"))
+		return
+	}
+	data, rErr := ctl.aiSvc.PrefillApplication(c.Request.Context(), middleware.GetUserID(c), req.PolicyID)
+	if rErr != nil {
+		response.Error(c, rErr)
 		return
 	}
 	response.Success(c, data)

@@ -47,6 +47,10 @@ type ReviewReq struct {
 	Comment string `json:"comment"`
 }
 
+type PrefillReq struct {
+	PolicyID uint `json:"policy_id"`
+}
+
 type CarrierInfoReq struct {
 	Name         string `json:"name"`
 	Type         string `json:"type"`

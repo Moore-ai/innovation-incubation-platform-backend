@@ -25,9 +25,9 @@ ai:
     model: claude-sonnet-4-6
     timeout_seconds: 30
   prompts:
-    extract: "你是政策分析专家。从以下政策内容中提取关键结构化信息，只返回 JSON。"
-    match: "你是政策匹配分析师。按步骤推理：行业→规模→综合，返回 JSON。"
-    prefill: "你是表单预填充助手。根据企业信息和历史申报数据填充表单，只返回 JSON。"
+    extract: "你是政策分析专家. 从以下政策内容中提取关键结构化信息, 只返回 JSON"
+    match: "你是政策匹配分析师. 按步骤推理: 行业→规模→综合，返回 JSON"
+    prefill: "你是表单预填充助手. 根据企业信息和历史申报数据填充表单, 只返回 JSON. 你必须细致、严谨, 不能有任何错误."
 
 redis:
   addr: ${REDIS_ADDR}
