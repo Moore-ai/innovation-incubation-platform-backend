@@ -7,7 +7,7 @@ type PolicyTemplate struct {
 	Name        string  `gorm:"size:255;not null" json:"name"`
 	Description string  `gorm:"type:text" json:"description"`
 	FormSchema  JSONMap `gorm:"type:jsonb" json:"form_schema"`
-	TargetRole  string  `gorm:"size:32;not null" json:"target_role"` // enterprise, carrier, both
+	TargetRole  TargetRole `gorm:"size:32;not null" json:"target_role"` // enterprise, carrier, both
 }
 
 func (PolicyTemplate) TableName() string { return "policy_templates" }
@@ -20,7 +20,7 @@ type Policy struct {
 	SubsidyAmount   string         `gorm:"size:128" json:"subsidy_amount"`
 	StartDate       string         `gorm:"size:32" json:"start_date"`
 	EndDate         string         `gorm:"size:32" json:"end_date"`
-	Status          string         `gorm:"size:16;default:draft" json:"status"` // draft, published, closed
+	Status          PolicyStatus `gorm:"size:16;default:draft" json:"status"` // draft, published, closed
 	PublishedAt     *time.Time     `json:"published_at"`
 	ExtractedFields JSONMap        `gorm:"type:jsonb" json:"extracted_fields"`
 	MatchLevel      string         `gorm:"-" json:"match_level,omitempty"`
@@ -33,9 +33,9 @@ type PolicyApplication struct {
 	BaseModel
 	PolicyID      uint   `gorm:"index;not null" json:"policy_id"`
 	ApplicantID   uint   `gorm:"index;not null" json:"applicant_id"`
-	ApplicantType string `gorm:"size:16;not null" json:"applicant_type"` // enterprise, carrier
+	ApplicantType ApplicantType `gorm:"size:16;not null" json:"applicant_type"` // enterprise, carrier
 	FormData      JSONMap `gorm:"type:jsonb" json:"form_data"`
-	Status        string `gorm:"size:32;default:draft" json:"status"` // draft, pending, carrier_review, gov_review, approved, rejected, returned
+	Status        ApprovalStatus `gorm:"size:32;default:draft" json:"status"` // draft, pending, carrier_review, gov_review, approved, rejected, returned
 	Policy        Policy `gorm:"foreignKey:PolicyID" json:"-"`
 }
 

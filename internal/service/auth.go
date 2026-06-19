@@ -25,7 +25,7 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*dto.LoginResponse, er
 	if req.Phone == "" {
 		return nil, errcode.ErrInvalidParams.WithMsg("手机号不能为空")
 	}
-	if req.Role != "enterprise" && req.Role != "carrier" {
+	if req.Role != string(model.RoleEnterprise) && req.Role != string(model.RoleCarrier) {
 		return nil, errcode.ErrInvalidParams.WithMsg("角色无效")
 	}
 
@@ -45,7 +45,7 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*dto.LoginResponse, er
 		return nil, errcode.ErrDuplicate.WithMsg("手机号已注册")
 	}
 	switch req.Role {
-	case "enterprise":
+	case string(model.RoleEnterprise):
 		ent := &model.Enterprise{
 			UserID:     user.ID,
 			Name:       req.EnterpriseName,
@@ -57,7 +57,7 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*dto.LoginResponse, er
 		if err := s.repo.CreateEnterprise(ent); err != nil {
 			return nil, errcode.ErrInternal
 		}
-	case "carrier":
+	case string(model.RoleCarrier):
 		carrier := &model.Carrier{
 			UserID: user.ID,
 			Name:   req.CarrierName,
@@ -70,7 +70,7 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*dto.LoginResponse, er
 	}
 	token, _ := middleware.GenerateToken(s.cfg, user.ID, user.Role)
 	info := toUserInfo(user)
-	if req.Role == "enterprise" {
+	if req.Role == string(model.RoleEnterprise) {
 		info.CreditCode = req.EnterpriseCreditCode
 	}
 	return &dto.LoginResponse{Token: token, User: info}, nil
@@ -86,7 +86,7 @@ func (s *AuthService) Login(req *dto.LoginRequest) (*dto.LoginResponse, error) {
 	}
 	token, _ := middleware.GenerateToken(s.cfg, user.ID, user.Role)
 	info := toUserInfo(user)
-	if user.Role == "enterprise" {
+	if user.Role == string(model.RoleEnterprise) {
 		ent, err := s.repo.FindEnterpriseByUserID(user.ID)
 		if err != nil {
 			slog.Warn("failed to load enterprise credit_code", "user_id", user.ID, "error", err)
@@ -103,7 +103,7 @@ func (s *AuthService) GetMe(userID uint) (*dto.UserInfo, error) {
 		return nil, errcode.ErrNotFound
 	}
 	info := toUserInfo(user)
-	if user.Role == "enterprise" {
+	if user.Role == string(model.RoleEnterprise) {
 		ent, err := s.repo.FindEnterpriseByUserID(user.ID)
 		if err != nil {
 			slog.Warn("failed to load enterprise credit_code", "user_id", user.ID, "error", err)

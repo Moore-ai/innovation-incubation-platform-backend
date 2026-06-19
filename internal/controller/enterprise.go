@@ -5,6 +5,7 @@ import (
 
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/middleware"
+	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/service"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/response"
@@ -109,7 +110,7 @@ func (ctl *EnterpriseController) ReeditChange(c *gin.Context) {
 func (ctl *EnterpriseController) ListPolicies(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	policies, total, err := ctl.svc.ListAvailablePolicies(middleware.GetUserID(c), "enterprise", page, pageSize)
+	policies, total, err := ctl.svc.ListAvailablePolicies(middleware.GetUserID(c), string(model.RoleEnterprise), page, pageSize)
 	if err != nil {
 		response.Error(c, err)
 		return

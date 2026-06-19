@@ -73,7 +73,7 @@ func (r *EnterpriseRepo) UpdateChange(change *model.MajorChange) error {
 
 func (r *EnterpriseRepo) FindApprovedApplications(entID uint) ([]model.PolicyApplication, error) {
 	var apps []model.PolicyApplication
-	err := r.db.Where("applicant_type = 'enterprise' AND applicant_id = ? AND status IN ?", entID, []string{"approved"}).
+	err := r.db.Where("applicant_type = ? AND applicant_id = ? AND status IN ?", string(model.ApplicantEnterprise), entID, []string{string(model.ApprovalApproved)}).
 		Preload("Policy").Order("created_at DESC").Find(&apps).Error
 	return apps, err
 }

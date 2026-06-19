@@ -23,7 +23,7 @@ type MajorChange struct {
 	ChangeContent string    `gorm:"type:text" json:"change_content"`
 	OldValue      JSONMap   `gorm:"type:jsonb" json:"old_value"`
 	NewValue      JSONMap   `gorm:"type:jsonb" json:"new_value"`
-	Status        string    `gorm:"size:16;default:draft" json:"status"` // draft, pending, approved, rejected, returned
+	Status        ApprovalStatus `gorm:"size:16;default:draft" json:"status"` // draft, pending, approved, rejected, returned
 	Enterprise    Enterprise `gorm:"foreignKey:EnterpriseID" json:"-"`
 }
 

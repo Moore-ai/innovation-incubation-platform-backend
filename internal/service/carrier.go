@@ -10,9 +10,9 @@ import (
 )
 
 var validReviewActions = map[string]bool{
-	"approve": true,
-	"reject":  true,
-	"return":  true,
+	string(model.ActionApprove): true,
+	string(model.ActionReject):  true,
+	string(model.ActionReturn):  true,
 }
 
 func validateReviewAction(action string) error {
@@ -45,17 +45,17 @@ func (s *CarrierService) ReviewIncubation(carrierUserID uint, incubationID uint,
 	if record.CarrierID != carrier.ID {
 		return errcode.ErrForbidden
 	}
-	newStatus, err := s.sm.Transition(record.Status, req.Action)
+	newStatus, err := s.sm.Transition(string(record.Status), req.Action)
 	if err != nil {
 		return errcode.ErrStatusInvalid.WithMsg(err.Error())
 	}
 	s.db.Transaction(func(tx *gorm.DB) error {
 		tx.Model(&model.IncubationRecord{}).Where("id = ?", incubationID).Update("status", newStatus)
 		tx.Create(&model.Approval{
-			TargetType: "incubation",
+			TargetType: model.TargetIncubation,
 			TargetID:   incubationID,
-			Step:       "carrier_review",
-			Action:     req.Action,
+			Step:       model.StepCarrierReview,
+			Action:     model.ApprovalAction(req.Action),
 			Comment:    req.Comment,
 			ReviewerID: carrierUserID,
 		})
@@ -78,17 +78,17 @@ func (s *CarrierService) ReviewChange(carrierUserID uint, changeID uint, req *dt
 	if err != nil {
 		return errcode.ErrNotFound
 	}
-	newStatus, err := s.sm.Transition(change.Status, req.Action)
+	newStatus, err := s.sm.Transition(string(change.Status), req.Action)
 	if err != nil {
 		return errcode.ErrStatusInvalid.WithMsg(err.Error())
 	}
 	s.db.Transaction(func(tx *gorm.DB) error {
 		tx.Model(&model.MajorChange{}).Where("id = ?", changeID).Update("status", newStatus)
 		tx.Create(&model.Approval{
-			TargetType: "major_change",
+			TargetType: model.TargetMajorChange,
 			TargetID:   changeID,
-			Step:       "carrier_review",
-			Action:     req.Action,
+			Step:       model.StepCarrierReview,
+			Action:     model.ApprovalAction(req.Action),
 			Comment:    req.Comment,
 			ReviewerID: carrierUserID,
 		})
@@ -125,7 +125,7 @@ func (s *CarrierService) GetMyInfo(userID uint) (*model.Carrier, error) {
 }
 
 func (s *CarrierService) ListAvailableCarrierPolicies(page, pageSize int) ([]model.Policy, int64, error) {
-	return s.commonRepo.ListPoliciesByTarget("carrier", page, pageSize)
+	return s.commonRepo.ListPoliciesByTarget(string(model.RoleCarrier), page, pageSize)
 }
 
 func (s *CarrierService) ApplyCarrierPolicy(userID uint, policyID uint, req *dto.PolicyApplyReq) (*model.PolicyApplication, error) {
@@ -137,16 +137,16 @@ func (s *CarrierService) ApplyCarrierPolicy(userID uint, policyID uint, req *dto
 	app := &model.PolicyApplication{
 		PolicyID:      policyID,
 		ApplicantID:   carrier.ID,
-		ApplicantType: "carrier",
+		ApplicantType: model.ApplicantCarrier,
 		FormData:      req.FormData,
-		Status:        "pending",
+		Status:        model.ApprovalPending,
 	}
 	s.commonRepo.CreatePolicyApplication(app)
 	s.db.Create(&model.Approval{
-		TargetType: "policy",
+		TargetType: model.TargetPolicy,
 		TargetID:   app.ID,
-		Step:       "gov_review",
-		Action:     "submit",
+		Step:       model.StepGovReview,
+		Action:     model.ActionSubmit,
 	})
 	return app, nil
 }
@@ -165,17 +165,17 @@ func (s *CarrierService) ReviewEnterprisePolicyApplication(carrierUserID uint, a
 	if err != nil {
 		return errcode.ErrNotFound
 	}
-	newStatus, err := s.sm.Transition(app.Status, req.Action)
+	newStatus, err := s.sm.Transition(string(app.Status), req.Action)
 	if err != nil {
 		return errcode.ErrStatusInvalid.WithMsg(err.Error())
 	}
 	s.db.Transaction(func(tx *gorm.DB) error {
 		tx.Model(&model.PolicyApplication{}).Where("id = ?", appID).Update("status", newStatus)
 		tx.Create(&model.Approval{
-			TargetType: "policy",
+			TargetType: model.TargetPolicy,
 			TargetID:   appID,
-			Step:       "gov_review",
-			Action:     req.Action,
+			Step:       model.StepGovReview,
+			Action:     model.ApprovalAction(req.Action),
 			Comment:    req.Comment,
 			ReviewerID: carrierUserID,
 		})
@@ -194,16 +194,16 @@ func (s *CarrierService) SubmitPerformance(userID uint, campaignID uint, req *dt
 		CampaignID: campaignID,
 		CarrierID:  carrier.ID,
 		FormData:   req.FormData,
-		Status:     "pending",
+		Status:     model.ApprovalPending,
 	}
 	if err := s.repo.CreatePerformanceSubmission(sub); err != nil {
 		return nil, errcode.ErrInternal
 	}
 	s.db.Create(&model.Approval{
-		TargetType: "performance",
+		TargetType: model.TargetPerformance,
 		TargetID:   sub.ID,
-		Step:       "gov_review",
-		Action:     "submit",
+		Step:       model.StepGovReview,
+		Action:     model.ActionSubmit,
 	})
 	return sub, nil
 }

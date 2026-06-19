@@ -27,7 +27,7 @@ type PerformanceSubmission struct {
 	CampaignID uint                `gorm:"index;not null" json:"campaign_id"`
 	CarrierID  uint                `gorm:"index;not null" json:"carrier_id"`
 	FormData   JSONMap             `gorm:"type:jsonb" json:"form_data"`
-	Status     string              `gorm:"size:16;default:draft" json:"status"` // draft, pending, approved, rejected, returned
+	Status     ApprovalStatus `gorm:"size:16;default:draft" json:"status"` // draft, pending, approved, rejected, returned
 	Score      *float64            `json:"score"`
 	Campaign   PerformanceCampaign `gorm:"foreignKey:CampaignID" json:"-"`
 	Carrier    Carrier             `gorm:"foreignKey:CarrierID" json:"-"`

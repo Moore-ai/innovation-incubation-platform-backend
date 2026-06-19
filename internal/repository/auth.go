@@ -19,7 +19,7 @@ func (r *AuthRepo) CreateUser(user *model.User) error {
 
 func (r *AuthRepo) FindByCredential(credential, role string) (*model.User, error) {
 	var user model.User
-	if role == "enterprise" {
+	if role == string(model.RoleEnterprise) {
 		err := r.db.Joins("JOIN enterprises ON enterprises.user_id = users.id").
 			Where("enterprises.credit_code = ?", credential).First(&user).Error
 		if err != nil {

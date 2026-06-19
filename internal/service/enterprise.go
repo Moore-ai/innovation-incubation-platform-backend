@@ -58,20 +58,20 @@ func (s *EnterpriseService) ApplyIncubation(userID uint, req *dto.IncubationAppl
 	record := &model.IncubationRecord{
 		EnterpriseID:    ent.ID,
 		CarrierID:       req.CarrierID,
-		IncubateStatus:  "in_incubation",
+		IncubateStatus:  model.IncubateInIncubation,
 		IncubateStart:   req.IncubateStart,
 		IncubateEnd:     req.IncubateEnd,
 		AgreementFileID: req.AgreementFileID,
-		Status:          "pending",
+		Status:          model.ApprovalPending,
 	}
 	if err := s.repo.CreateIncubation(record); err != nil {
 		return nil, errcode.ErrInternal
 	}
 	s.db.Create(&model.Approval{
-		TargetType: "incubation",
+		TargetType: model.TargetIncubation,
 		TargetID:   record.ID,
-		Step:       "carrier_review",
-		Action:     "submit",
+		Step:       model.StepCarrierReview,
+		Action:     model.ActionSubmit,
 		ReviewerID: 0,
 	})
 	return record, nil
@@ -131,16 +131,16 @@ func (s *EnterpriseService) ApplyChange(userID uint, req *dto.ChangeApplyReq) (*
 		ChangeContent: req.ChangeContent,
 		OldValue:      nil,
 		NewValue:      req.NewValue,
-		Status:        "pending",
+		Status:        model.ApprovalPending,
 	}
 	if err := s.repo.CreateChange(change); err != nil {
 		return nil, errcode.ErrInternal
 	}
 	s.db.Create(&model.Approval{
-		TargetType: "major_change",
+		TargetType: model.TargetMajorChange,
 		TargetID:   change.ID,
-		Step:       "carrier_review",
-		Action:     "submit",
+		Step:       model.StepCarrierReview,
+		Action:     model.ActionSubmit,
 	})
 	return change, nil
 }
@@ -166,21 +166,21 @@ func (s *EnterpriseService) ReeditChange(id uint, userID uint, req *dto.ChangeAp
 	if err != nil {
 		return nil, errcode.ErrNotFound
 	}
-	if change.Status != "returned" {
+	if change.Status != model.ApprovalReturned {
 		return nil, errcode.ErrStatusInvalid.WithMsg("只有被退回的变更才能重新编辑")
 	}
 	change.ChangeType = req.ChangeType
 	change.ChangeContent = req.ChangeContent
 	change.NewValue = req.NewValue
-	change.Status = "pending"
+	change.Status = model.ApprovalPending
 	if err := s.repo.UpdateChange(change); err != nil {
 		return nil, errcode.ErrInternal
 	}
 	s.db.Create(&model.Approval{
-		TargetType: "major_change",
+		TargetType: model.TargetMajorChange,
 		TargetID:   change.ID,
-		Step:       "carrier_review",
-		Action:     "submit",
+		Step:       model.StepCarrierReview,
+		Action:     model.ActionSubmit,
 	})
 	return change, nil
 }
@@ -209,29 +209,29 @@ func (s *EnterpriseService) ApplyPolicy(userID uint, policyID uint, req *dto.Pol
 	if err != nil {
 		return nil, errcode.ErrNotFound.WithMsg("政策不存在")
 	}
-	if policy.Status != "published" {
+	if policy.Status != model.PolicyPublished {
 		return nil, errcode.ErrStatusInvalid.WithMsg("该政策当前不可申报")
 	}
 	app := &model.PolicyApplication{
 		PolicyID:      policyID,
 		ApplicantID:   ent.ID,
-		ApplicantType: "enterprise",
+		ApplicantType: model.ApplicantEnterprise,
 		FormData:      req.FormData,
-		Status:        "pending",
+		Status:        model.ApprovalPending,
 	}
 	if err := s.commonRepo.CreatePolicyApplication(app); err != nil {
 		return nil, errcode.ErrInternal
 	}
 	s.db.Create(&model.Approval{
-		TargetType: "policy",
+		TargetType: model.TargetPolicy,
 		TargetID:   app.ID,
-		Step:       "carrier_review",
-		Action:     "submit",
+		Step:       model.StepCarrierReview,
+		Action:     model.ActionSubmit,
 	})
 	return app, nil
 }
 
 func (s *EnterpriseService) ListMyApplications(userID uint, page, pageSize int) ([]model.PolicyApplication, int64, error) {
 	ent, _ := s.repo.FindEnterpriseByUserID(userID)
-	return s.commonRepo.ListApplicationsByApplicant("enterprise", ent.ID, page, pageSize)
+	return s.commonRepo.ListApplicationsByApplicant(string(model.ApplicantEnterprise), ent.ID, page, pageSize)
 }

@@ -27,7 +27,7 @@ func NewGovernmentService(repo *repository.GovernmentRepo, db *gorm.DB, aiSvc *A
 func (s *GovernmentService) CreatePolicyTemplate(req *dto.PolicyTemplateReq) (*model.PolicyTemplate, error) {
 	t := &model.PolicyTemplate{
 		Name: req.Name, Description: req.Description,
-		FormSchema: req.FormSchema, TargetRole: req.TargetRole,
+		FormSchema: req.FormSchema, TargetRole: model.TargetRole(req.TargetRole),
 	}
 	if err := s.repo.CreatePolicyTemplate(t); err != nil {
 		return nil, errcode.ErrInternal
@@ -44,7 +44,7 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 		SubsidyAmount: req.SubsidyAmount,
 		StartDate:     req.StartDate,
 		EndDate:       req.EndDate,
-		Status:        "published",
+		Status:        model.PolicyPublished,
 		PublishedAt:   &now,
 	}
 	if err := s.repo.CreatePolicy(p); err != nil {
@@ -101,16 +101,16 @@ func (s *GovernmentService) ReviewPolicyApplication(appID uint, req *dto.ReviewR
 	if err := validateReviewAction(req.Action); err != nil {
 		return err
 	}
-	newStatus, err := s.sm.Transition("pending", req.Action)
+	newStatus, err := s.sm.Transition(string(model.ApprovalPending), req.Action)
 	if err != nil {
 		return errcode.ErrStatusInvalid.WithMsg(err.Error())
 	}
 	s.repo.UpdateApplicationStatus(appID, newStatus)
 	s.db.Create(&model.Approval{
-		TargetType: "policy",
+		TargetType: model.TargetPolicy,
 		TargetID:   appID,
-		Step:       "gov_review",
-		Action:     req.Action,
+		Step:       model.StepGovReview,
+		Action:     model.ApprovalAction(req.Action),
 		Comment:    req.Comment,
 	})
 	return nil
@@ -154,10 +154,10 @@ func (s *GovernmentService) ScoreSubmission(subID uint, req *dto.ScoreReq) error
 	}
 	s.repo.UpdateSubmissionScore(subID, req.Status, req.Score)
 	s.db.Create(&model.Approval{
-		TargetType: "performance",
+		TargetType: model.TargetPerformance,
 		TargetID:   subID,
-		Step:       "gov_review",
-		Action:     req.Status,
+		Step:       model.StepGovReview,
+		Action:     model.ApprovalAction(req.Status),
 		Comment:    req.Comment,
 	})
 	return nil
