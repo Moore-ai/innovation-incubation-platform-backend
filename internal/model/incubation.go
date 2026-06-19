@@ -8,7 +8,6 @@ type IncubationRecord struct {
 	IncubateStart   string `gorm:"size:32" json:"incubate_start"`
 	IncubateEnd     string `gorm:"size:32" json:"incubate_end"`
 	AgreementFileID *uint  `json:"agreement_file_id"`
-	AgreementFile   File   `gorm:"foreignKey:AgreementFileID" json:"-"`
 	Status          string `gorm:"size:16;default:draft" json:"status"`
 	Enterprise      Enterprise `gorm:"foreignKey:EnterpriseID" json:"-"`
 	Carrier         Carrier    `gorm:"foreignKey:CarrierID" json:"-"`

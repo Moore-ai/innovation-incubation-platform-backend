@@ -43,6 +43,15 @@ func (r *AuthRepo) FindByUserID(id uint) (*model.User, error) {
 	return &user, nil
 }
 
+func (r *AuthRepo) FindEnterpriseByUserID(userID uint) (*model.Enterprise, error) {
+	var ent model.Enterprise
+	err := r.db.Where("user_id = ?", userID).First(&ent).Error
+	if err != nil {
+		return nil, err
+	}
+	return &ent, nil
+}
+
 func (r *AuthRepo) CreateEnterprise(ent *model.Enterprise) error {
 	return r.db.Create(ent).Error
 }

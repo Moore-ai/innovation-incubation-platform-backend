@@ -10,7 +10,6 @@ type Carrier struct {
 	ManagerName  string `gorm:"size:64" json:"manager_name"`
 	ContactPhone string `gorm:"size:20" json:"contact_phone"`
 	Description  string `gorm:"type:text" json:"description"`
-	User         User   `gorm:"foreignKey:UserID" json:"-"`
 }
 
 func (Carrier) TableName() string { return "carriers" }
