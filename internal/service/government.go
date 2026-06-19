@@ -148,6 +148,9 @@ func (s *GovernmentService) ListPerformanceSubmissions(page, pageSize int) ([]mo
 }
 
 func (s *GovernmentService) ScoreSubmission(subID uint, req *dto.ScoreReq) error {
+	if req.Status != string(model.ActionApprove) && req.Status != string(model.ActionReject) {
+		return errcode.ErrInvalidParams.WithMsg("评分状态必须为 approve 或 reject")
+	}
 	_, err := s.repo.FindPerformanceSubmission(subID)
 	if err != nil {
 		return errcode.ErrNotFound

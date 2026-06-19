@@ -6,6 +6,7 @@ import (
 	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/statemachine"
+
 	"gorm.io/gorm"
 )
 
@@ -92,9 +93,38 @@ func (s *CarrierService) ReviewChange(carrierUserID uint, changeID uint, req *dt
 			Comment:    req.Comment,
 			ReviewerID: carrierUserID,
 		})
+		if req.Action == string(model.ActionApprove) {
+			ent := &model.Enterprise{}
+			if err := tx.First(ent, change.EnterpriseID).Error; err != nil {
+				return err
+			}
+			applyChange(ent, change)
+			if err := tx.Save(ent).Error; err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	return nil
+}
+
+// applyChange maps ChangeType to Enterprise struct fields and applies the new value.
+func applyChange(ent *model.Enterprise, change *model.MajorChange) {
+	v, _ := change.NewValue[change.ChangeType].(string)
+	switch change.ChangeType {
+	case "企业名称":
+		ent.Name = v
+	case "统一社会信用代码":
+		ent.CreditCode = v
+	case "所属行业":
+		ent.Industry = v
+	case "企业规模":
+		ent.Scale = v
+	case "企业地址":
+		ent.Address = v
+	case "法定代表人":
+		ent.LegalPerson = v
+	}
 }
 
 func (s *CarrierService) ListPendingChanges(userID uint, page, pageSize int) ([]model.MajorChange, int64, error) {
