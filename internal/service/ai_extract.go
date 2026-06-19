@@ -43,12 +43,7 @@ func (s *AIService) compileExtractChain(ctx context.Context) (compose.Runnable[m
 	return chain.Compile(ctx)
 }
 
-func (s *AIService) ExtractPolicy(ctx context.Context, policyID uint) error {
-	policy, err := s.govRepo.FindPolicyByID(policyID)
-	if err != nil {
-		return err
-	}
-
+func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) error {
 	chain, err := s.compileExtractChain(ctx)
 	if err != nil {
 		return err

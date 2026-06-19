@@ -52,7 +52,7 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 	}
 
 	// 同步 AI 提取 — 失败则删除 policy 并返回错误
-	if err := s.aiSvc.ExtractPolicy(ctx, p.ID); err != nil {
+	if err := s.aiSvc.ExtractPolicy(ctx, p); err != nil {
 		slog.Error("AI extract policy failed, rolling back", "policy_id", p.ID, "error", err)
 		if delErr := s.repo.DeletePolicy(p.ID); delErr != nil {
 			slog.Error("failed to rollback policy after AI extract failure", "policy_id", p.ID, "delete_error", delErr)
