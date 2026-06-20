@@ -8,6 +8,7 @@ import (
 	"innovation-incubation-platform-backend/internal/database"
 	"innovation-incubation-platform-backend/internal/middleware"
 	"innovation-incubation-platform-backend/internal/router"
+	"innovation-incubation-platform-backend/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -31,9 +32,10 @@ func main() {
 	middleware.InitRateLimit(&cfg.RateLimit)
 	enforcer := middleware.MustInitEnforcer(db)
 
+	hub := service.NewSSEHub()
 	repo := initRepositories(db)
-	svc := initServices(repo, cfg, db)
-	ctl := initControllers(repo, svc, cfg)
+	svc := initServices(repo, cfg, db, hub)
+	ctl := initControllers(repo, svc, cfg, hub)
 
 	r := gin.New()
 	router.RegisterRoutes(r, &router.Deps{
@@ -42,7 +44,8 @@ func main() {
 		AuthController:       ctl.auth,
 		EnterpriseController: ctl.ent,
 		CarrierController:    ctl.carrier,
-		GovernmentController: ctl.gov,
+		GovernmentController:  ctl.gov,
+		NotificationController: ctl.notif,
 	})
 
 	slog.Info("server starting", "port", cfg.Server.Port)
