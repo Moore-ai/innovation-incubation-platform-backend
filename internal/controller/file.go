@@ -65,6 +65,71 @@ func (ctl *FileController) Upload(c *gin.Context) {
 	})
 }
 
+func (ctl *FileController) ListFiles(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	role := middleware.GetRole(c)
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	if role == "government" {
+		if userIDStr := c.Query("user_id"); userIDStr != "" {
+			if id, err := strconv.ParseUint(userIDStr, 10, 64); err == nil {
+				list, total, err := ctl.fileRepo.ListByUploader(uint(id), page, pageSize)
+				if err != nil {
+					response.Error(c, errcode.ErrInternal)
+					return
+				}
+				response.SuccessPage(c, list, total, page, pageSize)
+				return
+			}
+		}
+		list, total, err := ctl.fileRepo.ListAll(page, pageSize)
+		if err != nil {
+			response.Error(c, errcode.ErrInternal)
+			return
+		}
+		response.SuccessPage(c, list, total, page, pageSize)
+		return
+	}
+
+	list, total, err := ctl.fileRepo.ListByUploader(userID, page, pageSize)
+	if err != nil {
+		response.Error(c, errcode.ErrInternal)
+		return
+	}
+	response.SuccessPage(c, list, total, page, pageSize)
+}
+
+func (ctl *FileController) DeleteFile(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+
+	if middleware.GetRole(c) != "government" {
+		response.Error(c, errcode.ErrForbidden)
+		return
+	}
+
+	f, err := ctl.fileRepo.FindByID(uint(id))
+	if err != nil {
+		response.Error(c, errcode.ErrNotFound.WithMsg("文件不存在"))
+		return
+	}
+
+	if ctl.fileRepo.IsReferenced(uint(id)) {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("文件正在被入驻记录引用，无法删除"))
+		return
+	}
+
+	if err := ctl.fileRepo.Delete(uint(id)); err != nil {
+		response.Error(c, errcode.ErrInternal)
+		return
+	}
+	response.Success(c, gin.H{"file_id": f.ID})
+}
+
 func (ctl *FileController) GetUploadLimit(c *gin.Context) {
 	response.Success(c, gin.H{
 		"max_size_mb": ctl.cfg.Upload.MaxSizeMB,
