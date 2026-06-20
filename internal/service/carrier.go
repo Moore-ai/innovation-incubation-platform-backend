@@ -135,34 +135,40 @@ func (s *CarrierService) ReviewChange(carrierUserID uint, changeID uint, req *dt
 			if err := tx.First(ent, change.EnterpriseID).Error; err != nil {
 				return err
 			}
-			applyChange(ent, change)
+			applyChange(ent, change, tx)
 			if err := tx.Save(ent).Error; err != nil {
 				return err
 			}
 		}
 		return nil
 	})
-
 	// 通知企业
 	var entUserID uint
 	s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", change.EnterpriseID).Take(&entUserID)
 	if entUserID > 0 {
-		actionMsg := map[string]string{
-			string(model.ActionApprove): "通过",
-			string(model.ActionReject):  "拒绝",
-			string(model.ActionReturn):  "退回",
-		}[req.Action]
-		s.notifSvc.Send(entUserID, model.NotifChangeReviewed,
-			fmt.Sprintf("变更申请已被%s", actionMsg),
-			fmt.Sprintf("您的「%s」变更申请已被载体%s", change.ChangeType, actionMsg),
-			model.TargetMajorChange, changeID)
+		if change.ChangeType == "入孵协议文件" && req.Action == string(model.ActionApprove) {
+			s.notifSvc.Send(entUserID, model.NotifChangeReviewed,
+				"协议文件已更新",
+				"您的协议文件变更已被批准，请重新提交入驻申请并上传新协议",
+				model.TargetMajorChange, changeID)
+		} else {
+			actionMsg := map[string]string{
+				string(model.ActionApprove): "通过",
+				string(model.ActionReject):  "拒绝",
+				string(model.ActionReturn):  "退回",
+			}[req.Action]
+			s.notifSvc.Send(entUserID, model.NotifChangeReviewed,
+				fmt.Sprintf("变更申请已被%s", actionMsg),
+				fmt.Sprintf("您的「%s」变更申请已被载体%s", change.ChangeType, actionMsg),
+				model.TargetMajorChange, changeID)
+		}
 	}
 
 	return nil
 }
 
 // applyChange maps ChangeType to Enterprise struct fields and applies the new value.
-func applyChange(ent *model.Enterprise, change *model.MajorChange) {
+func applyChange(ent *model.Enterprise, change *model.MajorChange, db *gorm.DB) {
 	v, ok := change.NewValue[change.ChangeType].(string)
 	if !ok {
 		return
@@ -180,6 +186,19 @@ func applyChange(ent *model.Enterprise, change *model.MajorChange) {
 		ent.Address = v
 	case "法定代表人":
 		ent.LegalPerson = v
+	case "入孵协议文件":
+		recordID, _ := change.NewValue["incubation_record_id"].(float64)
+		if recordID == 0 {
+			return
+		}
+		var record model.IncubationRecord
+		if err := db.First(&record, uint(recordID)).Error; err != nil {
+			return
+		}
+		if record.AgreementFileID != nil {
+			db.Delete(&model.File{}, *record.AgreementFileID)
+		}
+		db.Delete(&record)
 	}
 }
 
