@@ -55,10 +55,10 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 	notifSvc := service.NewNotificationService(r.notif, hub)
 	return &services{
 		auth:    service.NewAuthService(r.auth, cfg.JWT),
-		ent:     service.NewEnterpriseService(r.ent, r.common, db),
+		ent:     service.NewEnterpriseService(r.ent, r.common, db, notifSvc),
 		ai:      aiSvc,
-		carrier: service.NewCarrierService(r.carrier, r.common, db),
-		gov:     service.NewGovernmentService(r.gov, db, aiSvc),
+		carrier: service.NewCarrierService(r.carrier, r.common, db, notifSvc),
+		gov:     service.NewGovernmentService(r.gov, db, aiSvc, notifSvc),
 		notif:   notifSvc,
 	}
 }

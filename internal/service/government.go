@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -14,14 +15,15 @@ import (
 )
 
 type GovernmentService struct {
-	repo  *repository.GovernmentRepo
-	db    *gorm.DB
-	sm    *statemachine.StateMachine
-	aiSvc *AIService
+	repo     *repository.GovernmentRepo
+	db       *gorm.DB
+	sm       *statemachine.StateMachine
+	aiSvc    *AIService
+	notifSvc *NotificationService
 }
 
-func NewGovernmentService(repo *repository.GovernmentRepo, db *gorm.DB, aiSvc *AIService) *GovernmentService {
-	return &GovernmentService{repo: repo, db: db, sm: statemachine.DefaultApprovalSM(), aiSvc: aiSvc}
+func NewGovernmentService(repo *repository.GovernmentRepo, db *gorm.DB, aiSvc *AIService, notifSvc *NotificationService) *GovernmentService {
+	return &GovernmentService{repo: repo, db: db, sm: statemachine.DefaultApprovalSM(), aiSvc: aiSvc, notifSvc: notifSvc}
 }
 
 func (s *GovernmentService) CreatePolicyTemplate(req *dto.PolicyTemplateReq) (*model.PolicyTemplate, error) {
@@ -58,6 +60,30 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 			slog.Error("failed to rollback policy after AI extract failure", "policy_id", p.ID, "delete_error", delErr)
 		}
 		return nil, errcode.ErrAIService.WithMsg("AI提取政策字段失败，请重试")
+	}
+
+	// 通知目标用户群
+	var targetRole string
+	s.db.Model(&model.PolicyTemplate{}).Select("target_role").Where("id = ?", req.TemplateID).Take(&targetRole)
+	if targetRole != "" {
+		if targetRole == "both" || targetRole == "enterprise" {
+			entIDs, _ := s.repo.FindUserIDsByRole("enterprise")
+			for _, uid := range entIDs {
+				s.notifSvc.Send(uid, model.NotifPolicyPublished,
+					"有一项新政策可供申报",
+					fmt.Sprintf("新政策「%s」已发布", p.Title),
+					model.TargetPolicy, p.ID)
+			}
+		}
+		if targetRole == "both" || targetRole == "carrier" {
+			carrierIDs, _ := s.repo.FindUserIDsByRole("carrier")
+			for _, uid := range carrierIDs {
+				s.notifSvc.Send(uid, model.NotifPolicyPublished,
+					"有一项新政策可供申报",
+					fmt.Sprintf("新政策「%s」已发布", p.Title),
+					model.TargetPolicy, p.ID)
+			}
+		}
 	}
 
 	return p, nil
@@ -113,6 +139,22 @@ func (s *GovernmentService) ReviewPolicyApplication(appID uint, req *dto.ReviewR
 		Action:     model.ApprovalAction(req.Action),
 		Comment:    req.Comment,
 	})
+
+	// 通知申请人
+	var applicant model.PolicyApplication
+	if err := s.db.First(&applicant, appID).Error; err == nil {
+		if applicant.ApplicantType == model.ApplicantEnterprise {
+			var entUserID uint
+			s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", applicant.ApplicantID).Take(&entUserID)
+			if entUserID > 0 {
+				actionMsg := map[string]string{string(model.ActionApprove): "通过", string(model.ActionReject): "拒绝", string(model.ActionReturn): "退回"}[req.Action]
+				s.notifSvc.Send(entUserID, model.NotifApplicationReviewed,
+					fmt.Sprintf("政策申报已被%s", actionMsg),
+					fmt.Sprintf("您的政策申报已被政务%s", actionMsg),
+					model.TargetPolicy, appID)
+			}
+		}
+	}
 	return nil
 }
 
@@ -151,7 +193,7 @@ func (s *GovernmentService) ScoreSubmission(subID uint, req *dto.ScoreReq) error
 	if req.Status != string(model.ActionApprove) && req.Status != string(model.ActionReject) {
 		return errcode.ErrInvalidParams.WithMsg("评分状态必须为 approve 或 reject")
 	}
-	_, err := s.repo.FindPerformanceSubmission(subID)
+	sub, err := s.repo.FindPerformanceSubmission(subID)
 	if err != nil {
 		return errcode.ErrNotFound
 	}
@@ -163,5 +205,15 @@ func (s *GovernmentService) ScoreSubmission(subID uint, req *dto.ScoreReq) error
 		Action:     model.ApprovalAction(req.Status),
 		Comment:    req.Comment,
 	})
+
+	// 通知载体
+	var carrierUserID uint
+	s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", sub.CarrierID).Take(&carrierUserID)
+	if carrierUserID > 0 {
+		s.notifSvc.Send(carrierUserID, model.NotifPerformanceScored,
+			"绩效考核已被评分",
+			"您的绩效考核已被政务评分",
+			model.TargetPerformance, subID)
+	}
 	return nil
 }
