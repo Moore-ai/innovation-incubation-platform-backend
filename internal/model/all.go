@@ -15,5 +15,6 @@ func AllModels() []any {
 		&PerformanceCampaign{},
 		&PerformanceSubmission{},
 		&File{},
+		&Notification{},
 	}
 }
