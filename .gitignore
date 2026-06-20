@@ -1,4 +1,5 @@
 bin/
+log/
 *.md
 *.exe
 .DS_Store

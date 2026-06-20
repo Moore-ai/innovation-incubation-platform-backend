@@ -38,3 +38,6 @@ rate_limit:
   algorithm: token_bucket
   default_rpm: 60
   whitelist: []
+
+log:
+  enabled: false

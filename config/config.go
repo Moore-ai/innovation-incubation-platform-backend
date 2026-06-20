@@ -19,6 +19,11 @@ type Config struct {
 	Redis     RedisConfig     `mapstructure:"redis"`
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
 	Upload    UploadConfig    `mapstructure:"upload"`
+	Log       LogConfig       `mapstructure:"log"`
+}
+
+type LogConfig struct {
+	Enabled bool `mapstructure:"enabled"`
 }
 
 type ServerConfig struct {

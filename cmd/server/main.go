@@ -11,8 +11,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func initLog(cfg *config.Config) {
+	if !cfg.Log.Enabled {
+		return
+	}
+	f, err := database.InitFileLogger("log")
+	if err != nil {
+		slog.Error("failed to init file logger", "error", err)
+		return
+	}
+	slog.Info("file logging enabled", "file", f.Name())
+}
+
 func main() {
 	cfg := config.MustLoad("config/config.yaml")
+	initLog(cfg)
 	db := database.MustInit(cfg)
 	database.MustNewRedisClient(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
 	middleware.InitRateLimit(&cfg.RateLimit)
