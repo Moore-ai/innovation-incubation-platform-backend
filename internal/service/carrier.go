@@ -50,6 +50,23 @@ func (s *CarrierService) ReviewIncubation(carrierUserID uint, incubationID uint,
 	if record.CarrierID != carrier.ID {
 		return errcode.ErrForbidden
 	}
+	// 协议文件检查
+	if record.AgreementFileID == nil {
+		return errcode.ErrInvalidParams.WithMsg("请先上传入孵协议文件")
+	}
+	// 变更冲突检查
+	var pendingCount int64
+	s.db.Model(&model.MajorChange{}).
+		Where("enterprise_id = ? AND change_type = ? AND status = ?",
+			record.EnterpriseID, "入孵协议文件", string(model.ApprovalPending)).
+		Count(&pendingCount)
+	if pendingCount > 0 {
+		s.notifSvc.Send(carrierUserID, model.NotifChangePending,
+			"入驻审核被阻断",
+			"该企业有正在处理中的协议文件变更，暂无法审核",
+			model.TargetIncubation, incubationID)
+		return errcode.ErrStatusInvalid.WithMsg("该企业有正在处理中的协议文件变更，暂无法审核")
+	}
 	newStatus, err := s.sm.Transition(string(record.Status), req.Action)
 	if err != nil {
 		return errcode.ErrStatusInvalid.WithMsg(err.Error())
