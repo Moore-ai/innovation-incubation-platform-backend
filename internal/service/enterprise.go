@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"log/slog"
@@ -18,10 +19,11 @@ type EnterpriseService struct {
 	commonRepo *repository.CommonRepo
 	db         *gorm.DB
 	sm         *statemachine.StateMachine
+	notifSvc   *NotificationService
 }
 
-func NewEnterpriseService(repo *repository.EnterpriseRepo, commonRepo *repository.CommonRepo, db *gorm.DB) *EnterpriseService {
-	return &EnterpriseService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM()}
+func NewEnterpriseService(repo *repository.EnterpriseRepo, commonRepo *repository.CommonRepo, db *gorm.DB, notifSvc *NotificationService) *EnterpriseService {
+	return &EnterpriseService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM(), notifSvc: notifSvc}
 }
 
 func (s *EnterpriseService) GetMyEnterpriseInfo(userID uint) (*model.Enterprise, error) {
@@ -74,6 +76,15 @@ func (s *EnterpriseService) ApplyIncubation(userID uint, req *dto.IncubationAppl
 		Action:     model.ActionSubmit,
 		ReviewerID: 0,
 	})
+	// 通知所属载体
+	var carrierUserID uint
+	s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", req.CarrierID).Take(&carrierUserID)
+	if carrierUserID > 0 {
+		s.notifSvc.Send(carrierUserID, model.NotifIncubationPending,
+			"有一份新的入驻申请待审核",
+			fmt.Sprintf("企业「%s」提交了入驻申请", ent.Name),
+			model.TargetIncubation, record.ID)
+	}
 	return record, nil
 }
 
@@ -142,6 +153,19 @@ func (s *EnterpriseService) ApplyChange(userID uint, req *dto.ChangeApplyReq) (*
 		Step:       model.StepCarrierReview,
 		Action:     model.ActionSubmit,
 	})
+	// 通知企业所属载体（通过入驻记录查找最新关联的载体）
+	var carrierID uint
+	s.db.Model(&model.IncubationRecord{}).Select("carrier_id").Where("enterprise_id = ?", ent.ID).Order("created_at DESC").Limit(1).Take(&carrierID)
+	if carrierID > 0 {
+		var carrierUserID uint
+		s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", carrierID).Take(&carrierUserID)
+		if carrierUserID > 0 {
+			s.notifSvc.Send(carrierUserID, model.NotifChangePending,
+				"有一条新的变更申请待审核",
+				fmt.Sprintf("企业「%s」提交了「%s」变更", ent.Name, req.ChangeType),
+				model.TargetMajorChange, change.ID)
+		}
+	}
 	return change, nil
 }
 
@@ -228,6 +252,19 @@ func (s *EnterpriseService) ApplyPolicy(userID uint, policyID uint, req *dto.Pol
 		Step:       model.StepCarrierReview,
 		Action:     model.ActionSubmit,
 	})
+	// 通知所属载体
+	var carrierID uint
+	s.db.Model(&model.IncubationRecord{}).Select("carrier_id").Where("enterprise_id = ?", ent.ID).Order("created_at DESC").Limit(1).Take(&carrierID)
+	if carrierID > 0 {
+		var carrierUserID uint
+		s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", carrierID).Take(&carrierUserID)
+		if carrierUserID > 0 {
+			s.notifSvc.Send(carrierUserID, model.NotifApplicationPending,
+				"有一条新的政策申报待审核",
+				fmt.Sprintf("企业「%s」申报了政策「%s」", ent.Name, policy.Title),
+				model.TargetPolicy, app.ID)
+		}
+	}
 	return app, nil
 }
 
