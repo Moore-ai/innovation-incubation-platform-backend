@@ -21,7 +21,7 @@ type Notification struct {
 	Type       NotificationType `gorm:"size:32;not null" json:"type"`
 	Title      string           `gorm:"size:255;not null" json:"title"`
 	Content    string           `gorm:"type:text" json:"content"`
-	TargetType TargetType `gorm:"size:32" json:"target_type"`
+	TargetType TargetType       `gorm:"size:32" json:"target_type"`
 	TargetID   uint             `json:"target_id"`
 }
 

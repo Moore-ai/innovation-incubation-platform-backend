@@ -16,9 +16,9 @@ import (
 )
 
 type NotificationController struct {
-	repo  *repository.NotificationRepo
-	hub   *service.SSEHub
-	cfg   *config.Config
+	repo *repository.NotificationRepo
+	hub  *service.SSEHub
+	cfg  *config.Config
 }
 
 func NewNotificationController(repo *repository.NotificationRepo, hub *service.SSEHub, cfg *config.Config) *NotificationController {
@@ -42,10 +42,9 @@ func (ctl *NotificationController) Subscribe(c *gin.Context) {
 	c.Writer.Flush()
 
 	notifCfg := ctl.cfg.Notification
-	limit := notifCfg.RecentCount
-	if limit < 0 {
-		limit = 0 // 0 means no limit in GORM
-	}
+	limit := max(notifCfg.RecentCount,
+		// 0 means no limit in GORM
+		0)
 	recent, _ := ctl.repo.FindRecentByUser(userID, limit)
 	b, _ := json.Marshal(recent)
 	fmt.Fprintf(c.Writer, "event: init\ndata: %s\n\n", string(b))
