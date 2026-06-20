@@ -24,6 +24,7 @@ func (s *NotificationService) Send(userID uint, ntype model.NotificationType, ti
 		Content:    content,
 		TargetType: targetType,
 		TargetID:   targetID,
+		IsRead:     false,
 	}
 	if err := s.repo.Create(n); err != nil {
 		slog.Warn("notification create failed", "user_id", userID, "type", ntype, "error", err)
@@ -37,6 +38,7 @@ func (s *NotificationService) Send(userID uint, ntype model.NotificationType, ti
 		Content:    content,
 		TargetType: targetType,
 		TargetID:   targetID,
+		IsRead:     false,
 	})
 	return nil
 }

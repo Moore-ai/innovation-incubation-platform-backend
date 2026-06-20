@@ -16,6 +16,7 @@ type SSEEvent struct {
 	Content    string                 `json:"content"`
 	TargetType model.TargetType       `json:"target_type,omitempty"`
 	TargetID   uint                   `json:"target_id,omitempty"`
+	IsRead     bool                   `json:"is_read"`
 }
 
 type SSEHub struct {
