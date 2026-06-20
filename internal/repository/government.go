@@ -134,6 +134,12 @@ func (r *GovernmentRepo) FindPerformanceSubmission(id uint) (*model.PerformanceS
 	return &sub, nil
 }
 
+func (r *GovernmentRepo) FindUserIDsByRole(role string) ([]uint, error) {
+	var ids []uint
+	err := r.db.Model(&model.User{}).Where("role = ?", role).Pluck("id", &ids).Error
+	return ids, err
+}
+
 func (r *GovernmentRepo) UpdateSubmissionScore(id uint, status string, score float64) error {
 	return r.db.Model(&model.PerformanceSubmission{}).Where("id = ?", id).
 		Updates(map[string]interface{}{"status": status, "score": score}).Error

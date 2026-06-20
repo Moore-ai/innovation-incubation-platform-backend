@@ -112,3 +112,15 @@ func (r *CarrierRepo) ListActiveCampaigns(page, pageSize int) ([]model.Performan
 func (r *CarrierRepo) CreatePerformanceSubmission(sub *model.PerformanceSubmission) error {
 	return r.db.Create(sub).Error
 }
+
+func (r *CarrierRepo) FindUserIDByCarrierID(carrierID uint) (uint, error) {
+	var c model.Carrier
+	err := r.db.Select("user_id").First(&c, carrierID).Error
+	return c.UserID, err
+}
+
+func (r *CarrierRepo) FindGovernmentUserIDs() ([]uint, error) {
+	var ids []uint
+	err := r.db.Model(&model.User{}).Where("role = ?", "government").Pluck("id", &ids).Error
+	return ids, err
+}
