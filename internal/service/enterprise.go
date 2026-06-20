@@ -111,6 +111,7 @@ var allowedChangeTypes = []string{
 	"企业规模",
 	"企业地址",
 	"法定代表人",
+	"入孵协议文件",
 }
 
 func validateChangeType(t string) error {
