@@ -20,6 +20,13 @@ type Config struct {
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
 	Upload    UploadConfig    `mapstructure:"upload"`
 	Log       LogConfig       `mapstructure:"log"`
+	Notification NotificationConfig `mapstructure:"notification"`
+}
+
+type NotificationConfig struct {
+	HeartbeatSeconds int  `mapstructure:"heartbeat_seconds"`
+	RecentCount      int  `mapstructure:"recent_count"`
+	MaxConnsPerUser  int  `mapstructure:"max_conns_per_user"`
 }
 
 type LogConfig struct {

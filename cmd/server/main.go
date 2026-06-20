@@ -32,7 +32,7 @@ func main() {
 	middleware.InitRateLimit(&cfg.RateLimit)
 	enforcer := middleware.MustInitEnforcer(db)
 
-	hub := service.NewSSEHub()
+	hub := service.NewSSEHub(cfg.Notification.MaxConnsPerUser)
 	repo := initRepositories(db)
 	svc := initServices(repo, cfg, db, hub)
 	ctl := initControllers(repo, svc, cfg, hub)

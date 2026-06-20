@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/middleware"
 	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/internal/service"
@@ -15,12 +16,13 @@ import (
 )
 
 type NotificationController struct {
-	repo *repository.NotificationRepo
-	hub  *service.SSEHub
+	repo  *repository.NotificationRepo
+	hub   *service.SSEHub
+	cfg   *config.Config
 }
 
-func NewNotificationController(repo *repository.NotificationRepo, hub *service.SSEHub) *NotificationController {
-	return &NotificationController{repo: repo, hub: hub}
+func NewNotificationController(repo *repository.NotificationRepo, hub *service.SSEHub, cfg *config.Config) *NotificationController {
+	return &NotificationController{repo: repo, hub: hub, cfg: cfg}
 }
 
 func (ctl *NotificationController) Subscribe(c *gin.Context) {
@@ -39,12 +41,21 @@ func (ctl *NotificationController) Subscribe(c *gin.Context) {
 	c.Writer.WriteHeader(200)
 	c.Writer.Flush()
 
-	recent, _ := ctl.repo.FindRecentByUser(userID, 20)
+	notifCfg := ctl.cfg.Notification
+	limit := notifCfg.RecentCount
+	if limit < 0 {
+		limit = 0 // 0 means no limit in GORM
+	}
+	recent, _ := ctl.repo.FindRecentByUser(userID, limit)
 	b, _ := json.Marshal(recent)
 	fmt.Fprintf(c.Writer, "event: init\ndata: %s\n\n", string(b))
 	c.Writer.Flush()
 
-	ticker := time.NewTicker(30 * time.Second)
+	heartbeat := time.Duration(notifCfg.HeartbeatSeconds) * time.Second
+	if heartbeat <= 0 {
+		heartbeat = 30 * time.Second
+	}
+	ticker := time.NewTicker(heartbeat)
 	defer ticker.Stop()
 
 	for {

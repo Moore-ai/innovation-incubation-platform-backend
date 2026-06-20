@@ -8,8 +8,6 @@ import (
 	"innovation-incubation-platform-backend/internal/model"
 )
 
-const maxSSEConnsPerUser = 10
-
 type SSEEvent struct {
 	ID         uint                   `json:"id"`
 	CreatedAt  int64                  `json:"created_at"`
@@ -21,19 +19,20 @@ type SSEEvent struct {
 }
 
 type SSEHub struct {
-	mu      sync.RWMutex
-	clients map[uint]map[chan SSEEvent]struct{}
+	mu              sync.RWMutex
+	clients         map[uint]map[chan SSEEvent]struct{}
+	maxConnsPerUser int
 }
 
-func NewSSEHub() *SSEHub {
-	return &SSEHub{clients: make(map[uint]map[chan SSEEvent]struct{})}
+func NewSSEHub(maxConnsPerUser int) *SSEHub {
+	return &SSEHub{clients: make(map[uint]map[chan SSEEvent]struct{}), maxConnsPerUser: maxConnsPerUser}
 }
 
 func (h *SSEHub) Subscribe(userID uint) (chan SSEEvent, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if len(h.clients[userID]) >= maxSSEConnsPerUser {
+	if h.maxConnsPerUser > 0 && len(h.clients[userID]) >= h.maxConnsPerUser {
 		return nil, fmt.Errorf("too many connections")
 	}
 

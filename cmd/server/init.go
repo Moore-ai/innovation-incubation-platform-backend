@@ -70,6 +70,6 @@ func initControllers(r *repositories, s *services, cfg *config.Config, hub *serv
 		carrier: controller.NewCarrierController(s.carrier),
 		gov:     controller.NewGovernmentController(s.gov),
 		file:    controller.NewFileController(r.file, cfg),
-		notif:   controller.NewNotificationController(r.notif, hub),
+		notif:   controller.NewNotificationController(r.notif, hub, cfg),
 	}
 }
