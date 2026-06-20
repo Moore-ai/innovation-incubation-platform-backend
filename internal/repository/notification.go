@@ -23,3 +23,9 @@ func (r *NotificationRepo) FindRecentByUser(userID uint, limit int) ([]model.Not
 	err := r.db.Where("user_id = ?", userID).Order("created_at DESC").Limit(limit).Find(&list).Error
 	return list, err
 }
+
+func (r *NotificationRepo) MarkAsRead(ids []uint, userID uint) error {
+	return r.db.Model(&model.Notification{}).
+		Where("id IN ? AND user_id = ?", ids, userID).
+		Update("is_read", true).Error
+}

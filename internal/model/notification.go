@@ -23,6 +23,7 @@ type Notification struct {
 	Content    string           `gorm:"type:text" json:"content"`
 	TargetType TargetType       `gorm:"size:32" json:"target_type"`
 	TargetID   uint             `json:"target_id"`
+	IsRead     bool             `gorm:"default:false" json:"is_read"`
 }
 
 func (Notification) TableName() string { return "notifications" }

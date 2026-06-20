@@ -51,6 +51,10 @@ type PrefillReq struct {
 	PolicyID uint `json:"policy_id"`
 }
 
+type MarkReadReq struct {
+	IDs []uint `json:"ids" binding:"required,min=1"`
+}
+
 type CarrierInfoReq struct {
 	Name         string `json:"name"`
 	Type         string `json:"type"`

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"innovation-incubation-platform-backend/config"
+	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/middleware"
 	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/internal/service"
@@ -70,4 +71,17 @@ func (ctl *NotificationController) Subscribe(c *gin.Context) {
 			return
 		}
 	}
+}
+
+func (ctl *NotificationController) MarkRead(c *gin.Context) {
+	var req dto.MarkReadReq
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.IDs) == 0 {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("ids 不能为空"))
+		return
+	}
+	if err := ctl.repo.MarkAsRead(req.IDs, middleware.GetUserID(c)); err != nil {
+		response.Error(c, errcode.ErrInternal)
+		return
+	}
+	response.Success(c, gin.H{"ids": req.IDs})
 }
