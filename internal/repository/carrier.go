@@ -29,7 +29,8 @@ func (r *CarrierRepo) UpdateCarrier(carrier *model.Carrier) error {
 func (r *CarrierRepo) ListPendingIncubations(carrierID uint, page, pageSize int) ([]model.IncubationRecord, int64, error) {
 	var records []model.IncubationRecord
 	var total int64
-	q := r.db.Model(&model.IncubationRecord{}).Where("carrier_id = ? AND status = 'pending'", carrierID)
+	excludeSub := "AND NOT EXISTS (SELECT 1 FROM major_changes WHERE enterprise_id = incubation_records.enterprise_id AND change_type = '入孵协议文件' AND status = 'pending')"
+	q := r.db.Model(&model.IncubationRecord{}).Where("carrier_id = ? AND status = 'pending' "+excludeSub, carrierID)
 	q.Count(&total)
 	err := q.Preload("Enterprise").Order("created_at DESC").
 		Offset((page-1)*pageSize).Limit(pageSize).Find(&records).Error
