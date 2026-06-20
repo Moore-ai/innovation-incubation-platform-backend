@@ -1,6 +1,8 @@
 package service
 
 import (
+	"fmt"
+
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/repository"
@@ -28,10 +30,11 @@ type CarrierService struct {
 	commonRepo *repository.CommonRepo
 	db         *gorm.DB
 	sm         *statemachine.StateMachine
+	notifSvc   *NotificationService
 }
 
-func NewCarrierService(repo *repository.CarrierRepo, commonRepo *repository.CommonRepo, db *gorm.DB) *CarrierService {
-	return &CarrierService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM()}
+func NewCarrierService(repo *repository.CarrierRepo, commonRepo *repository.CommonRepo, db *gorm.DB, notifSvc *NotificationService) *CarrierService {
+	return &CarrierService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM(), notifSvc: notifSvc}
 }
 
 func (s *CarrierService) ReviewIncubation(carrierUserID uint, incubationID uint, req *dto.ReviewReq) error {
@@ -62,6 +65,22 @@ func (s *CarrierService) ReviewIncubation(carrierUserID uint, incubationID uint,
 		})
 		return nil
 	})
+
+	// 通知企业
+	var entUserID uint
+	s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", record.EnterpriseID).Take(&entUserID)
+	if entUserID > 0 {
+		actionMsg := map[string]string{
+			string(model.ActionApprove): "通过",
+			string(model.ActionReject):  "拒绝",
+			string(model.ActionReturn):  "退回",
+		}[req.Action]
+		s.notifSvc.Send(entUserID, model.NotifIncubationReviewed,
+			fmt.Sprintf("入驻申请已被%s", actionMsg),
+			fmt.Sprintf("您的入驻申请已被载体%s", actionMsg),
+			model.TargetIncubation, incubationID)
+	}
+
 	return nil
 }
 
@@ -105,6 +124,22 @@ func (s *CarrierService) ReviewChange(carrierUserID uint, changeID uint, req *dt
 		}
 		return nil
 	})
+
+	// 通知企业
+	var entUserID uint
+	s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", change.EnterpriseID).Take(&entUserID)
+	if entUserID > 0 {
+		actionMsg := map[string]string{
+			string(model.ActionApprove): "通过",
+			string(model.ActionReject):  "拒绝",
+			string(model.ActionReturn):  "退回",
+		}[req.Action]
+		s.notifSvc.Send(entUserID, model.NotifChangeReviewed,
+			fmt.Sprintf("变更申请已被%s", actionMsg),
+			fmt.Sprintf("您的「%s」变更申请已被载体%s", change.ChangeType, actionMsg),
+			model.TargetMajorChange, changeID)
+	}
+
 	return nil
 }
 
@@ -211,6 +246,17 @@ func (s *CarrierService) ReviewEnterprisePolicyApplication(carrierUserID uint, a
 		})
 		return nil
 	})
+
+	if req.Action == string(model.ActionApprove) {
+		govIDs, _ := s.repo.FindGovernmentUserIDs()
+		for _, uid := range govIDs {
+			s.notifSvc.Send(uid, model.NotifApplicationCarrierApproved,
+				"有一条政策申报已通过载体审核",
+				"有一条政策申报已通过载体审核，请尽快处理",
+				model.TargetPolicy, appID)
+		}
+	}
+
 	return nil
 }
 
@@ -235,5 +281,15 @@ func (s *CarrierService) SubmitPerformance(userID uint, campaignID uint, req *dt
 		Step:       model.StepGovReview,
 		Action:     model.ActionSubmit,
 	})
+
+	// 通知政务
+	govIDs, _ := s.repo.FindGovernmentUserIDs()
+	for _, uid := range govIDs {
+		s.notifSvc.Send(uid, model.NotifPerformanceSubmitted,
+			"有一条新的绩效考核申报待评分",
+			"有一条新的绩效考核申报待评分",
+			model.TargetPerformance, sub.ID)
+	}
+
 	return sub, nil
 }
