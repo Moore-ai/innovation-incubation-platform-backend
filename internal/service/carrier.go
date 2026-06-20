@@ -7,6 +7,7 @@ import (
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/pkg/errcode"
+
 	"innovation-incubation-platform-backend/pkg/statemachine"
 
 	"gorm.io/gorm"
@@ -145,7 +146,10 @@ func (s *CarrierService) ReviewChange(carrierUserID uint, changeID uint, req *dt
 
 // applyChange maps ChangeType to Enterprise struct fields and applies the new value.
 func applyChange(ent *model.Enterprise, change *model.MajorChange) {
-	v, _ := change.NewValue[change.ChangeType].(string)
+	v, ok := change.NewValue[change.ChangeType].(string)
+	if !ok {
+		return
+	}
 	switch change.ChangeType {
 	case "企业名称":
 		ent.Name = v

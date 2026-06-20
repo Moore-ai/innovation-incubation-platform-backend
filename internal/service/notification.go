@@ -1,6 +1,8 @@
 package service
 
 import (
+	"log/slog"
+
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/repository"
 )
@@ -24,9 +26,12 @@ func (s *NotificationService) Send(userID uint, ntype model.NotificationType, ti
 		TargetID:   targetID,
 	}
 	if err := s.repo.Create(n); err != nil {
+		slog.Warn("notification create failed", "user_id", userID, "type", ntype, "error", err)
 		return err
 	}
 	s.hub.Notify(userID, SSEEvent{
+		ID:         n.ID,
+		CreatedAt:  n.CreatedAt.UnixMilli(),
 		Type:       ntype,
 		Title:      title,
 		Content:    content,

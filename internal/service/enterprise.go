@@ -206,6 +206,19 @@ func (s *EnterpriseService) ReeditChange(id uint, userID uint, req *dto.ChangeAp
 		Step:       model.StepCarrierReview,
 		Action:     model.ActionSubmit,
 	})
+	// 通知载体
+	var entCarrierID uint
+	s.db.Model(&model.IncubationRecord{}).Select("carrier_id").Where("enterprise_id = ?", change.EnterpriseID).Order("created_at DESC").Limit(1).Take(&entCarrierID)
+	if entCarrierID > 0 {
+		var carrierUserID uint
+		s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", entCarrierID).Take(&carrierUserID)
+		if carrierUserID > 0 {
+			s.notifSvc.Send(carrierUserID, model.NotifChangePending,
+				"有一条新的变更申请待审核",
+				fmt.Sprintf("企业重新提交了「%s」变更", change.ChangeType),
+				model.TargetMajorChange, change.ID)
+		}
+	}
 	return change, nil
 }
 

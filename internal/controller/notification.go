@@ -8,6 +8,8 @@ import (
 	"innovation-incubation-platform-backend/internal/middleware"
 	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/internal/service"
+	"innovation-incubation-platform-backend/pkg/errcode"
+	"innovation-incubation-platform-backend/pkg/response"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,13 +26,18 @@ func NewNotificationController(repo *repository.NotificationRepo, hub *service.S
 func (ctl *NotificationController) Subscribe(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 
+	ch, err := ctl.hub.Subscribe(userID)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("连接数超过限制"))
+		return
+	}
+	defer ctl.hub.Unsubscribe(userID, ch)
+
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
+	c.Writer.WriteHeader(200)
 	c.Writer.Flush()
-
-	ch := ctl.hub.Subscribe(userID)
-	defer ctl.hub.Unsubscribe(userID, ch)
 
 	recent, _ := ctl.repo.FindRecentByUser(userID, 20)
 	b, _ := json.Marshal(recent)

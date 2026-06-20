@@ -66,8 +66,8 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 	var targetRole string
 	s.db.Model(&model.PolicyTemplate{}).Select("target_role").Where("id = ?", req.TemplateID).Take(&targetRole)
 	if targetRole != "" {
-		if targetRole == "both" || targetRole == "enterprise" {
-			entIDs, _ := s.repo.FindUserIDsByRole("enterprise")
+		if targetRole == string(model.RoleBoth) || targetRole == string(model.RoleEnterprise) {
+			entIDs, _ := s.repo.FindUserIDsByRole(string(model.RoleEnterprise))
 			for _, uid := range entIDs {
 				s.notifSvc.Send(uid, model.NotifPolicyPublished,
 					"有一项新政策可供申报",
@@ -75,8 +75,8 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 					model.TargetPolicy, p.ID)
 			}
 		}
-		if targetRole == "both" || targetRole == "carrier" {
-			carrierIDs, _ := s.repo.FindUserIDsByRole("carrier")
+		if targetRole == string(model.RoleBoth) || targetRole == string(model.RoleCarrier) {
+			carrierIDs, _ := s.repo.FindUserIDsByRole(string(model.RoleCarrier))
 			for _, uid := range carrierIDs {
 				s.notifSvc.Send(uid, model.NotifPolicyPublished,
 					"有一项新政策可供申报",
