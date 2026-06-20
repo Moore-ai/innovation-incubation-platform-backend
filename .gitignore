@@ -5,3 +5,7 @@ log/
 .DS_Store
 config/config.yaml
 .env
+
+# test
+test/node_modules/
+test/src/*.js
