@@ -2,15 +2,13 @@ package controller
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/middleware"
-	"innovation-incubation-platform-backend/internal/model"
-	"innovation-incubation-platform-backend/internal/repository"
+	"innovation-incubation-platform-backend/internal/service"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/response"
 
@@ -18,12 +16,12 @@ import (
 )
 
 type FileController struct {
-	fileRepo *repository.FileRepo
-	cfg      *config.Config
+	svc *service.FileService
+	cfg *config.Config
 }
 
-func NewFileController(fileRepo *repository.FileRepo, cfg *config.Config) *FileController {
-	return &FileController{fileRepo: fileRepo, cfg: cfg}
+func NewFileController(svc *service.FileService, cfg *config.Config) *FileController {
+	return &FileController{svc: svc, cfg: cfg}
 }
 
 func (ctl *FileController) Upload(c *gin.Context) {
@@ -38,22 +36,9 @@ func (ctl *FileController) Upload(c *gin.Context) {
 	}
 	defer file.Close()
 
-	buf := make([]byte, header.Size)
-	if _, err := io.ReadFull(file, buf); err != nil {
-		response.Error(c, errcode.ErrInternal)
-		return
-	}
-
-	f := &model.File{
-		Filename:   header.Filename,
-		MimeType:   header.Header.Get("Content-Type"),
-		Size:       header.Size,
-		Data:       buf,
-		UploadedBy: middleware.GetUserID(c),
-	}
-
-	if err := ctl.fileRepo.Create(f); err != nil {
-		response.Error(c, errcode.ErrInternal)
+	f, err := ctl.svc.Upload(c.Request.Context(), file, header.Filename, header.Header.Get("Content-Type"), header.Size, middleware.GetUserID(c))
+	if err != nil {
+		response.Error(c, err)
 		return
 	}
 
@@ -78,7 +63,7 @@ func (ctl *FileController) ListFiles(c *gin.Context) {
 				response.Error(c, errcode.ErrInvalidParams.WithMsg("user_id 参数无效"))
 				return
 			}
-			list, total, err := ctl.fileRepo.ListByUploader(uint(id), page, pageSize)
+			list, total, err := ctl.svc.ListByUploader(uint(id), page, pageSize)
 			if err != nil {
 				response.Error(c, errcode.ErrInternal)
 				return
@@ -86,7 +71,7 @@ func (ctl *FileController) ListFiles(c *gin.Context) {
 			response.SuccessPage(c, list, total, page, pageSize)
 			return
 		}
-		list, total, err := ctl.fileRepo.ListAll(page, pageSize)
+		list, total, err := ctl.svc.ListAll(page, pageSize)
 		if err != nil {
 			response.Error(c, errcode.ErrInternal)
 			return
@@ -95,7 +80,7 @@ func (ctl *FileController) ListFiles(c *gin.Context) {
 		return
 	}
 
-	list, total, err := ctl.fileRepo.ListByUploader(userID, page, pageSize)
+	list, total, err := ctl.svc.ListByUploader(userID, page, pageSize)
 	if err != nil {
 		response.Error(c, errcode.ErrInternal)
 		return
@@ -115,19 +100,19 @@ func (ctl *FileController) DeleteFile(c *gin.Context) {
 		return
 	}
 
-	f, err := ctl.fileRepo.FindByID(uint(id))
+	f, err := ctl.svc.GetMeta(uint(id))
 	if err != nil {
 		response.Error(c, errcode.ErrNotFound.WithMsg("文件不存在"))
 		return
 	}
 
-	if ctl.fileRepo.IsReferenced(uint(id)) {
+	if ctl.svc.IsReferenced(uint(id)) {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg("文件正在被入驻记录引用，无法删除"))
 		return
 	}
 
-	if err := ctl.fileRepo.Delete(uint(id)); err != nil {
-		response.Error(c, errcode.ErrInternal)
+	if err := ctl.svc.Delete(c.Request.Context(), uint(id)); err != nil {
+		response.Error(c, err)
 		return
 	}
 	response.Success(c, gin.H{"file_id": f.ID})
@@ -149,22 +134,32 @@ func (ctl *FileController) Download(c *gin.Context) {
 		return
 	}
 
-	f, err := ctl.fileRepo.FindByID(uint(id))
+	f, err := ctl.svc.GetMeta(uint(id))
 	if err != nil {
 		response.Error(c, errcode.ErrNotFound.WithMsg("文件不存在"))
 		return
 	}
 
 	if f.UploadedBy != userID && role != "government" {
-		hasAccess, _ := ctl.fileRepo.CheckFileAccess(f.ID, userID)
+		hasAccess, err := ctl.svc.HasFileAccess(f.ID, userID)
+		if err != nil {
+			response.Error(c, errcode.ErrInternal)
+			return
+		}
 		if !hasAccess {
 			response.Error(c, errcode.ErrForbidden)
 			return
 		}
 	}
 
-	filename := f.Filename
-	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"; filename*=UTF-8''%s`, url.PathEscape(filename), url.PathEscape(filename)))
+	reader, err := ctl.svc.Open(c.Request.Context(), uint(id))
+	if err != nil {
+		response.Error(c, errcode.ErrNotFound)
+		return
+	}
+	defer reader.Close()
+
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"; filename*=UTF-8''%s`, url.PathEscape(f.Filename), url.PathEscape(f.Filename)))
 	c.Header("Content-Type", f.MimeType)
-	c.Data(200, f.MimeType, f.Data)
+	http.ServeContent(c.Writer, c.Request, f.Filename, f.CreatedAt, reader)
 }
