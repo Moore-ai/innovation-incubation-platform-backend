@@ -26,7 +26,8 @@ type LocalFileStorage struct {
 }
 
 func NewLocalFileStorage(rootDir string) *LocalFileStorage {
-	return &LocalFileStorage{RootDir: rootDir}
+	abs, _ := filepath.Abs(rootDir)
+	return &LocalFileStorage{RootDir: abs}
 }
 
 func (s *LocalFileStorage) resolve(path string) (string, error) {

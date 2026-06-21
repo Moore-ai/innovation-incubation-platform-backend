@@ -141,7 +141,11 @@ func (ctl *FileController) Download(c *gin.Context) {
 	}
 
 	if f.UploadedBy != userID && role != "government" {
-		hasAccess, _ := ctl.svc.HasFileAccess(f.ID, userID)
+		hasAccess, err := ctl.svc.HasFileAccess(f.ID, userID)
+		if err != nil {
+			response.Error(c, errcode.ErrInternal)
+			return
+		}
 		if !hasAccess {
 			response.Error(c, errcode.ErrForbidden)
 			return
@@ -156,5 +160,6 @@ func (ctl *FileController) Download(c *gin.Context) {
 	defer reader.Close()
 
 	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"; filename*=UTF-8''%s`, url.PathEscape(f.Filename), url.PathEscape(f.Filename)))
+	c.Header("Content-Type", f.MimeType)
 	http.ServeContent(c.Writer, c.Request, f.Filename, f.CreatedAt, reader)
 }
