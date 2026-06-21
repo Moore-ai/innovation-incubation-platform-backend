@@ -3,8 +3,8 @@ module innovation-incubation-platform-backend
 go 1.26.4
 
 require (
-	github.com/casbin/casbin/v2 v2.135.0
-	github.com/casbin/gorm-adapter/v3 v3.41.0
+	github.com/casbin/casbin/v2 v2.97.0
+	github.com/casbin/gorm-adapter/v3 v3.28.0
 	github.com/cloudwego/eino v0.9.9
 	github.com/gin-contrib/cors v1.7.7
 	github.com/gin-gonic/gin v1.12.0
