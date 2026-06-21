@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"fmt"
@@ -10,6 +10,7 @@ import (
 	"innovation-incubation-platform-backend/internal/middleware"
 	"innovation-incubation-platform-backend/internal/router"
 	"innovation-incubation-platform-backend/internal/service"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -41,12 +42,13 @@ func main() {
 
 	r := gin.New()
 	router.RegisterRoutes(r, &router.Deps{
-		Config:               cfg,
-		Enforcer:             enforcer,
-		AuthController:       ctl.auth,
-		EnterpriseController: ctl.ent,
-		CarrierController:    ctl.carrier,
-		GovernmentController:  ctl.gov,
+		Config:                 cfg,
+		Enforcer:               enforcer,
+		AuthController:         ctl.auth,
+		EnterpriseController:   ctl.ent,
+		CarrierController:      ctl.carrier,
+		GovernmentController:   ctl.gov,
+		FileController:         ctl.file,
 		NotificationController: ctl.notif,
 	})
 

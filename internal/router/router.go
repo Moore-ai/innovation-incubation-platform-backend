@@ -141,6 +141,8 @@ func registerFileRoutes(r *gin.Engine, deps *Deps) {
 	f.GET("/limit", deps.FileController.GetUploadLimit)
 	f.POST("/upload", deps.FileController.Upload)
 	f.GET("/:id/download", deps.FileController.Download)
+	f.GET("/list", deps.FileController.ListFiles)
+	f.DELETE("/:id", deps.FileController.DeleteFile)
 }
 
 func registerNotificationRoutes(r *gin.Engine, deps *Deps) {
