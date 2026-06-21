@@ -6,6 +6,8 @@ log/
 config/config.yaml
 .env
 
+uploads/
+
 # test
 test/node_modules/
 test/src/*.js

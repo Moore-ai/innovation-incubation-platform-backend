@@ -78,7 +78,8 @@ type RedisConfig struct {
 }
 
 type UploadConfig struct {
-	MaxSizeMB int64 `mapstructure:"max_size_mb"`
+	MaxSizeMB int64  `mapstructure:"max_size_mb"`
+	Dir       string `mapstructure:"dir"`
 }
 
 type RateLimitConfig struct {
