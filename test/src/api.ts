@@ -40,7 +40,7 @@ export class ApiClient {
   async get<T = any>(path: string, params?: Record<string, string>): Promise<ApiResponse<T>> {
     const url = new URL(this.base + path, "http://localhost");
     if (params) for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-    const r = await fetch(url.pathname + url.search, {
+    const r = await fetch(url.href, {
       method: "GET",
       headers: this.headers(),
     });
