@@ -73,15 +73,18 @@ func (ctl *FileController) ListFiles(c *gin.Context) {
 
 	if role == "government" {
 		if userIDStr := c.Query("user_id"); userIDStr != "" {
-			if id, err := strconv.ParseUint(userIDStr, 10, 64); err == nil {
-				list, total, err := ctl.fileRepo.ListByUploader(uint(id), page, pageSize)
-				if err != nil {
-					response.Error(c, errcode.ErrInternal)
-					return
-				}
-				response.SuccessPage(c, list, total, page, pageSize)
+			id, err := strconv.ParseUint(userIDStr, 10, 64)
+			if err != nil {
+				response.Error(c, errcode.ErrInvalidParams.WithMsg("user_id 参数无效"))
 				return
 			}
+			list, total, err := ctl.fileRepo.ListByUploader(uint(id), page, pageSize)
+			if err != nil {
+				response.Error(c, errcode.ErrInternal)
+				return
+			}
+			response.SuccessPage(c, list, total, page, pageSize)
+			return
 		}
 		list, total, err := ctl.fileRepo.ListAll(page, pageSize)
 		if err != nil {
@@ -101,14 +104,14 @@ func (ctl *FileController) ListFiles(c *gin.Context) {
 }
 
 func (ctl *FileController) DeleteFile(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, errcode.ErrInvalidParams)
+	if middleware.GetRole(c) != "government" {
+		response.Error(c, errcode.ErrForbidden)
 		return
 	}
 
-	if middleware.GetRole(c) != "government" {
-		response.Error(c, errcode.ErrForbidden)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrNotFound)
 		return
 	}
 
@@ -137,9 +140,12 @@ func (ctl *FileController) GetUploadLimit(c *gin.Context) {
 }
 
 func (ctl *FileController) Download(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	role := middleware.GetRole(c)
+
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		response.Error(c, errcode.ErrInvalidParams)
+		response.Error(c, errcode.ErrNotFound)
 		return
 	}
 
@@ -149,9 +155,6 @@ func (ctl *FileController) Download(c *gin.Context) {
 		return
 	}
 
-	userID := middleware.GetUserID(c)
-	role := middleware.GetRole(c)
-
 	if f.UploadedBy != userID && role != "government" {
 		hasAccess, _ := ctl.fileRepo.CheckFileAccess(f.ID, userID)
 		if !hasAccess {
@@ -160,7 +163,8 @@ func (ctl *FileController) Download(c *gin.Context) {
 		}
 	}
 
-	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename*=UTF-8''%s`, url.PathEscape(f.Filename)))
+	filename := f.Filename
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"; filename*=UTF-8''%s`, url.PathEscape(filename), url.PathEscape(filename)))
 	c.Header("Content-Type", f.MimeType)
 	c.Data(200, f.MimeType, f.Data)
 }

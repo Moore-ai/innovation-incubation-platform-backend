@@ -138,6 +138,7 @@ func registerFileRoutes(r *gin.Engine, deps *Deps) {
 	}
 	f := r.Group("/api/v1/files")
 	f.Use(middleware.AuthMiddleware(deps.Config.JWT))
+	f.Use(middleware.GlobalRateLimit())
 	f.GET("/limit", deps.FileController.GetUploadLimit)
 	f.POST("/upload", deps.FileController.Upload)
 	f.GET("/:id/download", deps.FileController.Download)
