@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/google/uuid"
 
+	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/internal/storage"
@@ -15,12 +18,18 @@ import (
 )
 
 type FileService struct {
-	storage storage.Storage
-	repo    *repository.FileRepo
+	storage     storage.Storage
+	repo        *repository.FileRepo
+	allowedExts []string // 允许上传的扩展名（不含 . 前缀），空 = 无限制
 }
 
-func NewFileService(storage storage.Storage, repo *repository.FileRepo) *FileService {
-	return &FileService{storage: storage, repo: repo}
+func NewFileService(storage storage.Storage, repo *repository.FileRepo, cfg *config.Config) *FileService {
+	allowedExts := cfg.Upload.AllowedExtensions
+	exts := make([]string, len(allowedExts))
+	for i, e := range allowedExts {
+		exts[i] = strings.TrimPrefix(strings.ToLower(e), ".")
+	}
+	return &FileService{storage: storage, repo: repo, allowedExts: exts}
 }
 
 func (s *FileService) generatePath(ext string) string {
@@ -30,7 +39,12 @@ func (s *FileService) generatePath(ext string) string {
 }
 
 func (s *FileService) Upload(ctx context.Context, reader io.Reader, filename, mimeType string, size int64, userID uint) (*model.File, error) {
-	ext := filepath.Ext(filename)
+	ext := strings.ToLower(filepath.Ext(filename))
+	if len(s.allowedExts) > 0 {
+		if ext == "" || !slices.Contains(s.allowedExts, strings.TrimPrefix(ext, ".")) {
+			return nil, errcode.ErrInvalidParams.WithMsg("不支持的文件类型，允许的扩展名：" + strings.Join(s.allowedExts, ", "))
+		}
+	}
 	path := s.generatePath(ext)
 
 	if err := s.storage.Save(ctx, path, reader); err != nil {

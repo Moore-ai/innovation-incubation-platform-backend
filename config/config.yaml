@@ -30,6 +30,7 @@ redis:
 upload:
   max_size_mb: 2
   dir: uploads
+  allowed_extensions: []
 
 rate_limit:
   enabled: true
