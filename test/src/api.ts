@@ -37,6 +37,15 @@ export class ApiClient {
     return r.json();
   }
 
+  async put<T = any>(path: string, body?: unknown): Promise<ApiResponse<T>> {
+    const r = await fetch(this.base + path, {
+      method: "PUT",
+      headers: this.headers(),
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return r.json();
+  }
+
   async get<T = any>(path: string, params?: Record<string, string>): Promise<ApiResponse<T>> {
     const url = new URL(this.base + path, "http://localhost");
     if (params) for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
