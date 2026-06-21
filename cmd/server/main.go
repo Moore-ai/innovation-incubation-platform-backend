@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -26,6 +27,7 @@ func initLog(cfg *config.Config) {
 
 func main() {
 	cfg := config.MustLoad("config/config.yaml")
+	gin.SetMode(cfg.Server.Mode)
 	initLog(cfg)
 	db := database.MustInit(cfg)
 	database.MustNewRedisClient(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
@@ -49,7 +51,7 @@ func main() {
 	})
 
 	slog.Info("server starting", "port", cfg.Server.Port)
-	if err := r.Run(); err != nil {
+	if err := r.Run(fmt.Sprintf(":%d", cfg.Server.Port)); err != nil {
 		slog.Error("server failed", "error", err)
 		os.Exit(1)
 	}
