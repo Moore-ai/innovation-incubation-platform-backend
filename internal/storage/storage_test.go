@@ -9,10 +9,17 @@ import (
 	"testing"
 )
 
-func TestLocalFileStorage_SaveAndOpen(t *testing.T) {
-	dir := t.TempDir()
-	s := NewLocalFileStorage(dir)
+func newTestStorage(t *testing.T) *LocalFileStorage {
+	t.Helper()
+	s, err := NewLocalFileStorage(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
 
+func TestLocalFileStorage_SaveAndOpen(t *testing.T) {
+	s := newTestStorage(t)
 	content := "hello storage"
 	path := "test/hello.txt"
 	ctx := context.Background()
@@ -37,8 +44,7 @@ func TestLocalFileStorage_SaveAndOpen(t *testing.T) {
 }
 
 func TestLocalFileStorage_Delete(t *testing.T) {
-	dir := t.TempDir()
-	s := NewLocalFileStorage(dir)
+	s := newTestStorage(t)
 	ctx := context.Background()
 
 	if err := s.Save(ctx, "del.txt", strings.NewReader("x")); err != nil {
@@ -47,14 +53,13 @@ func TestLocalFileStorage_Delete(t *testing.T) {
 	if err := s.Delete(ctx, "del.txt"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "del.txt")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(s.RootDir, "del.txt")); !os.IsNotExist(err) {
 		t.Fatal("file should be deleted")
 	}
 }
 
 func TestLocalFileStorage_PathTraversal(t *testing.T) {
-	dir := t.TempDir()
-	s := NewLocalFileStorage(dir)
+	s := newTestStorage(t)
 	ctx := context.Background()
 
 	err := s.Save(ctx, "../../evil.txt", strings.NewReader("x"))
@@ -64,8 +69,7 @@ func TestLocalFileStorage_PathTraversal(t *testing.T) {
 }
 
 func TestLocalFileStorage_OpenNonExistent(t *testing.T) {
-	dir := t.TempDir()
-	s := NewLocalFileStorage(dir)
+	s := newTestStorage(t)
 	_, err := s.Open(context.Background(), "nonexistent.txt")
 	if err == nil {
 		t.Fatal("expected error for nonexistent file")
@@ -73,8 +77,7 @@ func TestLocalFileStorage_OpenNonExistent(t *testing.T) {
 }
 
 func TestLocalFileStorage_DeleteNonExistent(t *testing.T) {
-	dir := t.TempDir()
-	s := NewLocalFileStorage(dir)
+	s := newTestStorage(t)
 	err := s.Delete(context.Background(), "nonexistent.txt")
 	if err == nil {
 		t.Fatal("expected error for nonexistent file")
@@ -82,8 +85,7 @@ func TestLocalFileStorage_DeleteNonExistent(t *testing.T) {
 }
 
 func TestLocalFileStorage_OpenPathTraversal(t *testing.T) {
-	dir := t.TempDir()
-	s := NewLocalFileStorage(dir)
+	s := newTestStorage(t)
 	_, err := s.Open(context.Background(), "../../evil.txt")
 	if err == nil {
 		t.Fatal("expected error for path traversal")

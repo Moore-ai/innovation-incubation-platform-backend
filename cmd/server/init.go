@@ -1,6 +1,8 @@
 package main
 
 import (
+	"log/slog"
+	"os"
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/controller"
 	"innovation-incubation-platform-backend/internal/repository"
@@ -57,7 +59,11 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 	aiSvc := service.NewAIService(aiClient, r.ent, r.gov, cfg)
 	notifSvc := service.NewNotificationService(r.notif, hub)
 
-	fileStorage := storage.NewLocalFileStorage(cfg.Upload.Dir)
+	fileStorage, err := storage.NewLocalFileStorage(cfg.Upload.Dir)
+	if err != nil {
+		slog.Error("failed to init file storage", "error", err)
+		os.Exit(1)
+	}
 	fileSvc := service.NewFileService(fileStorage, r.file, cfg)
 
 	return &services{

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -41,7 +43,7 @@ func (s *FileService) generatePath(ext string) string {
 func (s *FileService) Upload(ctx context.Context, reader io.Reader, filename, mimeType string, size int64, userID uint) (*model.File, error) {
 	ext := strings.ToLower(filepath.Ext(filename))
 	if len(s.allowedExts) > 0 {
-		if ext == "" || !slices.Contains(s.allowedExts, strings.TrimPrefix(ext, ".")) {
+		if !slices.Contains(s.allowedExts, strings.TrimPrefix(ext, ".")) {
 			return nil, errcode.ErrInvalidParams.WithMsg("不支持的文件类型，允许的扩展名：" + strings.Join(s.allowedExts, ", "))
 		}
 	}
@@ -74,7 +76,14 @@ func (s *FileService) Open(ctx context.Context, id uint) (storage.ReadSeekCloser
 	if err != nil {
 		return nil, errcode.ErrNotFound
 	}
-	return s.storage.Open(ctx, f.StoragePath)
+	rc, err := s.storage.Open(ctx, f.StoragePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, errcode.ErrNotFound
+		}
+		return nil, errcode.ErrInternal
+	}
+	return rc, nil
 }
 
 func (s *FileService) Delete(ctx context.Context, id uint) error {
@@ -83,9 +92,14 @@ func (s *FileService) Delete(ctx context.Context, id uint) error {
 		return errcode.ErrNotFound
 	}
 	if err := s.storage.Delete(ctx, f.StoragePath); err != nil {
+		slog.Error("file delete failed", "path", f.StoragePath, "error", err)
 		return errcode.ErrInternal
 	}
-	return s.repo.Delete(id)
+	if err := s.repo.Delete(id); err != nil {
+		slog.Error("file db record delete failed", "id", id, "error", err)
+		return errcode.ErrInternal
+	}
+	return nil
 }
 
 func (s *FileService) ListByUploader(userID uint, page, pageSize int) ([]model.File, int64, error) {

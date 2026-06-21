@@ -55,6 +55,12 @@ func (ctl *FileController) ListFiles(c *gin.Context) {
 	role := middleware.GetRole(c)
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
 
 	if role == "government" {
 		if userIDStr := c.Query("user_id"); userIDStr != "" {
@@ -96,7 +102,7 @@ func (ctl *FileController) DeleteFile(c *gin.Context) {
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		response.Error(c, errcode.ErrNotFound)
+		response.Error(c, errcode.ErrInvalidParams)
 		return
 	}
 
@@ -130,7 +136,7 @@ func (ctl *FileController) Download(c *gin.Context) {
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		response.Error(c, errcode.ErrNotFound)
+		response.Error(c, errcode.ErrInvalidParams)
 		return
 	}
 
@@ -154,7 +160,7 @@ func (ctl *FileController) Download(c *gin.Context) {
 
 	reader, err := ctl.svc.Open(c.Request.Context(), uint(id))
 	if err != nil {
-		response.Error(c, errcode.ErrNotFound)
+		response.Error(c, err)
 		return
 	}
 	defer reader.Close()
