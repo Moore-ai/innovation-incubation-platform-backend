@@ -1,4 +1,4 @@
-﻿package controller
+package controller
 
 import (
 	"strconv"
@@ -205,7 +205,7 @@ func (ctl *GovernmentController) DeleteEnterprise(c *gin.Context) {
 		response.Error(c, errcode.ErrInvalidParams)
 		return
 	}
-	if err := ctl.svc.DeleteEnterprise(uint(id)); err != nil {
+	if err := ctl.svc.DeleteEnterprise(uint(id), middleware.GetUserID(c)); err != nil {
 		response.Error(c, err)
 		return
 	}
@@ -218,7 +218,7 @@ func (ctl *GovernmentController) DeleteCarrier(c *gin.Context) {
 		response.Error(c, errcode.ErrInvalidParams)
 		return
 	}
-	if err := ctl.svc.DeleteCarrier(uint(id)); err != nil {
+	if err := ctl.svc.DeleteCarrier(uint(id), middleware.GetUserID(c)); err != nil {
 		response.Error(c, err)
 		return
 	}
@@ -228,7 +228,8 @@ func (ctl *GovernmentController) DeleteCarrier(c *gin.Context) {
 func (ctl *GovernmentController) ListDeletionRequests(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	list, total, err := ctl.svc.ListDeletionRequests(page, pageSize)
+	status := c.Query("status")
+	list, total, err := ctl.svc.ListDeletionRequests(page, pageSize, status)
 	if err != nil {
 		response.Error(c, err)
 		return

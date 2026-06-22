@@ -231,6 +231,11 @@ func (s *EnterpriseService) ApplyDeletion(userID uint, reason string) error {
 	if err != nil {
 		return errcode.ErrNotFound.WithMsg("企业信息未找到")
 	}
+	var existing int64
+	s.db.Model(&model.AccountDeletionRequest{}).Where("user_id = ? AND status = ?", userID, model.ApprovalPending).Count(&existing)
+	if existing > 0 {
+		return errcode.ErrStatusInvalid.WithMsg("您已有一笔待处理的注销申请，请等待审核结果")
+	}
 	req := &model.AccountDeletionRequest{
 		UserID:       userID,
 		Role:         string(model.RoleEnterprise),

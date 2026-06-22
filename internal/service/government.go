@@ -71,19 +71,23 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 		if targetRole == string(model.RoleBoth) || targetRole == string(model.RoleEnterprise) {
 			entIDs, _ := s.repo.FindUserIDsByRole(string(model.RoleEnterprise))
 			for _, uid := range entIDs {
-				s.notifSvc.Send(uid, model.NotifPolicyPublished,
+				if err := s.notifSvc.Send(uid, model.NotifPolicyPublished,
 					"有一项新政策可供申报",
 					fmt.Sprintf("新政策「%s」已发布", p.Title),
-					model.TargetPolicy, p.ID)
+					model.TargetPolicy, p.ID); err != nil {
+					slog.Error("notification failed", "error", err)
+				}
 			}
 		}
 		if targetRole == string(model.RoleBoth) || targetRole == string(model.RoleCarrier) {
 			carrierIDs, _ := s.repo.FindUserIDsByRole(string(model.RoleCarrier))
 			for _, uid := range carrierIDs {
-				s.notifSvc.Send(uid, model.NotifPolicyPublished,
+				if err := s.notifSvc.Send(uid, model.NotifPolicyPublished,
 					"有一项新政策可供申报",
 					fmt.Sprintf("新政策「%s」已发布", p.Title),
-					model.TargetPolicy, p.ID)
+					model.TargetPolicy, p.ID); err != nil {
+					slog.Error("notification failed", "error", err)
+				}
 			}
 		}
 	}
@@ -150,10 +154,12 @@ func (s *GovernmentService) ReviewPolicyApplication(appID uint, req *dto.ReviewR
 			s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", applicant.ApplicantID).Take(&entUserID)
 			if entUserID > 0 {
 				actionMsg := map[string]string{string(model.ActionApprove): "通过", string(model.ActionReject): "拒绝", string(model.ActionReturn): "退回"}[req.Action]
-				s.notifSvc.Send(entUserID, model.NotifApplicationReviewed,
+				if err := s.notifSvc.Send(entUserID, model.NotifApplicationReviewed,
 					fmt.Sprintf("政策申报已被%s", actionMsg),
 					fmt.Sprintf("您的政策申报已被政务%s", actionMsg),
-					model.TargetPolicy, appID)
+					model.TargetPolicy, appID); err != nil {
+					slog.Error("notification failed", "error", err)
+				}
 			}
 		}
 	}
@@ -212,14 +218,15 @@ func (s *GovernmentService) ScoreSubmission(subID uint, req *dto.ScoreReq) error
 	var carrierUserID uint
 	s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", sub.CarrierID).Take(&carrierUserID)
 	if carrierUserID > 0 {
-		s.notifSvc.Send(carrierUserID, model.NotifPerformanceScored,
+		if err := s.notifSvc.Send(carrierUserID, model.NotifPerformanceScored,
 			"绩效考核已被评分",
 			"您的绩效考核已被政务评分",
-			model.TargetPerformance, subID)
+			model.TargetPerformance, subID); err != nil {
+			slog.Error("notification failed", "error", err)
+		}
 	}
 	return nil
 }
-
 
 func (s *GovernmentService) CompleteIncubation(userID, incubationID uint) error {
 	var record model.IncubationRecord
@@ -279,10 +286,13 @@ func (s *GovernmentService) CompleteIncubation(userID, incubationID uint) error 
 	})
 }
 
-func (s *GovernmentService) ListDeletionRequests(page, pageSize int) ([]model.AccountDeletionRequest, int64, error) {
+func (s *GovernmentService) ListDeletionRequests(page, pageSize int, status string) ([]model.AccountDeletionRequest, int64, error) {
+	if status == "" || status == "pending" {
+		return s.deletionRepo.ListPending(page, pageSize)
+	}
 	var list []model.AccountDeletionRequest
 	var total int64
-	q := s.db.Model(&model.AccountDeletionRequest{}).Where("status = ?", model.ApprovalPending)
+	q := s.db.Model(&model.AccountDeletionRequest{}).Where("status = ?", status)
 	q.Count(&total)
 	err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
 	return list, total, err
@@ -296,36 +306,59 @@ func (s *GovernmentService) ReviewDeletionRequest(govUserID uint, reqID uint, ac
 	if r.Status != model.ApprovalPending {
 		return errcode.ErrStatusInvalid.WithMsg("该申请已被处理")
 	}
+
 	if action == "approve" {
-		if err := s.executeDeletion(&r); err != nil {
-			return err
+		// 删除前捕获企业/载体名称（用于通知）
+		var entName string
+		var carrierName string
+		if r.EnterpriseID != nil {
+			s.db.Model(&model.Enterprise{}).Select("name").Where("id = ?", *r.EnterpriseID).Take(&entName)
 		}
-		s.db.Model(&r).Updates(map[string]any{
-			"status":         model.ApprovalApproved,
-			"reviewer_id":    govUserID,
-			"review_comment": comment,
+		if r.CarrierID != nil {
+			s.db.Model(&model.Carrier{}).Select("name").Where("id = ?", *r.CarrierID).Take(&carrierName)
+		}
+
+		// 单事务：通知 → 更新状态 → 执行删除
+		return s.db.Transaction(func(tx *gorm.DB) error {
+			// 先发送通知（用户删除前）
+			if err := s.notifSvc.Send(r.UserID, model.NotifDeletionApproved,
+				"账号注销申请已通过",
+				"您的账号注销申请已通过，账号将被注销",
+				model.TargetAccountDeletion, r.ID); err != nil {
+				slog.Error("notification failed", "error", err)
+			}
+
+			// 更新申请状态
+			if err := tx.Model(&r).Updates(map[string]any{
+				"status":         model.ApprovalApproved,
+				"reviewer_id":    govUserID,
+				"review_comment": comment,
+			}).Error; err != nil {
+				return err
+			}
+
+			// 执行删除
+			return s.executeDeletionTx(tx, &r)
 		})
-		s.notifSvc.Send(r.UserID, model.NotifDeletionApproved,
-			"账号注销申请已通过",
-			"您的账号注销申请已通过，账号将被注销",
-			model.TargetAccountDeletion, r.ID)
 	} else if action == "reject" {
-		s.db.Model(&r).Updates(map[string]any{
-			"status":         model.ApprovalRejected,
-			"reviewer_id":    govUserID,
-			"review_comment": comment,
+		return s.db.Transaction(func(tx *gorm.DB) error {
+			if err := s.notifSvc.Send(r.UserID, model.NotifDeletionRejected,
+				"账号注销申请被拒绝",
+				"您的账号注销申请已被拒绝："+comment,
+				model.TargetAccountDeletion, r.ID); err != nil {
+				slog.Error("notification failed", "error", err)
+			}
+			return tx.Model(&r).Updates(map[string]any{
+				"status":         model.ApprovalRejected,
+				"reviewer_id":    govUserID,
+				"review_comment": comment,
+			}).Error
 		})
-		s.notifSvc.Send(r.UserID, model.NotifDeletionRejected,
-			"账号注销申请被拒绝",
-			"您的账号注销申请已被拒绝："+comment,
-			model.TargetAccountDeletion, r.ID)
-	} else {
-		return errcode.ErrInvalidParams.WithMsg("操作必须为 approve 或 reject")
 	}
-	return nil
+	return errcode.ErrInvalidParams.WithMsg("操作必须为 approve 或 reject")
 }
 
-func (s *GovernmentService) DeleteEnterprise(entID uint) error {
+func (s *GovernmentService) DeleteEnterprise(entID, govUserID uint) error {
 	ent, err := s.repo.FindEnterpriseByID(entID)
 	if err != nil {
 		return errcode.ErrNotFound
@@ -337,12 +370,25 @@ func (s *GovernmentService) DeleteEnterprise(entID uint) error {
 
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		if userID > 0 {
-			tx.Delete(&model.User{}, userID)
+			if err := tx.Delete(&model.User{}, userID).Error; err != nil {
+				return err
+			}
 		}
-		tx.Delete(&model.Enterprise{}, entID)
-		tx.Where("enterprise_id = ?", entID).Delete(&model.IncubationRecord{})
-		tx.Where("enterprise_id = ?", entID).Delete(&model.MajorChange{})
-		tx.Where("applicant_id = ? AND applicant_type = ?", entID, model.ApplicantEnterprise).Delete(&model.PolicyApplication{})
+		if err := tx.Delete(&model.Enterprise{}, entID).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("enterprise_id = ?", entID).Delete(&model.IncubationRecord{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("enterprise_id = ?", entID).Delete(&model.MajorChange{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("applicant_id = ? AND applicant_type = ?", entID, model.ApplicantEnterprise).Delete(&model.PolicyApplication{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("enterprise_id = ?", entID).Delete(&model.AccountDeletionRequest{}).Error; err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {
@@ -352,16 +398,18 @@ func (s *GovernmentService) DeleteEnterprise(entID uint) error {
 		var carrierUserID uint
 		s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", carrierID).First(&carrierUserID)
 		if carrierUserID > 0 {
-			s.notifSvc.Send(carrierUserID, model.NotifAccountDeleted,
+			if err := s.notifSvc.Send(carrierUserID, model.NotifAccountDeleted,
 				"企业已被注销",
 				fmt.Sprintf("企业「%s」已被注销", ent.Name),
-				model.TargetAccountDeletion, entID)
+				model.TargetAccountDeletion, entID); err != nil {
+				slog.Error("notification failed", "error", err)
+			}
 		}
 	}
 	return nil
 }
 
-func (s *GovernmentService) DeleteCarrier(carrierID uint) error {
+func (s *GovernmentService) DeleteCarrier(carrierID, govUserID uint) error {
 	carrier, err := s.repo.FindCarrierByID(carrierID)
 	if err != nil {
 		return errcode.ErrNotFound
@@ -373,11 +421,22 @@ func (s *GovernmentService) DeleteCarrier(carrierID uint) error {
 
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		if userID > 0 {
-			tx.Delete(&model.User{}, userID)
+			if err := tx.Delete(&model.User{}, userID).Error; err != nil {
+				return err
+			}
 		}
-		tx.Delete(&model.Carrier{}, carrierID)
-		tx.Where("carrier_id = ?", carrierID).Delete(&model.IncubationRecord{})
-		tx.Where("applicant_id = ? AND applicant_type = ?", carrierID, model.ApplicantCarrier).Delete(&model.PolicyApplication{})
+		if err := tx.Delete(&model.Carrier{}, carrierID).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("carrier_id = ?", carrierID).Delete(&model.IncubationRecord{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("applicant_id = ? AND applicant_type = ?", carrierID, model.ApplicantCarrier).Delete(&model.PolicyApplication{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("carrier_id = ?", carrierID).Delete(&model.AccountDeletionRequest{}).Error; err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {
@@ -387,34 +446,47 @@ func (s *GovernmentService) DeleteCarrier(carrierID uint) error {
 		var entUserID uint
 		s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", entID).First(&entUserID)
 		if entUserID > 0 {
-			s.notifSvc.Send(entUserID, model.NotifAccountDeleted,
+			if err := s.notifSvc.Send(entUserID, model.NotifAccountDeleted,
 				"载体已被注销",
 				fmt.Sprintf("载体「%s」已被注销", carrier.Name),
-				model.TargetAccountDeletion, carrierID)
+				model.TargetAccountDeletion, carrierID); err != nil {
+				slog.Error("notification failed", "error", err)
+			}
 		}
 	}
 	return nil
 }
 
-func (s *GovernmentService) executeDeletion(r *model.AccountDeletionRequest) error {
-	return s.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Delete(&model.User{}, r.UserID).Error; err != nil {
+// executeDeletionTx 在已有事务中执行数据删除，由 ReviewDeletionRequest 的事务调用。
+func (s *GovernmentService) executeDeletionTx(tx *gorm.DB, r *model.AccountDeletionRequest) error {
+	if err := tx.Delete(&model.User{}, r.UserID).Error; err != nil {
+		return err
+	}
+	if r.EnterpriseID != nil {
+		if err := tx.Delete(&model.Enterprise{}, *r.EnterpriseID).Error; err != nil {
 			return err
 		}
-		if r.EnterpriseID != nil {
-			if err := tx.Delete(&model.Enterprise{}, *r.EnterpriseID).Error; err != nil {
-				return err
-			}
-			tx.Where("enterprise_id = ?", *r.EnterpriseID).Delete(&model.IncubationRecord{})
-			tx.Where("enterprise_id = ?", *r.EnterpriseID).Delete(&model.MajorChange{})
-			tx.Where("applicant_id = ? AND applicant_type = ?", *r.EnterpriseID, model.ApplicantEnterprise).Delete(&model.PolicyApplication{})
+		if err := tx.Where("enterprise_id = ?", *r.EnterpriseID).Delete(&model.IncubationRecord{}).Error; err != nil {
+			return err
 		}
-		if r.CarrierID != nil {
-			if err := tx.Delete(&model.Carrier{}, *r.CarrierID).Error; err != nil {
-				return err
-			}
-			tx.Where("carrier_id = ?", *r.CarrierID).Delete(&model.IncubationRecord{})
+		if err := tx.Where("enterprise_id = ?", *r.EnterpriseID).Delete(&model.MajorChange{}).Error; err != nil {
+			return err
 		}
-		return nil
-	})
+		if err := tx.Where("applicant_id = ? AND applicant_type = ?", *r.EnterpriseID, model.ApplicantEnterprise).Delete(&model.PolicyApplication{}).Error; err != nil {
+			return err
+		}
+	}
+	if r.CarrierID != nil {
+		if err := tx.Delete(&model.Carrier{}, *r.CarrierID).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("carrier_id = ?", *r.CarrierID).Delete(&model.IncubationRecord{}).Error; err != nil {
+			return err
+		}
+	}
+	// 清理关联的注销申请记录
+	if err := tx.Where("user_id = ?", r.UserID).Delete(&model.AccountDeletionRequest{}).Error; err != nil {
+		return err
+	}
+	return nil
 }
