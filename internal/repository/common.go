@@ -34,6 +34,12 @@ func (r *CommonRepo) FindPolicyByID(id uint) (*model.Policy, error) {
 	return &policy, nil
 }
 
+func (r *CommonRepo) FindUserIDsByRole(role string) ([]uint, error) {
+	var ids []uint
+	err := r.db.Model(&model.User{}).Where("role = ?", role).Pluck("id", &ids).Error
+	return ids, err
+}
+
 func (r *CommonRepo) CreatePolicyApplication(app *model.PolicyApplication) error {
 	return r.db.Create(app).Error
 }

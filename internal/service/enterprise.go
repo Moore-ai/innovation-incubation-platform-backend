@@ -20,10 +20,11 @@ type EnterpriseService struct {
 	db         *gorm.DB
 	sm         *statemachine.StateMachine
 	notifSvc   *NotificationService
+	assigner   *Assigner
 }
 
-func NewEnterpriseService(repo *repository.EnterpriseRepo, commonRepo *repository.CommonRepo, db *gorm.DB, notifSvc *NotificationService) *EnterpriseService {
-	return &EnterpriseService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM(), notifSvc: notifSvc}
+func NewEnterpriseService(repo *repository.EnterpriseRepo, commonRepo *repository.CommonRepo, db *gorm.DB, notifSvc *NotificationService, assigner *Assigner) *EnterpriseService {
+	return &EnterpriseService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM(), notifSvc: notifSvc, assigner: assigner}
 }
 
 func (s *EnterpriseService) GetMyEnterpriseInfo(userID uint) (*model.Enterprise, error) {
@@ -246,10 +247,11 @@ func (s *EnterpriseService) ApplyDeletion(userID uint, reason string) error {
 	if err := s.db.Create(req).Error; err != nil {
 		return errcode.ErrInternal
 	}
-	// 通知政务
-	var govIDs []uint
-	s.db.Model(&model.User{}).Select("id").Where("role = ?", "government").Pluck("id", &govIDs)
-	for _, uid := range govIDs {
+	// 通知政务（轮询分配）
+	uid, err := s.assigner.Next("government")
+	if err != nil {
+		slog.Error("assigner next failed", "error", err)
+	} else {
 		s.notifSvc.Send(uid, model.NotifDeletionApplied,
 			"有一条新的注销申请待审核",
 			fmt.Sprintf("企业「%s」提交了账号注销申请", ent.Name),
