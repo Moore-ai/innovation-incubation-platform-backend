@@ -4,9 +4,11 @@ import (
 	"strconv"
 
 	"innovation-incubation-platform-backend/internal/dto"
+	"innovation-incubation-platform-backend/internal/middleware"
+	"innovation-incubation-platform-backend/internal/service"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/response"
-	"innovation-incubation-platform-backend/internal/service"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -185,8 +187,12 @@ func (ctl *GovernmentController) ScoreSubmission(c *gin.Context) {
 }
 
 func (ctl *GovernmentController) CompleteIncubation(c *gin.Context) {
-	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err := ctl.svc.CompleteIncubation(uint(id)); err != nil {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+	if err := ctl.svc.CompleteIncubation(middleware.GetUserID(c), uint(id)); err != nil {
 		response.Error(c, err)
 		return
 	}

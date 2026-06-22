@@ -34,7 +34,11 @@ func (ctl *CarrierController) ReviewIncubation(c *gin.Context) {
 }
 
 func (ctl *CarrierController) CompleteIncubation(c *gin.Context) {
-	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
 	if err := ctl.svc.CompleteIncubation(middleware.GetUserID(c), uint(id)); err != nil {
 		response.Error(c, err)
 		return

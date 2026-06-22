@@ -1,6 +1,7 @@
 package service
 
 import (
+	"time"
 	"fmt"
 
 	"innovation-incubation-platform-backend/internal/dto"
@@ -95,7 +96,10 @@ func (s *CarrierService) ListPendingIncubations(userID uint, page, pageSize int)
 }
 
 func (s *CarrierService) CompleteIncubation(carrierUserID uint, incubationID uint) error {
-	carrier, _ := s.repo.FindCarrierByUserID(carrierUserID)
+	carrier, err := s.repo.FindCarrierByUserID(carrierUserID)
+	if err != nil {
+		return errcode.ErrForbidden
+	}
 	record, err := s.repo.FindIncubationByID(incubationID)
 	if err != nil {
 		return errcode.ErrNotFound
@@ -106,19 +110,46 @@ func (s *CarrierService) CompleteIncubation(carrierUserID uint, incubationID uin
 	if record.IncubateStatus != model.IncubateInIncubation {
 		return errcode.ErrStatusInvalid.WithMsg("该入驻记录当前状态不可标记为孵化完成")
 	}
-	if err := s.db.Model(&model.IncubationRecord{}).Where("id = ?", incubationID).Update("incubate_status", string(model.IncubateGraduated)).Error; err != nil {
-		return errcode.ErrInternal
+	if record.Status != model.ApprovalApproved {
+		return errcode.ErrStatusInvalid.WithMsg("入驻申请尚未通过审核，无法标记为孵化完成")
 	}
-	// 通知企业
-	var entUserID uint
-	s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", record.EnterpriseID).Take(&entUserID)
-	if entUserID > 0 {
-		s.notifSvc.Send(entUserID, model.NotifIncubationGraduated,
-			"孵化已完成",
-			"贵企业已完成孵化，恭喜！",
-			model.TargetIncubation, incubationID)
-	}
-	return nil
+
+	now := time.Now().Format("2006-01-02")
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&model.IncubationRecord{}).
+			Where("id = ? AND incubate_status = ?", incubationID, model.IncubateInIncubation).
+			Updates(map[string]any{
+				"incubate_status": model.IncubateGraduated,
+				"incubate_end":    now,
+			})
+		if res.Error != nil {
+			return errcode.ErrInternal
+		}
+		if res.RowsAffected == 0 {
+			return errcode.ErrStatusInvalid.WithMsg("该入驻记录当前状态不可标记为孵化完成")
+		}
+
+		tx.Create(&model.Approval{
+			TargetType: model.TargetIncubation,
+			TargetID:   incubationID,
+			Step:       model.StepCarrierReview,
+			Action:     model.ActionApprove,
+			ReviewerID: carrierUserID,
+		})
+
+		// 通知企业
+		var entUserID uint
+		tx.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", record.EnterpriseID).Take(&entUserID)
+		if entUserID > 0 {
+			if err := s.notifSvc.Send(entUserID, model.NotifIncubationGraduated,
+				"孵化已完成",
+				"贵企业已完成孵化，恭喜！",
+				model.TargetIncubation, incubationID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (s *CarrierService) ReviewChange(carrierUserID uint, changeID uint, req *dto.ReviewReq) error {
