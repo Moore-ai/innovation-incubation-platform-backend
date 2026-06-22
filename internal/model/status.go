@@ -28,13 +28,6 @@ const (
 	IncubateGraduated    IncubateStatus = "graduated"
 )
 
-// UserStatus — User
-type UserStatus string
-
-const (
-	UserActive UserStatus = "active"
-)
-
 // ApprovalStep — Approval.Step
 type ApprovalStep string
 
