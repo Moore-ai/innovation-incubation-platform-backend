@@ -48,6 +48,24 @@ func (ctl *GovernmentController) PublishPolicy(c *gin.Context) {
 	response.Success(c, p)
 }
 
+func (ctl *GovernmentController) UpdatePolicy(c *gin.Context) {
+	policyID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+	var req dto.PublishPolicyReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
+		return
+	}
+	if err := ctl.svc.UpdatePolicy(uint(policyID), &req); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
 func (ctl *GovernmentController) ListPolicies(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))

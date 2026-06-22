@@ -18,14 +18,15 @@ import (
 type GovernmentService struct {
 	repo         *repository.GovernmentRepo
 	deletionRepo *repository.DeletionRepo
+	followRepo   *repository.PolicyFollowRepo
 	db           *gorm.DB
 	sm           *statemachine.StateMachine
 	aiSvc        *AIService
 	notifSvc     *NotificationService
 }
 
-func NewGovernmentService(repo *repository.GovernmentRepo, deletionRepo *repository.DeletionRepo, db *gorm.DB, aiSvc *AIService, notifSvc *NotificationService) *GovernmentService {
-	return &GovernmentService{repo: repo, deletionRepo: deletionRepo, db: db, sm: statemachine.DefaultApprovalSM(), aiSvc: aiSvc, notifSvc: notifSvc}
+func NewGovernmentService(repo *repository.GovernmentRepo, deletionRepo *repository.DeletionRepo, followRepo *repository.PolicyFollowRepo, db *gorm.DB, aiSvc *AIService, notifSvc *NotificationService) *GovernmentService {
+	return &GovernmentService{repo: repo, deletionRepo: deletionRepo, followRepo: followRepo, db: db, sm: statemachine.DefaultApprovalSM(), aiSvc: aiSvc, notifSvc: notifSvc}
 }
 
 func (s *GovernmentService) CreatePolicyTemplate(req *dto.PolicyTemplateReq) (*model.PolicyTemplate, error) {
@@ -97,6 +98,36 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 
 func (s *GovernmentService) ListPolicies(page, pageSize int) ([]model.Policy, int64, error) {
 	return s.repo.ListPolicies(page, pageSize)
+}
+
+func (s *GovernmentService) UpdatePolicy(policyID uint, req *dto.PublishPolicyReq) error {
+	p, err := s.repo.FindPolicyByID(policyID)
+	if err != nil {
+		return errcode.ErrNotFound
+	}
+	p.Title = req.Title
+	p.Conditions = req.Conditions
+	p.SubsidyAmount = req.SubsidyAmount
+	p.StartDate = req.StartDate
+	p.EndDate = req.EndDate
+	if err := s.repo.UpdatePolicy(p); err != nil {
+		return errcode.ErrInternal
+	}
+	// 通知关注者
+	entIDs, _ := s.followRepo.FindEnterpriseIDsByPolicy(policyID)
+	for _, entID := range entIDs {
+		var userID uint
+		s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", entID).First(&userID)
+		if userID > 0 {
+			if err := s.notifSvc.Send(userID, model.NotifPolicyUpdated,
+				"您关注的政策已更新",
+				fmt.Sprintf("您关注的政策「%s」已更新", p.Title),
+				model.TargetPolicy, policyID); err != nil {
+				slog.Error("policy update notification failed", "policy_id", policyID, "user_id", userID, "error", err)
+			}
+		}
+	}
+	return nil
 }
 
 func (s *GovernmentService) SearchEnterprises(keyword string, page, pageSize int) ([]model.Enterprise, int64, error) {

@@ -21,7 +21,8 @@ type repositories struct {
 	common  *repository.CommonRepo
 	file    *repository.FileRepo
 	notif   *repository.NotificationRepo
-	deletion *repository.DeletionRepo
+	deletion    *repository.DeletionRepo
+	policyFollow *repository.PolicyFollowRepo
 }
 
 type services struct {
@@ -53,6 +54,7 @@ func initRepositories(db *gorm.DB) *repositories {
 		file:    repository.NewFileRepo(db),
 		notif:   repository.NewNotificationRepo(db),
 		deletion: repository.NewDeletionRepo(db),
+		policyFollow: repository.NewPolicyFollowRepo(db),
 	}
 }
 
@@ -71,10 +73,10 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 
 	return &services{
 		auth:    service.NewAuthService(r.auth, cfg.JWT),
-		ent:     service.NewEnterpriseService(r.ent, r.common, db, notifSvc, assigner),
+		ent:     service.NewEnterpriseService(r.ent, r.common, db, notifSvc, assigner, r.policyFollow),
 		ai:      aiSvc,
 		carrier: service.NewCarrierService(r.carrier, r.common, db, notifSvc, assigner),
-		gov:     service.NewGovernmentService(r.gov, r.deletion, db, aiSvc, notifSvc),
+		gov:     service.NewGovernmentService(r.gov, r.deletion, r.policyFollow, db, aiSvc, notifSvc),
 		notif:   notifSvc,
 		file:    fileSvc,
 	}

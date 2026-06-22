@@ -17,5 +17,6 @@ func AllModels() []any {
 		&File{},
 		&Notification{},
 		&AccountDeletionRequest{},
+		&PolicyFollow{},
 	}
 }
