@@ -21,6 +21,7 @@ type repositories struct {
 	common  *repository.CommonRepo
 	file    *repository.FileRepo
 	notif   *repository.NotificationRepo
+	deletion *repository.DeletionRepo
 }
 
 type services struct {
@@ -51,6 +52,7 @@ func initRepositories(db *gorm.DB) *repositories {
 		common:  repository.NewCommonRepo(db),
 		file:    repository.NewFileRepo(db),
 		notif:   repository.NewNotificationRepo(db),
+		deletion: repository.NewDeletionRepo(db),
 	}
 }
 
