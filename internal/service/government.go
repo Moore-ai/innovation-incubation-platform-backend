@@ -119,10 +119,12 @@ func (s *GovernmentService) UpdatePolicy(policyID uint, req *dto.PublishPolicyRe
 		var userID uint
 		s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", entID).First(&userID)
 		if userID > 0 {
-			s.notifSvc.Send(userID, model.NotifPolicyUpdated,
+			if err := s.notifSvc.Send(userID, model.NotifPolicyUpdated,
 				"您关注的政策已更新",
 				fmt.Sprintf("您关注的政策「%s」已更新", p.Title),
-				model.TargetPolicy, policyID)
+				model.TargetPolicy, policyID); err != nil {
+				slog.Error("policy update notification failed", "policy_id", policyID, "user_id", userID, "error", err)
+			}
 		}
 	}
 	return nil

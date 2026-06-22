@@ -331,13 +331,19 @@ func (s *EnterpriseService) FollowPolicy(userID, policyID uint) error {
 		return errcode.ErrNotFound.WithMsg("企业信息未找到")
 	}
 	exists, err := s.followRepo.Exists(ent.ID, policyID)
-	if err != nil || exists {
+	if err != nil {
+		return errcode.ErrInternal
+	}
+	if exists {
 		return errcode.ErrDuplicate.WithMsg("已关注该政策")
 	}
 	if _, err := s.commonRepo.FindPolicyByID(policyID); err != nil {
 		return errcode.ErrNotFound.WithMsg("政策不存在")
 	}
-	return s.followRepo.Create(ent.ID, policyID)
+	if err := s.followRepo.Create(ent.ID, policyID); err != nil {
+		return errcode.ErrDuplicate.WithMsg("已关注该政策")
+	}
+	return nil
 }
 
 func (s *EnterpriseService) UnfollowPolicy(userID, policyID uint) error {
