@@ -60,6 +60,7 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 	aiClient := aiclient.NewAnthropicChatModel(aiclient.New(cfg.AI.Anthropic))
 	aiSvc := service.NewAIService(aiClient, r.ent, r.gov, cfg)
 	notifSvc := service.NewNotificationService(r.notif, hub)
+	assigner := service.NewAssigner(r.common)
 
 	fileStorage, err := storage.NewLocalFileStorage(cfg.Upload.Dir)
 	if err != nil {
@@ -70,9 +71,9 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 
 	return &services{
 		auth:    service.NewAuthService(r.auth, cfg.JWT),
-		ent:     service.NewEnterpriseService(r.ent, r.common, db, notifSvc),
+		ent:     service.NewEnterpriseService(r.ent, r.common, db, notifSvc, assigner),
 		ai:      aiSvc,
-		carrier: service.NewCarrierService(r.carrier, r.common, db, notifSvc),
+		carrier: service.NewCarrierService(r.carrier, r.common, db, notifSvc, assigner),
 		gov:     service.NewGovernmentService(r.gov, r.deletion, db, aiSvc, notifSvc),
 		notif:   notifSvc,
 		file:    fileSvc,
