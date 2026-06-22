@@ -21,10 +21,11 @@ type EnterpriseService struct {
 	sm         *statemachine.StateMachine
 	notifSvc   *NotificationService
 	assigner   *Assigner
+	followRepo *repository.PolicyFollowRepo
 }
 
-func NewEnterpriseService(repo *repository.EnterpriseRepo, commonRepo *repository.CommonRepo, db *gorm.DB, notifSvc *NotificationService, assigner *Assigner) *EnterpriseService {
-	return &EnterpriseService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM(), notifSvc: notifSvc, assigner: assigner}
+func NewEnterpriseService(repo *repository.EnterpriseRepo, commonRepo *repository.CommonRepo, db *gorm.DB, notifSvc *NotificationService, assigner *Assigner, followRepo *repository.PolicyFollowRepo) *EnterpriseService {
+	return &EnterpriseService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM(), notifSvc: notifSvc, assigner: assigner, followRepo: followRepo}
 }
 
 func (s *EnterpriseService) GetMyEnterpriseInfo(userID uint) (*model.Enterprise, error) {
@@ -322,4 +323,38 @@ func (s *EnterpriseService) ApplyPolicy(userID uint, policyID uint, req *dto.Pol
 func (s *EnterpriseService) ListMyApplications(userID uint, page, pageSize int) ([]model.PolicyApplication, int64, error) {
 	ent, _ := s.repo.FindEnterpriseByUserID(userID)
 	return s.commonRepo.ListApplicationsByApplicant(string(model.ApplicantEnterprise), ent.ID, page, pageSize)
+}
+
+func (s *EnterpriseService) FollowPolicy(userID, policyID uint) error {
+	ent, err := s.repo.FindEnterpriseByUserID(userID)
+	if err != nil {
+		return errcode.ErrNotFound.WithMsg("企业信息未找到")
+	}
+	exists, err := s.followRepo.Exists(ent.ID, policyID)
+	if err != nil || exists {
+		return errcode.ErrDuplicate.WithMsg("已关注该政策")
+	}
+	if _, err := s.commonRepo.FindPolicyByID(policyID); err != nil {
+		return errcode.ErrNotFound.WithMsg("政策不存在")
+	}
+	return s.followRepo.Create(ent.ID, policyID)
+}
+
+func (s *EnterpriseService) UnfollowPolicy(userID, policyID uint) error {
+	ent, err := s.repo.FindEnterpriseByUserID(userID)
+	if err != nil {
+		return errcode.ErrNotFound.WithMsg("企业信息未找到")
+	}
+	if err := s.followRepo.Delete(ent.ID, policyID); err != nil {
+		return errcode.ErrNotFound.WithMsg("未关注该政策")
+	}
+	return nil
+}
+
+func (s *EnterpriseService) ListFollowedPolicies(userID uint, page, pageSize int) ([]model.PolicyFollow, int64, error) {
+	ent, err := s.repo.FindEnterpriseByUserID(userID)
+	if err != nil {
+		return nil, 0, errcode.ErrNotFound.WithMsg("企业信息未找到")
+	}
+	return s.followRepo.ListByEnterprise(ent.ID, page, pageSize)
 }
