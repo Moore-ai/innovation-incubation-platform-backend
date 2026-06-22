@@ -33,10 +33,11 @@ type CarrierService struct {
 	db         *gorm.DB
 	sm         *statemachine.StateMachine
 	notifSvc   *NotificationService
+	assigner   *Assigner
 }
 
-func NewCarrierService(repo *repository.CarrierRepo, commonRepo *repository.CommonRepo, db *gorm.DB, notifSvc *NotificationService) *CarrierService {
-	return &CarrierService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM(), notifSvc: notifSvc}
+func NewCarrierService(repo *repository.CarrierRepo, commonRepo *repository.CommonRepo, db *gorm.DB, notifSvc *NotificationService, assigner *Assigner) *CarrierService {
+	return &CarrierService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM(), notifSvc: notifSvc, assigner: assigner}
 }
 
 func (s *CarrierService) ReviewIncubation(carrierUserID uint, incubationID uint, req *dto.ReviewReq) error {
@@ -333,8 +334,8 @@ func (s *CarrierService) ReviewEnterprisePolicyApplication(carrierUserID uint, a
 	})
 
 	if req.Action == string(model.ActionApprove) {
-		govIDs, _ := s.repo.FindGovernmentUserIDs()
-		for _, uid := range govIDs {
+		uid, err := s.assigner.Next("government")
+		if err == nil {
 			s.notifSvc.Send(uid, model.NotifApplicationCarrierApproved,
 				"有一条政策申报已通过载体审核",
 				"有一条政策申报已通过载体审核，请尽快处理",
@@ -369,8 +370,8 @@ func (s *CarrierService) ApplyDeletion(userID uint, reason string) error {
 		return errcode.ErrInternal
 	}
 	// 通知政务
-	govIDs, _ := s.repo.FindGovernmentUserIDs()
-	for _, uid := range govIDs {
+	uid, err := s.assigner.Next("government")
+	if err == nil {
 		s.notifSvc.Send(uid, model.NotifDeletionApplied,
 			"有一条新的注销申请待审核",
 			fmt.Sprintf("载体「%s」提交了账号注销申请", carrier.Name),
@@ -402,8 +403,8 @@ func (s *CarrierService) SubmitPerformance(userID uint, campaignID uint, req *dt
 	})
 
 	// 通知政务
-	govIDs, _ := s.repo.FindGovernmentUserIDs()
-	for _, uid := range govIDs {
+	uid, err := s.assigner.Next("government")
+	if err == nil {
 		s.notifSvc.Send(uid, model.NotifPerformanceSubmitted,
 			"有一条新的绩效考核申报待评分",
 			"有一条新的绩效考核申报待评分",
