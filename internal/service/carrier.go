@@ -94,6 +94,33 @@ func (s *CarrierService) ListPendingIncubations(userID uint, page, pageSize int)
 	return s.repo.ListPendingIncubations(carrier.ID, page, pageSize)
 }
 
+func (s *CarrierService) CompleteIncubation(carrierUserID uint, incubationID uint) error {
+	carrier, _ := s.repo.FindCarrierByUserID(carrierUserID)
+	record, err := s.repo.FindIncubationByID(incubationID)
+	if err != nil {
+		return errcode.ErrNotFound
+	}
+	if record.CarrierID != carrier.ID {
+		return errcode.ErrForbidden
+	}
+	if record.IncubateStatus != model.IncubateInIncubation {
+		return errcode.ErrStatusInvalid.WithMsg("该入驻记录当前状态不可标记为孵化完成")
+	}
+	if err := s.db.Model(&model.IncubationRecord{}).Where("id = ?", incubationID).Update("incubate_status", string(model.IncubateGraduated)).Error; err != nil {
+		return errcode.ErrInternal
+	}
+	// 通知企业
+	var entUserID uint
+	s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", record.EnterpriseID).Take(&entUserID)
+	if entUserID > 0 {
+		s.notifSvc.Send(entUserID, model.NotifIncubationGraduated,
+			"孵化已完成",
+			"贵企业已完成孵化，恭喜！",
+			model.TargetIncubation, incubationID)
+	}
+	return nil
+}
+
 func (s *CarrierService) ReviewChange(carrierUserID uint, changeID uint, req *dto.ReviewReq) error {
 	if err := validateReviewAction(req.Action); err != nil {
 		return err

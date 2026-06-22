@@ -8,9 +8,10 @@ import (
 
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/model"
+	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/statemachine"
-	"innovation-incubation-platform-backend/internal/repository"
+
 	"gorm.io/gorm"
 )
 
@@ -214,6 +215,38 @@ func (s *GovernmentService) ScoreSubmission(subID uint, req *dto.ScoreReq) error
 			"绩效考核已被评分",
 			"您的绩效考核已被政务评分",
 			model.TargetPerformance, subID)
+	}
+	return nil
+}
+
+func (s *GovernmentService) CompleteIncubation(incubationID uint) error {
+	var record model.IncubationRecord
+	if err := s.db.First(&record, incubationID).Error; err != nil {
+		return errcode.ErrNotFound
+	}
+	if record.IncubateStatus != model.IncubateInIncubation {
+		return errcode.ErrStatusInvalid.WithMsg("该入驻记录当前状态不可标记为孵化完成")
+	}
+	if err := s.db.Model(&model.IncubationRecord{}).Where("id = ?", incubationID).Update("incubate_status", string(model.IncubateGraduated)).Error; err != nil {
+		return errcode.ErrInternal
+	}
+	// 通知企业
+	var entUserID uint
+	s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", record.EnterpriseID).Take(&entUserID)
+	if entUserID > 0 {
+		s.notifSvc.Send(entUserID, model.NotifIncubationGraduated,
+			"孵化已完成",
+			"贵企业已完成孵化，恭喜！",
+			model.TargetIncubation, incubationID)
+	}
+	// 通知载体
+	var carrierUserID uint
+	s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", record.CarrierID).Take(&carrierUserID)
+	if carrierUserID > 0 {
+		s.notifSvc.Send(carrierUserID, model.NotifIncubationGraduated,
+			"孵化已完成",
+			"企业已完成孵化",
+			model.TargetIncubation, incubationID)
 	}
 	return nil
 }

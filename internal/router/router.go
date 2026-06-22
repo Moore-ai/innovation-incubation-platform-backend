@@ -11,13 +11,13 @@ import (
 )
 
 type Deps struct {
-	Config               *config.Config
-	Enforcer             *casbin.Enforcer
-	AuthController       *controller.AuthController
-	EnterpriseController *controller.EnterpriseController
-	CarrierController    *controller.CarrierController
-	GovernmentController *controller.GovernmentController
-	FileController          *controller.FileController
+	Config                 *config.Config
+	Enforcer               *casbin.Enforcer
+	AuthController         *controller.AuthController
+	EnterpriseController   *controller.EnterpriseController
+	CarrierController      *controller.CarrierController
+	GovernmentController   *controller.GovernmentController
+	FileController         *controller.FileController
 	NotificationController *controller.NotificationController
 }
 
@@ -98,6 +98,7 @@ func registerCarrierRoutes(r *gin.Engine, deps *Deps) {
 	c.POST("/incubation/:id/approve", deps.CarrierController.ReviewIncubation)
 	c.POST("/incubation/:id/reject", deps.CarrierController.ReviewIncubation)
 	c.POST("/incubation/:id/return", deps.CarrierController.ReviewIncubation)
+	c.POST("/incubation/:id/complete", deps.CarrierController.CompleteIncubation)
 	c.GET("/changes/list", deps.CarrierController.ListPendingChanges)
 	c.POST("/changes/:id/approve", deps.CarrierController.ReviewChange)
 	c.POST("/changes/:id/reject", deps.CarrierController.ReviewChange)
@@ -130,6 +131,7 @@ func registerGovernmentRoutes(r *gin.Engine, deps *Deps) {
 	g.POST("/performances/campaigns", deps.GovernmentController.StartCampaign)
 	g.GET("/performances/submissions", deps.GovernmentController.ListSubmissions)
 	g.POST("/performances/:id/score", deps.GovernmentController.ScoreSubmission)
+	g.POST("/incubation/:id/complete", deps.GovernmentController.CompleteIncubation)
 }
 
 func registerFileRoutes(r *gin.Engine, deps *Deps) {

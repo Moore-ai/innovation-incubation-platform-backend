@@ -33,6 +33,15 @@ func (ctl *CarrierController) ReviewIncubation(c *gin.Context) {
 	response.Success(c, nil)
 }
 
+func (ctl *CarrierController) CompleteIncubation(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err := ctl.svc.CompleteIncubation(middleware.GetUserID(c), uint(id)); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
 func (ctl *CarrierController) ListPendingIncubations(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))

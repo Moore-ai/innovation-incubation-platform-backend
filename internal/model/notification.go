@@ -13,6 +13,7 @@ const (
 	NotifPerformanceSubmitted       NotificationType = "performance_submitted"
 	NotifPerformanceScored          NotificationType = "performance_scored"
 	NotifPolicyPublished            NotificationType = "policy_published"
+	NotifIncubationGraduated         NotificationType = "incubation_graduated"
 )
 
 type Notification struct {

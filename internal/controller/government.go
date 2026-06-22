@@ -183,3 +183,12 @@ func (ctl *GovernmentController) ScoreSubmission(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
+
+func (ctl *GovernmentController) CompleteIncubation(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err := ctl.svc.CompleteIncubation(uint(id)); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}

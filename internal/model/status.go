@@ -25,6 +25,7 @@ type IncubateStatus string
 
 const (
 	IncubateInIncubation IncubateStatus = "in_incubation"
+	IncubateGraduated    IncubateStatus = "graduated"
 )
 
 // UserStatus — User
