@@ -73,10 +73,10 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 
 	return &services{
 		auth:    service.NewAuthService(r.auth, cfg.JWT),
-		ent:     service.NewEnterpriseService(r.ent, r.common, db, notifSvc, assigner),
+		ent:     service.NewEnterpriseService(r.ent, r.common, db, notifSvc, assigner, r.policyFollow),
 		ai:      aiSvc,
 		carrier: service.NewCarrierService(r.carrier, r.common, db, notifSvc, assigner),
-		gov:     service.NewGovernmentService(r.gov, r.deletion, db, aiSvc, notifSvc),
+		gov:     service.NewGovernmentService(r.gov, r.deletion, r.policyFollow, db, aiSvc, notifSvc),
 		notif:   notifSvc,
 		file:    fileSvc,
 	}
