@@ -126,7 +126,8 @@ func (ctl *FileController) DeleteFile(c *gin.Context) {
 
 func (ctl *FileController) GetUploadLimit(c *gin.Context) {
 	response.Success(c, gin.H{
-		"max_size_mb": ctl.cfg.Upload.MaxSizeMB,
+		"max_size_mb":        ctl.cfg.Upload.MaxSizeMB,
+		"allowed_extensions": ctl.cfg.Upload.AllowedExtensions,
 	})
 }
 
