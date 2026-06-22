@@ -79,6 +79,9 @@ func registerEnterpriseRoutes(r *gin.Engine, deps *Deps) {
 	e.POST("/policies/:id/apply", deps.EnterpriseController.ApplyPolicy)
 	e.GET("/applications/list", deps.EnterpriseController.ListMyApplications)
 	e.POST("/account/deletion", deps.EnterpriseController.ApplyDeletion)
+	e.POST("/policies/:id/follow", deps.EnterpriseController.FollowPolicy)
+	e.DELETE("/policies/:id/follow", deps.EnterpriseController.UnfollowPolicy)
+	e.GET("/policies/followed", deps.EnterpriseController.ListFollowedPolicies)
 
 	ai := r.Group("/api/v1/enterprise")
 	ai.Use(middleware.AuthMiddleware(deps.Config.JWT))
@@ -123,6 +126,7 @@ func registerGovernmentRoutes(r *gin.Engine, deps *Deps) {
 	g.POST("/policies/templates", deps.GovernmentController.CreatePolicyTemplate)
 	g.POST("/policies", deps.GovernmentController.PublishPolicy)
 	g.GET("/policies/list", deps.GovernmentController.ListPolicies)
+	g.PUT("/policies/:id", deps.GovernmentController.UpdatePolicy)
 	g.GET("/enterprises", deps.GovernmentController.SearchEnterprises)
 	g.GET("/enterprises/:id", deps.GovernmentController.GetEnterprise)
 	g.PUT("/enterprises/:id", deps.GovernmentController.EditEnterprise)
