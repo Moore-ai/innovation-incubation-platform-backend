@@ -198,3 +198,35 @@ func (ctl *GovernmentController) CompleteIncubation(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
+
+func (ctl *GovernmentController) ListDeletionRequests(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	list, total, err := ctl.svc.ListDeletionRequests(page, pageSize)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.SuccessPage(c, list, total, page, pageSize)
+}
+
+func (ctl *GovernmentController) ReviewDeletionRequest(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+	var req struct {
+		Action  string `json:"action"`
+		Comment string `json:"comment"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || (req.Action != "approve" && req.Action != "reject") {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("action 必须为 approve 或 reject"))
+		return
+	}
+	if err := ctl.svc.ReviewDeletionRequest(middleware.GetUserID(c), uint(id), req.Action, req.Comment); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}

@@ -16,15 +16,16 @@ import (
 )
 
 type GovernmentService struct {
-	repo     *repository.GovernmentRepo
-	db       *gorm.DB
-	sm       *statemachine.StateMachine
-	aiSvc    *AIService
-	notifSvc *NotificationService
+	repo         *repository.GovernmentRepo
+	deletionRepo *repository.DeletionRepo
+	db           *gorm.DB
+	sm           *statemachine.StateMachine
+	aiSvc        *AIService
+	notifSvc     *NotificationService
 }
 
-func NewGovernmentService(repo *repository.GovernmentRepo, db *gorm.DB, aiSvc *AIService, notifSvc *NotificationService) *GovernmentService {
-	return &GovernmentService{repo: repo, db: db, sm: statemachine.DefaultApprovalSM(), aiSvc: aiSvc, notifSvc: notifSvc}
+func NewGovernmentService(repo *repository.GovernmentRepo, deletionRepo *repository.DeletionRepo, db *gorm.DB, aiSvc *AIService, notifSvc *NotificationService) *GovernmentService {
+	return &GovernmentService{repo: repo, deletionRepo: deletionRepo, db: db, sm: statemachine.DefaultApprovalSM(), aiSvc: aiSvc, notifSvc: notifSvc}
 }
 
 func (s *GovernmentService) CreatePolicyTemplate(req *dto.PolicyTemplateReq) (*model.PolicyTemplate, error) {
@@ -273,6 +274,75 @@ func (s *GovernmentService) CompleteIncubation(userID, incubationID uint) error 
 				model.TargetIncubation, incubationID); err != nil {
 				return err
 			}
+		}
+		return nil
+	})
+}
+
+func (s *GovernmentService) ListDeletionRequests(page, pageSize int) ([]model.AccountDeletionRequest, int64, error) {
+	var list []model.AccountDeletionRequest
+	var total int64
+	q := s.db.Model(&model.AccountDeletionRequest{}).Where("status = ?", model.ApprovalPending)
+	q.Count(&total)
+	err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
+	return list, total, err
+}
+
+func (s *GovernmentService) ReviewDeletionRequest(govUserID uint, reqID uint, action, comment string) error {
+	var r model.AccountDeletionRequest
+	if err := s.db.First(&r, reqID).Error; err != nil {
+		return errcode.ErrNotFound
+	}
+	if r.Status != model.ApprovalPending {
+		return errcode.ErrStatusInvalid.WithMsg("该申请已被处理")
+	}
+	if action == "approve" {
+		if err := s.executeDeletion(&r); err != nil {
+			return err
+		}
+		s.db.Model(&r).Updates(map[string]any{
+			"status":         model.ApprovalApproved,
+			"reviewer_id":    govUserID,
+			"review_comment": comment,
+		})
+		s.notifSvc.Send(r.UserID, model.NotifDeletionApproved,
+			"账号注销申请已通过",
+			"您的账号注销申请已通过，账号将被注销",
+			model.TargetAccountDeletion, r.ID)
+	} else if action == "reject" {
+		s.db.Model(&r).Updates(map[string]any{
+			"status":         model.ApprovalRejected,
+			"reviewer_id":    govUserID,
+			"review_comment": comment,
+		})
+		s.notifSvc.Send(r.UserID, model.NotifDeletionRejected,
+			"账号注销申请被拒绝",
+			"您的账号注销申请已被拒绝："+comment,
+			model.TargetAccountDeletion, r.ID)
+	} else {
+		return errcode.ErrInvalidParams.WithMsg("操作必须为 approve 或 reject")
+	}
+	return nil
+}
+
+func (s *GovernmentService) executeDeletion(r *model.AccountDeletionRequest) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&model.User{}, r.UserID).Error; err != nil {
+			return err
+		}
+		if r.EnterpriseID != nil {
+			if err := tx.Delete(&model.Enterprise{}, *r.EnterpriseID).Error; err != nil {
+				return err
+			}
+			tx.Where("enterprise_id = ?", *r.EnterpriseID).Delete(&model.IncubationRecord{})
+			tx.Where("enterprise_id = ?", *r.EnterpriseID).Delete(&model.MajorChange{})
+			tx.Where("applicant_id = ? AND applicant_type = ?", *r.EnterpriseID, model.ApplicantEnterprise).Delete(&model.PolicyApplication{})
+		}
+		if r.CarrierID != nil {
+			if err := tx.Delete(&model.Carrier{}, *r.CarrierID).Error; err != nil {
+				return err
+			}
+			tx.Where("carrier_id = ?", *r.CarrierID).Delete(&model.IncubationRecord{})
 		}
 		return nil
 	})
