@@ -345,6 +345,36 @@ func (s *CarrierService) ReviewEnterprisePolicyApplication(carrierUserID uint, a
 	return nil
 }
 
+func (s *CarrierService) ApplyDeletion(userID uint, reason string) error {
+	if reason == "" {
+		return errcode.ErrInvalidParams.WithMsg("请填写注销原因")
+	}
+	carrier, err := s.repo.FindCarrierByUserID(userID)
+	if err != nil {
+		return errcode.ErrNotFound.WithMsg("载体信息未找到")
+	}
+	req := &model.AccountDeletionRequest{
+		UserID:    userID,
+		Role:      string(model.RoleCarrier),
+		CarrierID: &carrier.ID,
+		Reason:    reason,
+		Status:    model.ApprovalPending,
+	}
+	if err := s.db.Create(req).Error; err != nil {
+		return errcode.ErrInternal
+	}
+	// 通知政务
+	var govIDs []uint
+	s.db.Model(&model.User{}).Select("id").Where("role = ?", "government").Pluck("id", &govIDs)
+	for _, uid := range govIDs {
+		s.notifSvc.Send(uid, model.NotifDeletionApplied,
+			"有一条新的注销申请待审核",
+			fmt.Sprintf("载体「%s」提交了账号注销申请", carrier.Name),
+			model.TargetAccountDeletion, req.ID)
+	}
+	return nil
+}
+
 func (s *CarrierService) ListActiveCampaigns(page, pageSize int) ([]model.PerformanceCampaign, int64, error) {
 	return s.repo.ListActiveCampaigns(page, pageSize)
 }
