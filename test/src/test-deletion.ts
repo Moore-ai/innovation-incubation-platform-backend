@@ -179,7 +179,7 @@ async function main() {
   console.log("\n=== SSE 实时推送验证 ===");
   // 政务保持 SSE 连接 → 企业提交注销 → 政务在同一连接上收到 event:update
   const realtimeNotif = await waitForSSEUpdate(govToken, async () => {
-    api.setToken(entToken);
+    api.setToken(ent2Token);
     await api.post("/enterprise/account/deletion", { reason: "实时推送测试" });
   });
   assertOk("SSE 实时推送收到通知", !!realtimeNotif);
