@@ -223,6 +223,31 @@ func (ctl *EnterpriseController) RecommendPolicy(c *gin.Context) {
 	response.Success(c, result)
 }
 
+func (ctl *EnterpriseController) ListCarriers(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	list, total, err := ctl.svc.ListCarriers(page, pageSize)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.SuccessPage(c, list, total, page, pageSize)
+}
+
+func (ctl *EnterpriseController) GetCarrier(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+	carrier, err := ctl.svc.GetCarrier(uint(id))
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, carrier)
+}
+
 func (ctl *EnterpriseController) PrefillApplication(c *gin.Context) {
 	var req dto.PrefillReq
 	if err := c.ShouldBindJSON(&req); err != nil {

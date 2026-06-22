@@ -15,17 +15,18 @@ import (
 )
 
 type EnterpriseService struct {
-	repo       *repository.EnterpriseRepo
-	commonRepo *repository.CommonRepo
-	db         *gorm.DB
-	sm         *statemachine.StateMachine
-	notifSvc   *NotificationService
-	assigner   *Assigner
-	followRepo *repository.PolicyFollowRepo
+	repo        *repository.EnterpriseRepo
+	carrierRepo *repository.CarrierRepo
+	commonRepo  *repository.CommonRepo
+	db          *gorm.DB
+	sm          *statemachine.StateMachine
+	notifSvc    *NotificationService
+	assigner    *Assigner
+	followRepo  *repository.PolicyFollowRepo
 }
 
-func NewEnterpriseService(repo *repository.EnterpriseRepo, commonRepo *repository.CommonRepo, db *gorm.DB, notifSvc *NotificationService, assigner *Assigner, followRepo *repository.PolicyFollowRepo) *EnterpriseService {
-	return &EnterpriseService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM(), notifSvc: notifSvc, assigner: assigner, followRepo: followRepo}
+func NewEnterpriseService(repo *repository.EnterpriseRepo, carrierRepo *repository.CarrierRepo, commonRepo *repository.CommonRepo, db *gorm.DB, notifSvc *NotificationService, assigner *Assigner, followRepo *repository.PolicyFollowRepo) *EnterpriseService {
+	return &EnterpriseService{repo: repo, carrierRepo: carrierRepo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM(), notifSvc: notifSvc, assigner: assigner, followRepo: followRepo}
 }
 
 func (s *EnterpriseService) GetMyEnterpriseInfo(userID uint) (*model.Enterprise, error) {
@@ -363,4 +364,16 @@ func (s *EnterpriseService) ListFollowedPolicies(userID uint, page, pageSize int
 		return nil, 0, errcode.ErrNotFound.WithMsg("企业信息未找到")
 	}
 	return s.followRepo.ListByEnterprise(ent.ID, page, pageSize)
+}
+
+func (s *EnterpriseService) ListCarriers(page, pageSize int) ([]model.Carrier, int64, error) {
+	return s.carrierRepo.ListAll(page, pageSize)
+}
+
+func (s *EnterpriseService) GetCarrier(id uint) (*model.Carrier, error) {
+	c, err := s.carrierRepo.FindByID(id)
+	if err != nil {
+		return nil, errcode.ErrNotFound.WithMsg("载体不存在")
+	}
+	return c, nil
 }

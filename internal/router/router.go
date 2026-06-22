@@ -79,6 +79,8 @@ func registerEnterpriseRoutes(r *gin.Engine, deps *Deps) {
 	e.POST("/policies/:id/apply", deps.EnterpriseController.ApplyPolicy)
 	e.GET("/applications/list", deps.EnterpriseController.ListMyApplications)
 	e.POST("/account/deletion", deps.EnterpriseController.ApplyDeletion)
+	e.GET("/carriers", deps.EnterpriseController.ListCarriers)
+	e.GET("/carriers/:id", deps.EnterpriseController.GetCarrier)
 	e.POST("/policies/:id/follow", deps.EnterpriseController.FollowPolicy)
 	e.DELETE("/policies/:id/follow", deps.EnterpriseController.UnfollowPolicy)
 	e.GET("/policies/followed", deps.EnterpriseController.ListFollowedPolicies)

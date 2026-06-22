@@ -22,6 +22,26 @@ func (r *CarrierRepo) FindCarrierByUserID(userID uint) (*model.Carrier, error) {
 	return &carrier, nil
 }
 
+func (r *CarrierRepo) ListAll(page, pageSize int) ([]model.Carrier, int64, error) {
+	var list []model.Carrier
+	var total int64
+	q := r.db.Model(&model.Carrier{})
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
+	return list, total, err
+}
+
+func (r *CarrierRepo) FindByID(id uint) (*model.Carrier, error) {
+	var c model.Carrier
+	err := r.db.First(&c, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
 func (r *CarrierRepo) UpdateCarrier(carrier *model.Carrier) error {
 	return r.db.Save(carrier).Error
 }
