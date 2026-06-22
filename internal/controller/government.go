@@ -199,6 +199,32 @@ func (ctl *GovernmentController) CompleteIncubation(c *gin.Context) {
 	response.Success(c, nil)
 }
 
+func (ctl *GovernmentController) DeleteEnterprise(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+	if err := ctl.svc.DeleteEnterprise(uint(id)); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+func (ctl *GovernmentController) DeleteCarrier(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+	if err := ctl.svc.DeleteCarrier(uint(id)); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
 func (ctl *GovernmentController) ListDeletionRequests(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))

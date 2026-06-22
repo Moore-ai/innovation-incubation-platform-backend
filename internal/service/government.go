@@ -325,6 +325,77 @@ func (s *GovernmentService) ReviewDeletionRequest(govUserID uint, reqID uint, ac
 	return nil
 }
 
+func (s *GovernmentService) DeleteEnterprise(entID uint) error {
+	ent, err := s.repo.FindEnterpriseByID(entID)
+	if err != nil {
+		return errcode.ErrNotFound
+	}
+	var userID uint
+	s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", entID).First(&userID)
+	var carrierIDs []uint
+	s.db.Model(&model.IncubationRecord{}).Select("carrier_id").Where("enterprise_id = ?", entID).Pluck("carrier_id", &carrierIDs)
+
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		if userID > 0 {
+			tx.Delete(&model.User{}, userID)
+		}
+		tx.Delete(&model.Enterprise{}, entID)
+		tx.Where("enterprise_id = ?", entID).Delete(&model.IncubationRecord{})
+		tx.Where("enterprise_id = ?", entID).Delete(&model.MajorChange{})
+		tx.Where("applicant_id = ? AND applicant_type = ?", entID, model.ApplicantEnterprise).Delete(&model.PolicyApplication{})
+		return nil
+	})
+	if err != nil {
+		return errcode.ErrInternal
+	}
+	for _, carrierID := range carrierIDs {
+		var carrierUserID uint
+		s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", carrierID).First(&carrierUserID)
+		if carrierUserID > 0 {
+			s.notifSvc.Send(carrierUserID, model.NotifAccountDeleted,
+				"企业已被注销",
+				fmt.Sprintf("企业「%s」已被注销", ent.Name),
+				model.TargetAccountDeletion, entID)
+		}
+	}
+	return nil
+}
+
+func (s *GovernmentService) DeleteCarrier(carrierID uint) error {
+	carrier, err := s.repo.FindCarrierByID(carrierID)
+	if err != nil {
+		return errcode.ErrNotFound
+	}
+	var userID uint
+	s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", carrierID).First(&userID)
+	var enterpriseIDs []uint
+	s.db.Model(&model.IncubationRecord{}).Select("enterprise_id").Where("carrier_id = ?", carrierID).Pluck("enterprise_id", &enterpriseIDs)
+
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		if userID > 0 {
+			tx.Delete(&model.User{}, userID)
+		}
+		tx.Delete(&model.Carrier{}, carrierID)
+		tx.Where("carrier_id = ?", carrierID).Delete(&model.IncubationRecord{})
+		tx.Where("applicant_id = ? AND applicant_type = ?", carrierID, model.ApplicantCarrier).Delete(&model.PolicyApplication{})
+		return nil
+	})
+	if err != nil {
+		return errcode.ErrInternal
+	}
+	for _, entID := range enterpriseIDs {
+		var entUserID uint
+		s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", entID).First(&entUserID)
+		if entUserID > 0 {
+			s.notifSvc.Send(entUserID, model.NotifAccountDeleted,
+				"载体已被注销",
+				fmt.Sprintf("载体「%s」已被注销", carrier.Name),
+				model.TargetAccountDeletion, carrierID)
+		}
+	}
+	return nil
+}
+
 func (s *GovernmentService) executeDeletion(r *model.AccountDeletionRequest) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Delete(&model.User{}, r.UserID).Error; err != nil {

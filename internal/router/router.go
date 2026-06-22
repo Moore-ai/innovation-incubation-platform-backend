@@ -124,6 +124,8 @@ func registerGovernmentRoutes(r *gin.Engine, deps *Deps) {
 	g.GET("/enterprises", deps.GovernmentController.SearchEnterprises)
 	g.GET("/enterprises/:id", deps.GovernmentController.GetEnterprise)
 	g.PUT("/enterprises/:id", deps.GovernmentController.EditEnterprise)
+	g.DELETE("/enterprises/:id", deps.GovernmentController.DeleteEnterprise)
+	g.DELETE("/carriers/:id", deps.GovernmentController.DeleteCarrier)
 	g.GET("/carriers", deps.GovernmentController.SearchCarriers)
 	g.POST("/applications/:id/review", deps.GovernmentController.ReviewPolicyApplication)
 	g.GET("/applications/list", deps.GovernmentController.ListPolicyApplications)
