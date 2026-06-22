@@ -18,6 +18,7 @@ const (
 	NotifDeletionApproved            NotificationType = "deletion_approved"
 	NotifDeletionRejected            NotificationType = "deletion_rejected"
 	NotifAccountDeleted              NotificationType = "account_deleted"
+	NotifPolicyUpdated               NotificationType = "policy_updated"
 )
 
 type Notification struct {
