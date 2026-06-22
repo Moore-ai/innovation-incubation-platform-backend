@@ -49,6 +49,7 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 		SubsidyAmount: req.SubsidyAmount,
 		StartDate:     req.StartDate,
 		EndDate:       req.EndDate,
+		FileID:        req.FileID,
 		Status:        model.PolicyPublished,
 		PublishedAt:   &now,
 	}
@@ -110,6 +111,7 @@ func (s *GovernmentService) UpdatePolicy(policyID uint, req *dto.PublishPolicyRe
 	p.SubsidyAmount = req.SubsidyAmount
 	p.StartDate = req.StartDate
 	p.EndDate = req.EndDate
+	p.FileID = req.FileID
 	if err := s.repo.UpdatePolicy(p); err != nil {
 		return errcode.ErrInternal
 	}

@@ -79,6 +79,7 @@ type PublishPolicyReq struct {
 	SubsidyAmount string        `json:"subsidy_amount"`
 	StartDate     string        `json:"start_date"`
 	EndDate       string        `json:"end_date"`
+	FileID        *uint         `json:"file_id,omitempty"`
 }
 
 type EnterpriseEditReq struct {
