@@ -14,6 +14,10 @@ const (
 	NotifPerformanceScored          NotificationType = "performance_scored"
 	NotifPolicyPublished            NotificationType = "policy_published"
 	NotifIncubationGraduated         NotificationType = "incubation_graduated"
+	NotifDeletionApplied             NotificationType = "deletion_applied"
+	NotifDeletionApproved            NotificationType = "deletion_approved"
+	NotifDeletionRejected            NotificationType = "deletion_rejected"
+	NotifAccountDeleted              NotificationType = "account_deleted"
 )
 
 type Notification struct {

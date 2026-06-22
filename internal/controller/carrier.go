@@ -156,6 +156,21 @@ func (ctl *CarrierController) ReviewEnterpriseApplication(c *gin.Context) {
 	response.Success(c, nil)
 }
 
+func (ctl *CarrierController) ApplyDeletion(c *gin.Context) {
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("请填写注销原因"))
+		return
+	}
+	if err := ctl.svc.ApplyDeletion(middleware.GetUserID(c), req.Reason); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
 func (ctl *CarrierController) ListCampaigns(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))

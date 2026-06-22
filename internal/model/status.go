@@ -63,6 +63,7 @@ const (
 	TargetMajorChange TargetType = "major_change"
 	TargetPolicy      TargetType = "policy"
 	TargetPerformance TargetType = "performance"
+	TargetAccountDeletion TargetType = "account_deletion"
 )
 
 // ApplicantType — PolicyApplication.ApplicantType

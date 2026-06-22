@@ -153,6 +153,21 @@ func (ctl *EnterpriseController) GetMyEnterpriseInfo(c *gin.Context) {
 	response.Success(c, ent)
 }
 
+func (ctl *EnterpriseController) ApplyDeletion(c *gin.Context) {
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("请填写注销原因"))
+		return
+	}
+	if err := ctl.svc.ApplyDeletion(middleware.GetUserID(c), req.Reason); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
 func (ctl *EnterpriseController) ListChangeTypes(c *gin.Context) {
 	response.Success(c, service.ListChangeTypes())
 }

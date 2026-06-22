@@ -21,6 +21,7 @@ type repositories struct {
 	common  *repository.CommonRepo
 	file    *repository.FileRepo
 	notif   *repository.NotificationRepo
+	deletion *repository.DeletionRepo
 }
 
 type services struct {
@@ -51,6 +52,7 @@ func initRepositories(db *gorm.DB) *repositories {
 		common:  repository.NewCommonRepo(db),
 		file:    repository.NewFileRepo(db),
 		notif:   repository.NewNotificationRepo(db),
+		deletion: repository.NewDeletionRepo(db),
 	}
 }
 
@@ -71,7 +73,7 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 		ent:     service.NewEnterpriseService(r.ent, r.common, db, notifSvc),
 		ai:      aiSvc,
 		carrier: service.NewCarrierService(r.carrier, r.common, db, notifSvc),
-		gov:     service.NewGovernmentService(r.gov, db, aiSvc, notifSvc),
+		gov:     service.NewGovernmentService(r.gov, r.deletion, db, aiSvc, notifSvc),
 		notif:   notifSvc,
 		file:    fileSvc,
 	}

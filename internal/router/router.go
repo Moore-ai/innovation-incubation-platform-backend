@@ -78,6 +78,7 @@ func registerEnterpriseRoutes(r *gin.Engine, deps *Deps) {
 	e.GET("/policies", deps.EnterpriseController.ListPolicies)
 	e.POST("/policies/:id/apply", deps.EnterpriseController.ApplyPolicy)
 	e.GET("/applications/list", deps.EnterpriseController.ListMyApplications)
+	e.POST("/account/deletion", deps.EnterpriseController.ApplyDeletion)
 
 	ai := r.Group("/api/v1/enterprise")
 	ai.Use(middleware.AuthMiddleware(deps.Config.JWT))
@@ -110,6 +111,7 @@ func registerCarrierRoutes(r *gin.Engine, deps *Deps) {
 	c.GET("/applications/enterprise", deps.CarrierController.ListEnterpriseApplications)
 	c.POST("/applications/:id/review", deps.CarrierController.ReviewEnterpriseApplication)
 	c.GET("/performances", deps.CarrierController.ListCampaigns)
+	c.POST("/account/deletion", deps.CarrierController.ApplyDeletion)
 	c.POST("/performances/:id/submit", deps.CarrierController.SubmitPerformance)
 }
 
@@ -124,12 +126,16 @@ func registerGovernmentRoutes(r *gin.Engine, deps *Deps) {
 	g.GET("/enterprises", deps.GovernmentController.SearchEnterprises)
 	g.GET("/enterprises/:id", deps.GovernmentController.GetEnterprise)
 	g.PUT("/enterprises/:id", deps.GovernmentController.EditEnterprise)
+	g.DELETE("/enterprises/:id", deps.GovernmentController.DeleteEnterprise)
+	g.DELETE("/carriers/:id", deps.GovernmentController.DeleteCarrier)
 	g.GET("/carriers", deps.GovernmentController.SearchCarriers)
 	g.POST("/applications/:id/review", deps.GovernmentController.ReviewPolicyApplication)
 	g.GET("/applications/list", deps.GovernmentController.ListPolicyApplications)
 	g.POST("/performances/templates", deps.GovernmentController.CreatePerformanceTemplate)
 	g.POST("/performances/campaigns", deps.GovernmentController.StartCampaign)
 	g.GET("/performances/submissions", deps.GovernmentController.ListSubmissions)
+	g.GET("/account/deletions", deps.GovernmentController.ListDeletionRequests)
+	g.POST("/account/deletions/:id/review", deps.GovernmentController.ReviewDeletionRequest)
 	g.POST("/performances/:id/score", deps.GovernmentController.ScoreSubmission)
 	g.POST("/incubation/:id/complete", deps.GovernmentController.CompleteIncubation)
 }

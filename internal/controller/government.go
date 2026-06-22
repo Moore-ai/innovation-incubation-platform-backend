@@ -1,4 +1,4 @@
-﻿package controller
+package controller
 
 import (
 	"strconv"
@@ -193,6 +193,65 @@ func (ctl *GovernmentController) CompleteIncubation(c *gin.Context) {
 		return
 	}
 	if err := ctl.svc.CompleteIncubation(middleware.GetUserID(c), uint(id)); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+func (ctl *GovernmentController) DeleteEnterprise(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+	if err := ctl.svc.DeleteEnterprise(uint(id), middleware.GetUserID(c)); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+func (ctl *GovernmentController) DeleteCarrier(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+	if err := ctl.svc.DeleteCarrier(uint(id), middleware.GetUserID(c)); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+func (ctl *GovernmentController) ListDeletionRequests(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	status := c.Query("status")
+	list, total, err := ctl.svc.ListDeletionRequests(page, pageSize, status)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.SuccessPage(c, list, total, page, pageSize)
+}
+
+func (ctl *GovernmentController) ReviewDeletionRequest(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+	var req struct {
+		Action  string `json:"action"`
+		Comment string `json:"comment"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || (req.Action != "approve" && req.Action != "reject") {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("action 必须为 approve 或 reject"))
+		return
+	}
+	if err := ctl.svc.ReviewDeletionRequest(middleware.GetUserID(c), uint(id), req.Action, req.Comment); err != nil {
 		response.Error(c, err)
 		return
 	}

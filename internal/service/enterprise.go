@@ -223,6 +223,41 @@ func (s *EnterpriseService) ReeditChange(id uint, userID uint, req *dto.ChangeAp
 	return change, nil
 }
 
+func (s *EnterpriseService) ApplyDeletion(userID uint, reason string) error {
+	if reason == "" {
+		return errcode.ErrInvalidParams.WithMsg("请填写注销原因")
+	}
+	ent, err := s.repo.FindEnterpriseByUserID(userID)
+	if err != nil {
+		return errcode.ErrNotFound.WithMsg("企业信息未找到")
+	}
+	var existing int64
+	s.db.Model(&model.AccountDeletionRequest{}).Where("user_id = ? AND status = ?", userID, model.ApprovalPending).Count(&existing)
+	if existing > 0 {
+		return errcode.ErrStatusInvalid.WithMsg("您已有一笔待处理的注销申请，请等待审核结果")
+	}
+	req := &model.AccountDeletionRequest{
+		UserID:       userID,
+		Role:         string(model.RoleEnterprise),
+		EnterpriseID: &ent.ID,
+		Reason:       reason,
+		Status:       model.ApprovalPending,
+	}
+	if err := s.db.Create(req).Error; err != nil {
+		return errcode.ErrInternal
+	}
+	// 通知政务
+	var govIDs []uint
+	s.db.Model(&model.User{}).Select("id").Where("role = ?", "government").Pluck("id", &govIDs)
+	for _, uid := range govIDs {
+		s.notifSvc.Send(uid, model.NotifDeletionApplied,
+			"有一条新的注销申请待审核",
+			fmt.Sprintf("企业「%s」提交了账号注销申请", ent.Name),
+			model.TargetAccountDeletion, req.ID)
+	}
+	return nil
+}
+
 func (s *EnterpriseService) ListAvailablePolicies(userID uint, role string, page, pageSize int) ([]model.Policy, int64, error) {
 	policies, total, err := s.commonRepo.ListPoliciesByTarget(role, page, pageSize)
 	if err != nil {
