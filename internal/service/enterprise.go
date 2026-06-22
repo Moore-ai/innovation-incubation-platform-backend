@@ -249,7 +249,9 @@ func (s *EnterpriseService) ApplyDeletion(userID uint, reason string) error {
 	}
 	// 通知政务（轮询分配）
 	uid, err := s.assigner.Next("government")
-	if err == nil {
+	if err != nil {
+		slog.Error("assigner next failed", "error", err)
+	} else {
 		s.notifSvc.Send(uid, model.NotifDeletionApplied,
 			"有一条新的注销申请待审核",
 			fmt.Sprintf("企业「%s」提交了账号注销申请", ent.Name),
