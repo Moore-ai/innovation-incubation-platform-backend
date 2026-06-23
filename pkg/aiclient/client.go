@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -16,6 +17,9 @@ type Client struct {
 }
 
 func New(baseURL, apiKey, model string, timeout int) *Client {
+	if !strings.HasSuffix(baseURL, "/v1") {
+		baseURL = strings.TrimRight(baseURL, "/") + "/v1"
+	}
 	cfg := openai.DefaultConfig(apiKey)
 	cfg.BaseURL = baseURL
 	if timeout > 0 {

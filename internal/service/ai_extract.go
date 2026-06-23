@@ -31,7 +31,7 @@ func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) err
 	)
 	text, err := s.client.Chat(ctx, s.prompts.extract, userMsg)
 	if err != nil {
-		return errcode.ErrAIService.WithMsg(err.Error())
+		return errcode.ErrAIService.WithMsg("AI提取服务暂不可用")
 	}
 	var fields extractedFields
 	if err := json.Unmarshal([]byte(cleanLLMOutput(text)), &fields); err != nil {
@@ -40,7 +40,10 @@ func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) err
 	}
 	b, _ := json.Marshal(fields)
 	var extracted model.JSONMap
-	json.Unmarshal(b, &extracted)
+	if err := json.Unmarshal(b, &extracted); err != nil {
+		slog.Error("AI extract: failed to convert extracted fields", "error", err)
+		return errcode.ErrAIService.WithMsg("AI提取结果解析失败")
+	}
 	policy.ExtractedFields = extracted
 	return s.govRepo.UpdatePolicy(policy)
 }
