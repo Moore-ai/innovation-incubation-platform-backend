@@ -4,20 +4,21 @@ package model
 type ApprovalStatus string
 
 const (
-	ApprovalDraft    ApprovalStatus = "draft"
-	ApprovalPending  ApprovalStatus = "pending"
-	ApprovalApproved ApprovalStatus = "approved"
-	ApprovalRejected ApprovalStatus = "rejected"
-	ApprovalReturned ApprovalStatus = "returned"
+	ApprovalDraft     ApprovalStatus = "draft"
+	ApprovalPending   ApprovalStatus = "pending"
+	ApprovalApproved  ApprovalStatus = "approved"
+	ApprovalRejected  ApprovalStatus = "rejected"
+	ApprovalReturned  ApprovalStatus = "returned"
+	ApprovalGovReview ApprovalStatus = "gov_review"
 )
 
 // PolicyStatus — Policy
 type PolicyStatus string
 
 const (
-	PolicyDraft    PolicyStatus = "draft"
+	PolicyDraft     PolicyStatus = "draft"
 	PolicyPublished PolicyStatus = "published"
-	PolicyClosed   PolicyStatus = "closed"
+	PolicyClosed    PolicyStatus = "closed"
 )
 
 // IncubateStatus — IncubationRecord.IncubateStatus
@@ -59,10 +60,10 @@ const (
 type TargetType string
 
 const (
-	TargetIncubation  TargetType = "incubation"
-	TargetMajorChange TargetType = "major_change"
-	TargetPolicy      TargetType = "policy"
-	TargetPerformance TargetType = "performance"
+	TargetIncubation      TargetType = "incubation"
+	TargetMajorChange     TargetType = "major_change"
+	TargetPolicy          TargetType = "policy"
+	TargetPerformance     TargetType = "performance"
 	TargetAccountDeletion TargetType = "account_deletion"
 )
 

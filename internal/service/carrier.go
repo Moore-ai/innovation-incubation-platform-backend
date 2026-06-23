@@ -12,6 +12,7 @@ import (
 	"innovation-incubation-platform-backend/pkg/statemachine"
 
 	"gorm.io/gorm"
+	"log/slog"
 )
 
 var validReviewActions = map[string]bool{
@@ -312,7 +313,10 @@ func (s *CarrierService) ReviewEnterprisePolicyApplication(carrierUserID uint, a
 	if err := validateReviewAction(req.Action); err != nil {
 		return err
 	}
-	_, _ = s.repo.FindCarrierByUserID(carrierUserID)
+	carrier, err := s.repo.FindCarrierByUserID(carrierUserID)
+	if err != nil {
+		return errcode.ErrNotFound.WithMsg("载体信息未找到")
+	}
 	app, err := s.repo.FindPolicyApplicationByID(appID)
 	if err != nil {
 		return errcode.ErrNotFound
@@ -320,29 +324,57 @@ func (s *CarrierService) ReviewEnterprisePolicyApplication(carrierUserID uint, a
 	if app.Status != model.ApprovalPending {
 		return errcode.ErrStatusInvalid.WithMsg("该申请当前状态不可审核")
 	}
+	// 验证该企业的申报属于当前载体
+	if app.ApplicantType == model.ApplicantEnterprise {
+		var incubation model.IncubationRecord
+		if err := s.db.Where("enterprise_id = ? AND carrier_id = ?", app.ApplicantID, carrier.ID).First(&incubation).Error; err != nil {
+			return errcode.ErrForbidden.WithMsg("无权审核该企业的申报")
+		}
+	}
 	newStatus, err := s.policySM.Transition(string(app.Status), req.Action)
 	if err != nil {
 		return errcode.ErrStatusInvalid.WithMsg(err.Error())
 	}
 	s.db.Transaction(func(tx *gorm.DB) error {
-		tx.Model(&model.PolicyApplication{}).Where("id = ?", appID).Update("status", newStatus)
-		tx.Create(&model.Approval{
+		res := tx.Model(&model.PolicyApplication{}).Where("id = ? AND status = ?", appID, model.ApprovalPending).Update("status", newStatus)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return errcode.ErrStatusInvalid.WithMsg("申请状态已变更，请刷新后重试")
+		}
+		if err := tx.Create(&model.Approval{
 			TargetType: model.TargetPolicy,
 			TargetID:   appID,
-			Step:       model.StepGovReview,
+			Step:       model.StepCarrierReview,
 			Action:     model.ApprovalAction(req.Action),
 			Comment:    req.Comment,
 			ReviewerID: carrierUserID,
-		})
+		}).Error; err != nil {
+			return err
+		}
 		return nil
 	})
 
 	if req.Action == string(model.ActionApprove) {
 		uid, err := s.assigner.Next("government")
 		if err == nil {
-			s.notifSvc.Send(uid, model.NotifApplicationCarrierApproved,
+			if err := s.notifSvc.Send(uid, model.NotifApplicationCarrierApproved,
 				"有一条政策申报已通过载体审核",
 				"有一条政策申报已通过载体审核，请尽快处理",
+				model.TargetPolicy, appID); err != nil {
+				slog.Error("notification failed", "error", err)
+			}
+		}
+	} else {
+		// 通知企业（拒绝/退回）
+		var ent model.Enterprise
+		s.db.Select("user_id").First(&ent, app.ApplicantID)
+		if ent.UserID > 0 {
+			actionMsg := map[string]string{string(model.ActionReject): "拒绝", string(model.ActionReturn): "退回"}[req.Action]
+			s.notifSvc.Send(ent.UserID, model.NotifApplicationReviewed,
+				fmt.Sprintf("政策申报已被%s", actionMsg),
+				fmt.Sprintf("您的政策申报已被载体%s", actionMsg),
 				model.TargetPolicy, appID)
 		}
 	}

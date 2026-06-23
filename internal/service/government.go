@@ -1,4 +1,4 @@
-﻿package service
+package service
 
 import (
 	"context"
@@ -163,7 +163,7 @@ func (s *GovernmentService) SearchCarriers(keyword string, page, pageSize int) (
 	return s.repo.SearchCarriers(keyword, page, pageSize)
 }
 
-func (s *GovernmentService) ReviewPolicyApplication(appID uint, req *dto.ReviewReq) error {
+func (s *GovernmentService) ReviewPolicyApplication(govUserID uint, appID uint, req *dto.ReviewReq) error {
 	if err := validateReviewAction(req.Action); err != nil {
 		return err
 	}
@@ -174,27 +174,43 @@ func (s *GovernmentService) ReviewPolicyApplication(appID uint, req *dto.ReviewR
 	}
 
 	var sm *statemachine.StateMachine
-	if app.Status == model.ApprovalPending {
+	switch {
+	case app.Status == model.ApprovalPending && app.ApplicantType == model.ApplicantCarrier:
 		sm = s.sm
-	} else {
+	case app.Status == model.ApprovalGovReview:
 		sm = s.policySM
+	case app.Status == model.ApprovalPending && app.ApplicantType == model.ApplicantEnterprise:
+		return errcode.ErrStatusInvalid.WithMsg("企业申报需先由载体审核")
+	default:
+		return errcode.ErrStatusInvalid.WithMsg("该申请当前状态不可审核")
 	}
 	newStatus, err := sm.Transition(string(app.Status), req.Action)
 	if err != nil {
 		return errcode.ErrStatusInvalid.WithMsg(err.Error())
 	}
 
-	s.db.Transaction(func(tx *gorm.DB) error {
-		tx.Model(&model.PolicyApplication{}).Where("id = ?", appID).Update("status", newStatus)
-		tx.Create(&model.Approval{
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&model.PolicyApplication{}).Where("id = ? AND status = ?", appID, app.Status).Update("status", newStatus)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return errcode.ErrStatusInvalid.WithMsg("申请状态已变更，请刷新后重试")
+		}
+		if err := tx.Create(&model.Approval{
 			TargetType: model.TargetPolicy,
 			TargetID:   appID,
 			Step:       model.StepGovReview,
 			Action:     model.ApprovalAction(req.Action),
 			Comment:    req.Comment,
-		})
+			ReviewerID: govUserID,
+		}).Error; err != nil {
+			return err
+		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
 
 	// 通知申请人
 	actionMsg := map[string]string{string(model.ActionApprove): "通过", string(model.ActionReject): "拒绝", string(model.ActionReturn): "退回"}[req.Action]
