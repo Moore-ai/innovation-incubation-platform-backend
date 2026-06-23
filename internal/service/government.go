@@ -21,12 +21,13 @@ type GovernmentService struct {
 	followRepo   *repository.PolicyFollowRepo
 	db           *gorm.DB
 	sm           *statemachine.StateMachine
+	policySM     *statemachine.StateMachine
 	aiSvc        *AIService
 	notifSvc     *NotificationService
 }
 
 func NewGovernmentService(repo *repository.GovernmentRepo, deletionRepo *repository.DeletionRepo, followRepo *repository.PolicyFollowRepo, db *gorm.DB, aiSvc *AIService, notifSvc *NotificationService) *GovernmentService {
-	return &GovernmentService{repo: repo, deletionRepo: deletionRepo, followRepo: followRepo, db: db, sm: statemachine.DefaultApprovalSM(), aiSvc: aiSvc, notifSvc: notifSvc}
+	return &GovernmentService{repo: repo, deletionRepo: deletionRepo, followRepo: followRepo, db: db, sm: statemachine.DefaultApprovalSM(), policySM: statemachine.PolicyApprovalSM(), aiSvc: aiSvc, notifSvc: notifSvc}
 }
 
 func (s *GovernmentService) CreatePolicyTemplate(req *dto.PolicyTemplateReq) (*model.PolicyTemplate, error) {
@@ -162,37 +163,78 @@ func (s *GovernmentService) SearchCarriers(keyword string, page, pageSize int) (
 	return s.repo.SearchCarriers(keyword, page, pageSize)
 }
 
-func (s *GovernmentService) ReviewPolicyApplication(appID uint, req *dto.ReviewReq) error {
+func (s *GovernmentService) ReviewPolicyApplication(govUserID uint, appID uint, req *dto.ReviewReq) error {
 	if err := validateReviewAction(req.Action); err != nil {
 		return err
 	}
-	newStatus, err := s.sm.Transition(string(model.ApprovalPending), req.Action)
+
+	var app model.PolicyApplication
+	if err := s.db.First(&app, appID).Error; err != nil {
+		return errcode.ErrNotFound.WithMsg("申报记录不存在")
+	}
+
+	var sm *statemachine.StateMachine
+	switch {
+	case app.Status == model.ApprovalPending && app.ApplicantType == model.ApplicantCarrier:
+		sm = s.sm
+	case app.Status == model.ApprovalGovReview:
+		sm = s.policySM
+	case app.Status == model.ApprovalPending && app.ApplicantType == model.ApplicantEnterprise:
+		return errcode.ErrStatusInvalid.WithMsg("企业申报需先由载体审核")
+	default:
+		return errcode.ErrStatusInvalid.WithMsg("该申请当前状态不可审核")
+	}
+	newStatus, err := sm.Transition(string(app.Status), req.Action)
 	if err != nil {
 		return errcode.ErrStatusInvalid.WithMsg(err.Error())
 	}
-	s.repo.UpdateApplicationStatus(appID, newStatus)
-	s.db.Create(&model.Approval{
-		TargetType: model.TargetPolicy,
-		TargetID:   appID,
-		Step:       model.StepGovReview,
-		Action:     model.ApprovalAction(req.Action),
-		Comment:    req.Comment,
-	})
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&model.PolicyApplication{}).Where("id = ? AND status = ?", appID, app.Status).Update("status", newStatus)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return errcode.ErrStatusInvalid.WithMsg("申请状态已变更，请刷新后重试")
+		}
+		if err := tx.Create(&model.Approval{
+			TargetType: model.TargetPolicy,
+			TargetID:   appID,
+			Step:       model.StepGovReview,
+			Action:     model.ApprovalAction(req.Action),
+			Comment:    req.Comment,
+			ReviewerID: govUserID,
+		}).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
 
 	// 通知申请人
-	var applicant model.PolicyApplication
-	if err := s.db.First(&applicant, appID).Error; err == nil {
-		if applicant.ApplicantType == model.ApplicantEnterprise {
-			var entUserID uint
-			s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", applicant.ApplicantID).Take(&entUserID)
-			if entUserID > 0 {
-				actionMsg := map[string]string{string(model.ActionApprove): "通过", string(model.ActionReject): "拒绝", string(model.ActionReturn): "退回"}[req.Action]
-				if err := s.notifSvc.Send(entUserID, model.NotifApplicationReviewed,
-					fmt.Sprintf("政策申报已被%s", actionMsg),
-					fmt.Sprintf("您的政策申报已被政务%s", actionMsg),
-					model.TargetPolicy, appID); err != nil {
-					slog.Error("notification failed", "error", err)
-				}
+	actionMsg := map[string]string{string(model.ActionApprove): "通过", string(model.ActionReject): "拒绝", string(model.ActionReturn): "退回"}[req.Action]
+	switch app.ApplicantType {
+	case model.ApplicantEnterprise:
+		var entUserID uint
+		s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", app.ApplicantID).Take(&entUserID)
+		if entUserID > 0 {
+			if err := s.notifSvc.Send(entUserID, model.NotifApplicationReviewed,
+				fmt.Sprintf("政策申报已被%s", actionMsg),
+				fmt.Sprintf("您的政策申报已被政务%s", actionMsg),
+				model.TargetPolicy, appID); err != nil {
+				slog.Error("notification failed", "error", err)
+			}
+		}
+	case model.ApplicantCarrier:
+		var carrierUserID uint
+		s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", app.ApplicantID).Take(&carrierUserID)
+		if carrierUserID > 0 {
+			if err := s.notifSvc.Send(carrierUserID, model.NotifApplicationReviewed,
+				fmt.Sprintf("政策申报已被%s", actionMsg),
+				fmt.Sprintf("您的政策申报已被政务%s", actionMsg),
+				model.TargetPolicy, appID); err != nil {
+				slog.Error("notification failed", "error", err)
 			}
 		}
 	}

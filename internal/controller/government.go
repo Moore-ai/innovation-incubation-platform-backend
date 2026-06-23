@@ -133,7 +133,7 @@ func (ctl *GovernmentController) ReviewPolicyApplication(c *gin.Context) {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
 	}
-	if err := ctl.svc.ReviewPolicyApplication(uint(id), &req); err != nil {
+	if err := ctl.svc.ReviewPolicyApplication(middleware.GetUserID(c), uint(id), &req); err != nil {
 		response.Error(c, err)
 		return
 	}
