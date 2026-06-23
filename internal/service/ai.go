@@ -7,7 +7,7 @@ import (
 )
 
 type AIService struct {
-	cm      *aiclient.AnthropicChatModel
+	client  *aiclient.Client
 	entRepo *repository.EnterpriseRepo
 	govRepo *repository.GovernmentRepo
 	prompts struct {
@@ -17,9 +17,9 @@ type AIService struct {
 	}
 }
 
-func NewAIService(cm *aiclient.AnthropicChatModel, entRepo *repository.EnterpriseRepo, govRepo *repository.GovernmentRepo, cfg *config.Config) *AIService {
+func NewAIService(client *aiclient.Client, entRepo *repository.EnterpriseRepo, govRepo *repository.GovernmentRepo, cfg *config.Config) *AIService {
 	return &AIService{
-		cm:      cm,
+		client:  client,
 		entRepo: entRepo,
 		govRepo: govRepo,
 		prompts: struct {
