@@ -53,9 +53,9 @@ type JWTConfig struct {
 }
 
 type AIConfig struct {
-	Provider  string          `mapstructure:"provider"`
-	Anthropic AnthropicConfig `mapstructure:"anthropic"`
-	Prompts   PromptsConfig   `mapstructure:"prompts"`
+	Provider string                 `mapstructure:"provider"`
+	OpenAI   OpenAICompatibleConfig `mapstructure:"openai"`
+	Prompts  PromptsConfig          `mapstructure:"prompts"`
 }
 
 type PromptsConfig struct {
@@ -64,7 +64,7 @@ type PromptsConfig struct {
 	Prefill string `mapstructure:"prefill"`
 }
 
-type AnthropicConfig struct {
+type OpenAICompatibleConfig struct {
 	APIKey         string `mapstructure:"api_key"`
 	BaseURL        string `mapstructure:"base_url"`
 	Model          string `mapstructure:"model"`
