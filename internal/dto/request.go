@@ -75,7 +75,7 @@ type PolicyTemplateReq struct {
 type PublishPolicyReq struct {
 	TemplateID   uint                     `json:"template_id"`
 	Title        string                   `json:"title"`
-	Requirements *model.PolicyRequirement `json:"requirements"`
+	Requirements *model.PolicyRequirement `json:"requirements" binding:"required"`
 	StartDate    string                   `json:"start_date"`
 	EndDate      string                   `json:"end_date"`
 }

@@ -78,8 +78,11 @@ func cleanLLMOutput(s string) string {
 }
 
 func toJSONString(v any) string {
+	if v == nil {
+		return "{}"
+	}
 	b, _ := json.Marshal(v)
-	if len(b) == 0 {
+	if len(b) == 0 || string(b) == "null" {
 		return "{}"
 	}
 	return string(b)

@@ -31,7 +31,8 @@ func MustInit(cfg *config.Config) *gorm.DB {
 
 	// 迁移：policies 表结构调整 — conditions→requirements，删除 subsidy_amount 和 file_id
 	db.Exec(`DO $$ BEGIN
-		IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='policies' AND column_name='conditions') THEN
+		IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='policies' AND column_name='conditions')
+			AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='policies' AND column_name='requirements') THEN
 			ALTER TABLE policies RENAME COLUMN conditions TO requirements;
 		END IF;
 	END $$;`)
