@@ -32,8 +32,10 @@ func (s *AIService) compileMatchGraph(ctx context.Context) (compose.Runnable[map
 			return nil, fmt.Errorf("prep: missing or invalid policy")
 		}
 
-		extracted := any(policy.ExtractedFields)
-		if extracted == nil {
+		var extracted any
+		if policy.ExtractedFields != nil {
+			extracted = policy.ExtractedFields
+		} else if policy.Requirements != nil {
 			extracted = policy.Requirements
 		}
 
