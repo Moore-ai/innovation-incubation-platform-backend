@@ -3,14 +3,12 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strings"
 
-	"github.com/cloudwego/eino/components/prompt"
-	"github.com/cloudwego/eino/compose"
-	"github.com/cloudwego/eino/schema"
-
 	"innovation-incubation-platform-backend/internal/model"
+	"innovation-incubation-platform-backend/pkg/errcode"
 )
 
 type extractedFields struct {
@@ -25,45 +23,24 @@ type extractedFields struct {
 	RequiredDocuments    []string `json:"required_documents"`
 }
 
-func (s *AIService) compileExtractChain(ctx context.Context) (compose.Runnable[map[string]any, *extractedFields], error) {
-	tmpl := prompt.FromMessages(schema.FString,
-		schema.SystemMessage(s.prompts.extract),
-		schema.UserMessage("政策标题：{title}\n政策内容: {content}\n\n"+
-			"请严格按以下格式返回 JSON, 不要附带其他内容：\n{output_schema}"),
-	)
-
-	chain := compose.NewChain[map[string]any, *extractedFields]()
-	chain.AppendChatTemplate(tmpl)
-	chain.AppendChatModel(s.cm)
-	chain.AppendLambda(compose.InvokableLambda(func(_ context.Context, msg *schema.Message) (*extractedFields, error) {
-		var fields extractedFields
-		err := json.Unmarshal([]byte(cleanLLMOutput(msg.Content)), &fields)
-		return &fields, err
-	}))
-	return chain.Compile(ctx)
-}
-
 func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) error {
-	chain, err := s.compileExtractChain(ctx)
+	userMsg := fmt.Sprintf("政策标题：%s\n政策内容：%s\n\n请严格按以下格式返回JSON,不要附带其他内容：\n%s",
+		policy.Title,
+		toJSONString(policy.Requirements),
+		`{"policy_name":"","applicable_industries":[],"applicable_scales":[],"applicable_status":[],"subsidy_type":"","subsidy_amount":"","subsidy_condition":"","applicable_region":"","required_documents":[]}`,
+	)
+	text, err := s.client.Chat(ctx, s.prompts.extract, userMsg)
 	if err != nil {
-		return err
+		return errcode.ErrAIService.WithMsg(err.Error())
 	}
-
-	fields, err := chain.Invoke(ctx, map[string]any{
-		"title":         policy.Title,
-		"content":       toJSONString(policy.Requirements),
-		"output_schema": `{"policy_name":"","applicable_industries":[],"applicable_scales":[],"applicable_status":[],"subsidy_type":"","subsidy_amount":"","subsidy_condition":"","applicable_region":"","required_documents":[]}`,
-	})
-	if err != nil {
-		return err
+	var fields extractedFields
+	if err := json.Unmarshal([]byte(cleanLLMOutput(text)), &fields); err != nil {
+		slog.Error("AI extract: failed to parse", "error", err)
+		return errcode.ErrAIService.WithMsg("AI提取结果解析失败")
 	}
-
 	b, _ := json.Marshal(fields)
 	var extracted model.JSONMap
-	if err := json.Unmarshal(b, &extracted); err != nil {
-		slog.Error("AI extract: failed to unmarshal extracted fields", "error", err)
-		return err
-	}
+	json.Unmarshal(b, &extracted)
 	policy.ExtractedFields = extracted
 	return s.govRepo.UpdatePolicy(policy)
 }

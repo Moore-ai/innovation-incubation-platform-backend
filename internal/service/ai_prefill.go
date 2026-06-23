@@ -6,54 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/cloudwego/eino/components/prompt"
-	"github.com/cloudwego/eino/compose"
-	"github.com/cloudwego/eino/schema"
-
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/pkg/errcode"
 )
-
-func (s *AIService) compilePrefillChain(ctx context.Context) (compose.Runnable[map[string]any, model.JSONMap], error) {
-	// prep: 在 Chain 内将 ent 对象序列化为模板变量
-	prep := compose.InvokableLambda(func(_ context.Context, input map[string]any) (map[string]any, error) {
-		ent, ok := input["enterprise"].(*model.Enterprise)
-		if !ok {
-			return nil, fmt.Errorf("prep: missing or invalid enterprise")
-		}
-		return map[string]any{
-			"name":         ent.Name,
-			"credit_code":  ent.CreditCode,
-			"industry":     ent.Industry,
-			"scale":        ent.Scale,
-			"address":      ent.Address,
-			"legal_person": ent.LegalPerson,
-			"history":      input["history"],
-			"form_schema":  input["form_schema"],
-		}, nil
-	})
-
-	tmpl := prompt.FromMessages(schema.FString,
-		schema.SystemMessage(s.prompts.prefill),
-		schema.UserMessage("企业信息：名称={name}、信用代码={credit_code}、行业={industry}、规模={scale}、地址={address}、法人={legal_person}\n"+
-			"历史申报数据(已通过审批): {history}\n\n"+
-			"目标表单 Schema: \n{form_schema}\n\n"+
-			"请严格按表单 Schema 的字段结构输出预填充数据，只返回 JSON"),
-	)
-
-	chain := compose.NewChain[map[string]any, model.JSONMap]()
-	chain.AppendLambda(prep)
-	chain.AppendChatTemplate(tmpl)
-	chain.AppendChatModel(s.cm)
-	chain.AppendLambda(compose.InvokableLambda(func(_ context.Context, msg *schema.Message) (model.JSONMap, error) {
-		var data model.JSONMap
-		if err := json.Unmarshal([]byte(cleanLLMOutput(msg.Content)), &data); err != nil {
-			return nil, err
-		}
-		return data, nil
-	}))
-	return chain.Compile(ctx)
-}
 
 // PrefillApplication generates prefilled form data for an enterprise based on its profile,
 // the target policy's form schema, and approved application history.
@@ -82,14 +37,19 @@ func (s *AIService) PrefillApplication(ctx context.Context, userID uint, policyI
 		historyJSON = toJSONString(history)
 	}
 
-	chain, err := s.compilePrefillChain(ctx)
+	userMsg := fmt.Sprintf("企业信息：名称=%s、信用代码=%s、行业=%s、规模=%s、地址=%s、法人=%s\n"+
+		"历史申报数据(已通过审批): %s\n\n目标表单 Schema: \n%s\n\n请严格按表单Schema的字段结构输出预填充数据，只返回JSON",
+		ent.Name, ent.CreditCode, ent.Industry, ent.Scale, ent.Address, ent.LegalPerson,
+		historyJSON, formSchema)
+
+	text, err := s.client.Chat(ctx, s.prompts.prefill, userMsg)
 	if err != nil {
 		return nil, errcode.ErrAIService.WithMsg("AI服务暂不可用，请手动填写")
 	}
 
-	return chain.Invoke(ctx, map[string]any{
-		"enterprise":  ent,
-		"history":     historyJSON,
-		"form_schema": formSchema,
-	})
+	var data model.JSONMap
+	if err := json.Unmarshal([]byte(cleanLLMOutput(text)), &data); err != nil {
+		return nil, errcode.ErrAIService.WithMsg("AI预填充结果解析失败")
+	}
+	return data, nil
 }
