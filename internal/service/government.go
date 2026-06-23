@@ -1,4 +1,4 @@
-package service
+﻿package service
 
 import (
 	"context"
@@ -44,19 +44,19 @@ func (s *GovernmentService) CreatePolicyTemplate(req *dto.PolicyTemplateReq) (*m
 func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishPolicyReq) (*model.Policy, error) {
 	now := time.Now()
 	p := &model.Policy{
-		TemplateID:    req.TemplateID,
-		Title:         req.Title,
+		TemplateID:   req.TemplateID,
+		Title:        req.Title,
 		Requirements: req.Requirements,
-		StartDate:     req.StartDate,
-		EndDate:       req.EndDate,
-		Status:        model.PolicyPublished,
-		PublishedAt:   &now,
+		StartDate:    req.StartDate,
+		EndDate:      req.EndDate,
+		Status:       model.PolicyPublished,
+		PublishedAt:  &now,
 	}
 	// 验证申报材料必要性
 	if req.Requirements != nil {
 		for _, m := range req.Requirements.ApplicationMaterials {
 			if m.Necessity != model.NecessityRequired && m.Necessity != model.NecessityNotRequired {
-				return nil, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("材料必要性无效: %s，必须为「必要」或「非必要」", m.Necessity))
+				return nil, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("材料必要性无效: %s, 必须为「necessary」或「unnecessary」", m.Necessity))
 			}
 		}
 	}

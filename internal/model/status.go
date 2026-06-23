@@ -79,6 +79,6 @@ const (
 type NecessityType string
 
 const (
-	NecessityRequired    NecessityType = "必要"
-	NecessityNotRequired NecessityType = "非必要"
+	NecessityRequired    NecessityType = "necessary"
+	NecessityNotRequired NecessityType = "unnecessary"
 )
