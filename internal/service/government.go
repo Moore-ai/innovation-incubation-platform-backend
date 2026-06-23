@@ -204,10 +204,12 @@ func (s *GovernmentService) ReviewPolicyApplication(appID uint, req *dto.ReviewR
 		var carrierUserID uint
 		s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", app.ApplicantID).Take(&carrierUserID)
 		if carrierUserID > 0 {
-			s.notifSvc.Send(carrierUserID, model.NotifApplicationReviewed,
+			if err := s.notifSvc.Send(carrierUserID, model.NotifApplicationReviewed,
 				fmt.Sprintf("政策申报已被%s", actionMsg),
 				fmt.Sprintf("您的政策申报已被政务%s", actionMsg),
-				model.TargetPolicy, appID)
+				model.TargetPolicy, appID); err != nil {
+				slog.Error("notification failed", "error", err)
+			}
 		}
 	}
 	return nil
