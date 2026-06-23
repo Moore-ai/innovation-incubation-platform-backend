@@ -52,6 +52,23 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 		Status:        model.PolicyPublished,
 		PublishedAt:   &now,
 	}
+	// 验证申报材料必要性
+	if req.Requirements != nil {
+		for _, m := range req.Requirements.ApplicationMaterials {
+			if m.Necessity != model.NecessityRequired && m.Necessity != model.NecessityNotRequired {
+				return nil, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("材料必要性无效: %s，必须为「必要」或「非必要」", m.Necessity))
+			}
+		}
+	}
+	// 验证法律依据文件存在
+	if req.Requirements != nil {
+		for _, basis := range req.Requirements.LegalBasis {
+			var f model.File
+			if err := s.db.First(&f, basis.FileID).Error; err != nil {
+				return nil, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("法律依据文件不存在: file_id=%d", basis.FileID))
+			}
+		}
+	}
 	if err := s.repo.CreatePolicy(p); err != nil {
 		return nil, errcode.ErrInternal
 	}
@@ -100,7 +117,7 @@ func (s *GovernmentService) ListPolicies(page, pageSize int) ([]model.Policy, in
 	return s.repo.ListPolicies(page, pageSize)
 }
 
-func (s *GovernmentService) UpdatePolicy(policyID uint, req *dto.PublishPolicyReq) error {
+func (s *GovernmentService) UpdatePolicy(ctx context.Context, policyID uint, req *dto.PublishPolicyReq) error {
 	p, err := s.repo.FindPolicyByID(policyID)
 	if err != nil {
 		return errcode.ErrNotFound
@@ -109,6 +126,28 @@ func (s *GovernmentService) UpdatePolicy(policyID uint, req *dto.PublishPolicyRe
 	p.Requirements = req.Requirements
 	p.StartDate = req.StartDate
 	p.EndDate = req.EndDate
+	// 验证申报材料必要性
+	if req.Requirements != nil {
+		for _, m := range req.Requirements.ApplicationMaterials {
+			if m.Necessity != model.NecessityRequired && m.Necessity != model.NecessityNotRequired {
+				return errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("材料必要性无效: %s，必须为「必要」或「非必要」", m.Necessity))
+			}
+		}
+	}
+	// 验证法律依据文件存在
+	if req.Requirements != nil {
+		for _, basis := range req.Requirements.LegalBasis {
+			var f model.File
+			if err := s.db.First(&f, basis.FileID).Error; err != nil {
+				return errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("法律依据文件不存在: file_id=%d", basis.FileID))
+			}
+		}
+	}
+	// Re-extract AI fields after policy update
+	if err := s.aiSvc.ExtractPolicy(ctx, p); err != nil {
+		slog.Error("AI extract policy failed after update", "policy_id", policyID, "error", err)
+		// Don't fail the update — the policy fields are saved even if AI extraction fails
+	}
 	if err := s.repo.UpdatePolicy(p); err != nil {
 		return errcode.ErrInternal
 	}

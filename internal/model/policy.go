@@ -50,10 +50,10 @@ type PolicyRequirement struct {
 }
 
 type ApplicationMaterial struct {
-	Name             string  `json:"name"`
-	Necessity        string  `json:"necessity"`          // "必要" / "非必要"
-	MaterialForm     *string `json:"material_form,omitempty"`
-	MaterialTemplate *string `json:"material_template,omitempty"`
+	Name             string        `json:"name"`
+	Necessity        NecessityType `json:"necessity"`       // "necessary" / "unnecessary"
+	MaterialForm     *string       `json:"material_form,omitempty"`
+	MaterialTemplate *string       `json:"material_template,omitempty"`
 }
 
 type LegalBasisFile struct {

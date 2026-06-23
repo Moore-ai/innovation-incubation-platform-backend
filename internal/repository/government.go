@@ -32,9 +32,7 @@ func (r *GovernmentRepo) FindPolicyByID(id uint) (*model.Policy, error) {
 }
 
 func (r *GovernmentRepo) UpdatePolicy(p *model.Policy) error {
-	return r.db.Model(p).Updates(map[string]any{
-		"extracted_fields": p.ExtractedFields,
-	}).Error
+	return r.db.Save(p).Error
 }
 
 func (r *GovernmentRepo) DeletePolicy(id uint) error {
