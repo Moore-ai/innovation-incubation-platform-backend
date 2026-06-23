@@ -1,4 +1,4 @@
-package service
+﻿package service
 
 import (
 	"context"
@@ -173,23 +173,33 @@ func (s *GovernmentService) ReviewPolicyApplication(appID uint, req *dto.ReviewR
 		return errcode.ErrNotFound.WithMsg("申报记录不存在")
 	}
 
-	newStatus, err := s.policySM.Transition(string(app.Status), req.Action)
+	var sm *statemachine.StateMachine
+	if app.Status == model.ApprovalPending {
+		sm = s.sm
+	} else {
+		sm = s.policySM
+	}
+	newStatus, err := sm.Transition(string(app.Status), req.Action)
 	if err != nil {
 		return errcode.ErrStatusInvalid.WithMsg(err.Error())
 	}
 
-	s.repo.UpdateApplicationStatus(appID, newStatus)
-	s.db.Create(&model.Approval{
-		TargetType: model.TargetPolicy,
-		TargetID:   appID,
-		Step:       model.StepGovReview,
-		Action:     model.ApprovalAction(req.Action),
-		Comment:    req.Comment,
+	s.db.Transaction(func(tx *gorm.DB) error {
+		tx.Model(&model.PolicyApplication{}).Where("id = ?", appID).Update("status", newStatus)
+		tx.Create(&model.Approval{
+			TargetType: model.TargetPolicy,
+			TargetID:   appID,
+			Step:       model.StepGovReview,
+			Action:     model.ApprovalAction(req.Action),
+			Comment:    req.Comment,
+		})
+		return nil
 	})
 
 	// 通知申请人
 	actionMsg := map[string]string{string(model.ActionApprove): "通过", string(model.ActionReject): "拒绝", string(model.ActionReturn): "退回"}[req.Action]
-	if app.ApplicantType == model.ApplicantEnterprise {
+	switch app.ApplicantType {
+	case model.ApplicantEnterprise:
 		var entUserID uint
 		s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", app.ApplicantID).Take(&entUserID)
 		if entUserID > 0 {
@@ -200,7 +210,7 @@ func (s *GovernmentService) ReviewPolicyApplication(appID uint, req *dto.ReviewR
 				slog.Error("notification failed", "error", err)
 			}
 		}
-	} else if app.ApplicantType == model.ApplicantCarrier {
+	case model.ApplicantCarrier:
 		var carrierUserID uint
 		s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", app.ApplicantID).Take(&carrierUserID)
 		if carrierUserID > 0 {
