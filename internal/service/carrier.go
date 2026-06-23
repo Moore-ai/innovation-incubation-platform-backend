@@ -317,6 +317,9 @@ func (s *CarrierService) ReviewEnterprisePolicyApplication(carrierUserID uint, a
 	if err != nil {
 		return errcode.ErrNotFound
 	}
+	if app.Status != model.ApprovalPending {
+		return errcode.ErrStatusInvalid.WithMsg("该申请当前状态不可审核")
+	}
 	newStatus, err := s.policySM.Transition(string(app.Status), req.Action)
 	if err != nil {
 		return errcode.ErrStatusInvalid.WithMsg(err.Error())
