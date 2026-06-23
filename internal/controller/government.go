@@ -59,7 +59,7 @@ func (ctl *GovernmentController) UpdatePolicy(c *gin.Context) {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
 	}
-	if err := ctl.svc.UpdatePolicy(uint(policyID), &req); err != nil {
+	if err := ctl.svc.UpdatePolicy(c.Request.Context(), uint(policyID), &req); err != nil {
 		response.Error(c, err)
 		return
 	}

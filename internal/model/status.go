@@ -74,3 +74,11 @@ const (
 	ApplicantEnterprise ApplicantType = "enterprise"
 	ApplicantCarrier    ApplicantType = "carrier"
 )
+
+// NecessityType — ApplicationMaterial.Necessity
+type NecessityType string
+
+const (
+	NecessityRequired    NecessityType = "necessary"
+	NecessityNotRequired NecessityType = "unnecessary"
+)

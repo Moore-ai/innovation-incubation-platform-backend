@@ -14,18 +14,16 @@ func (PolicyTemplate) TableName() string { return "policy_templates" }
 
 type Policy struct {
 	BaseModel
-	TemplateID      uint           `gorm:"index;not null" json:"template_id"`
-	Title           string         `gorm:"size:255;not null" json:"title"`
-	Conditions      JSONMap        `gorm:"type:jsonb" json:"conditions"`
-	SubsidyAmount   string         `gorm:"size:128" json:"subsidy_amount"`
-	StartDate       string         `gorm:"size:32" json:"start_date"`
-	EndDate         string         `gorm:"size:32" json:"end_date"`
-	FileID          *uint          `json:"file_id,omitempty"`
-	Status          PolicyStatus   `gorm:"size:16;default:draft" json:"status"`
-	PublishedAt     *time.Time     `json:"published_at"`
-	ExtractedFields JSONMap        `gorm:"type:jsonb" json:"extracted_fields"`
-	MatchLevel      string         `gorm:"-" json:"match_level,omitempty"`
-	Template        PolicyTemplate `gorm:"foreignKey:TemplateID" json:"-"`
+	TemplateID      uint               `gorm:"index;not null" json:"template_id"`
+	Title           string             `gorm:"size:255;not null" json:"title"`
+	Requirements    *PolicyRequirement `gorm:"type:jsonb" json:"requirements"`
+	StartDate       string             `gorm:"size:32" json:"start_date"`
+	EndDate         string             `gorm:"size:32" json:"end_date"`
+	Status          PolicyStatus       `gorm:"size:16;default:draft" json:"status"`
+	PublishedAt     *time.Time         `json:"published_at"`
+	ExtractedFields JSONMap            `gorm:"type:jsonb" json:"extracted_fields"`
+	MatchLevel      string             `gorm:"-" json:"match_level,omitempty"`
+	Template        PolicyTemplate     `gorm:"foreignKey:TemplateID" json:"-"`
 }
 
 func (Policy) TableName() string { return "policies" }
@@ -41,3 +39,25 @@ type PolicyApplication struct {
 }
 
 func (PolicyApplication) TableName() string { return "policy_applications" }
+
+// PolicyRequirement 政策要求 — 对应 policies.requirements jsonb 列
+type PolicyRequirement struct {
+	FulfillmentCriteria  *string              `json:"fulfillment_criteria,omitempty"`
+	ApplicationCondition *string              `json:"application_condition,omitempty"`
+	ApplicationMaterials []ApplicationMaterial `json:"application_materials,omitempty"`
+	Process              *string              `json:"process,omitempty"`
+	LegalBasis           []LegalBasisFile     `json:"legal_basis,omitempty"`
+}
+
+type ApplicationMaterial struct {
+	Name             string        `json:"name"`
+	Necessity        NecessityType `json:"necessity"`       // "necessary" / "unnecessary"
+	MaterialForm     *string       `json:"material_form,omitempty"`
+	MaterialTemplate *string       `json:"material_template,omitempty"`
+}
+
+type LegalBasisFile struct {
+	Title          string `json:"title"`
+	SpecificClause string `json:"specific_clause"`
+	FileID         uint   `json:"file_id"`
+}

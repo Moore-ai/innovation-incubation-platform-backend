@@ -73,13 +73,11 @@ type PolicyTemplateReq struct {
 }
 
 type PublishPolicyReq struct {
-	TemplateID    uint          `json:"template_id"`
-	Title         string        `json:"title"`
-	Conditions    model.JSONMap `json:"conditions"`
-	SubsidyAmount string        `json:"subsidy_amount"`
-	StartDate     string        `json:"start_date"`
-	EndDate       string        `json:"end_date"`
-	FileID        *uint         `json:"file_id,omitempty"`
+	TemplateID   uint                     `json:"template_id"`
+	Title        string                   `json:"title"`
+	Requirements *model.PolicyRequirement `json:"requirements" binding:"required"`
+	StartDate    string                   `json:"start_date"`
+	EndDate      string                   `json:"end_date"`
 }
 
 type EnterpriseEditReq struct {

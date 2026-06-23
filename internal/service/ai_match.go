@@ -32,9 +32,11 @@ func (s *AIService) compileMatchGraph(ctx context.Context) (compose.Runnable[map
 			return nil, fmt.Errorf("prep: missing or invalid policy")
 		}
 
-		extracted := policy.ExtractedFields
-		if extracted == nil {
-			extracted = policy.Conditions
+		var extracted any
+		if policy.ExtractedFields != nil {
+			extracted = policy.ExtractedFields
+		} else if policy.Requirements != nil {
+			extracted = policy.Requirements
 		}
 
 		return map[string]any{
@@ -42,7 +44,7 @@ func (s *AIService) compileMatchGraph(ctx context.Context) (compose.Runnable[map
 			"scale":         ent.Scale,
 			"address":       ent.Address,
 			"title":         policy.Title,
-			"conditions":    toJSONString(policy.Conditions),
+			"requirements":    toJSONString(policy.Requirements),
 			"extracted":     toJSONString(extracted),
 			"output_schema": `{"level":"high|partial|none|unknown","reason":"给出详细的匹配分析理由, 必须包含适用条件和补贴额度等信息(你的对话对象是执行本次政策匹配的企业)"}`,
 		}, nil
@@ -50,7 +52,7 @@ func (s *AIService) compileMatchGraph(ctx context.Context) (compose.Runnable[map
 
 	tmpl := prompt.FromMessages(schema.FString,
 		schema.SystemMessage(s.prompts.match),
-		schema.UserMessage("企业画像：行业={industry}、规模={scale}、地址={address}\n政策标题: {title}\n政策条件: {conditions}\n提取字段: {extracted}\n\n"+
+		schema.UserMessage("企业画像：行业={industry}、规模={scale}、地址={address}\n政策标题: {title}\n政策条件: {requirements}\n提取字段: {extracted}\n\n"+
 			"请按以下格式返回 JSON, 不要附带其他内容：\n{output_schema}"),
 	)
 

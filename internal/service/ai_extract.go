@@ -51,7 +51,7 @@ func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) err
 
 	fields, err := chain.Invoke(ctx, map[string]any{
 		"title":         policy.Title,
-		"content":       toJSONString(policy.Conditions),
+		"content":       toJSONString(policy.Requirements),
 		"output_schema": `{"policy_name":"","applicable_industries":[],"applicable_scales":[],"applicable_status":[],"subsidy_type":"","subsidy_amount":"","subsidy_condition":"","applicable_region":"","required_documents":[]}`,
 	})
 	if err != nil {
@@ -78,8 +78,11 @@ func cleanLLMOutput(s string) string {
 }
 
 func toJSONString(v any) string {
+	if v == nil {
+		return "{}"
+	}
 	b, _ := json.Marshal(v)
-	if len(b) == 0 {
+	if len(b) == 0 || string(b) == "null" {
 		return "{}"
 	}
 	return string(b)
