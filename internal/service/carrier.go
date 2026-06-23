@@ -32,12 +32,13 @@ type CarrierService struct {
 	commonRepo *repository.CommonRepo
 	db         *gorm.DB
 	sm         *statemachine.StateMachine
+	policySM   *statemachine.StateMachine
 	notifSvc   *NotificationService
 	assigner   *Assigner
 }
 
 func NewCarrierService(repo *repository.CarrierRepo, commonRepo *repository.CommonRepo, db *gorm.DB, notifSvc *NotificationService, assigner *Assigner) *CarrierService {
-	return &CarrierService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM(), notifSvc: notifSvc, assigner: assigner}
+	return &CarrierService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM(), policySM: statemachine.PolicyApprovalSM(), notifSvc: notifSvc, assigner: assigner}
 }
 
 func (s *CarrierService) ReviewIncubation(carrierUserID uint, incubationID uint, req *dto.ReviewReq) error {
@@ -316,7 +317,7 @@ func (s *CarrierService) ReviewEnterprisePolicyApplication(carrierUserID uint, a
 	if err != nil {
 		return errcode.ErrNotFound
 	}
-	newStatus, err := s.sm.Transition(string(app.Status), req.Action)
+	newStatus, err := s.policySM.Transition(string(app.Status), req.Action)
 	if err != nil {
 		return errcode.ErrStatusInvalid.WithMsg(err.Error())
 	}
