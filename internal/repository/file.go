@@ -2,6 +2,7 @@ package repository
 
 import (
 	"innovation-incubation-platform-backend/internal/model"
+
 	"gorm.io/gorm"
 )
 
@@ -24,6 +25,34 @@ func (r *FileRepo) FindByID(id uint) (*model.File, error) {
 		return nil, err
 	}
 	return &f, nil
+}
+
+func (r *FileRepo) ListByUploader(userID uint, page, pageSize int) ([]model.File, int64, error) {
+	var list []model.File
+	var total int64
+	q := r.db.Model(&model.File{}).Where("uploaded_by = ?", userID)
+	q.Count(&total)
+	err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
+	return list, total, err
+}
+
+func (r *FileRepo) ListAll(page, pageSize int) ([]model.File, int64, error) {
+	var list []model.File
+	var total int64
+	q := r.db.Model(&model.File{})
+	q.Count(&total)
+	err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
+	return list, total, err
+}
+
+func (r *FileRepo) IsReferenced(fileID uint) bool {
+	var count int64
+	r.db.Model(&model.IncubationRecord{}).Where("agreement_file_id = ?", fileID).Count(&count)
+	return count > 0
+}
+
+func (r *FileRepo) Delete(id uint) error {
+	return r.db.Delete(&model.File{}, id).Error
 }
 
 func (r *FileRepo) CheckFileAccess(fileID, userID uint) (bool, error) {

@@ -14,9 +14,6 @@ jwt:
   secret: ${JWT_SECRET}
   expire_hours: 24
 
-casbin:
-  model_path: config/casbin_model.conf
-
 ai:
   provider: anthropic
   anthropic:
@@ -32,6 +29,8 @@ redis:
 
 upload:
   max_size_mb: 2
+  dir: uploads
+  allowed_extensions: []
 
 rate_limit:
   enabled: true
@@ -41,3 +40,8 @@ rate_limit:
 
 log:
   enabled: false
+
+notification:
+  heartbeat_seconds: 30
+  recent_count: 20
+  max_conns_per_user: 10

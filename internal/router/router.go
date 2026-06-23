@@ -11,13 +11,14 @@ import (
 )
 
 type Deps struct {
-	Config               *config.Config
-	Enforcer             *casbin.Enforcer
-	AuthController       *controller.AuthController
-	EnterpriseController *controller.EnterpriseController
-	CarrierController    *controller.CarrierController
-	GovernmentController *controller.GovernmentController
-	FileController       *controller.FileController
+	Config                 *config.Config
+	Enforcer               *casbin.Enforcer
+	AuthController         *controller.AuthController
+	EnterpriseController   *controller.EnterpriseController
+	CarrierController      *controller.CarrierController
+	GovernmentController   *controller.GovernmentController
+	FileController         *controller.FileController
+	NotificationController *controller.NotificationController
 }
 
 func RegisterRoutes(r *gin.Engine, deps *Deps) {
@@ -30,6 +31,7 @@ func RegisterRoutes(r *gin.Engine, deps *Deps) {
 	registerCarrierRoutes(r, deps)
 	registerGovernmentRoutes(r, deps)
 	registerFileRoutes(r, deps)
+	registerNotificationRoutes(r, deps)
 
 	r.GET("/api/v1/health", func(c *gin.Context) {
 		response.Success(c, gin.H{"status": "ok"})
@@ -76,6 +78,12 @@ func registerEnterpriseRoutes(r *gin.Engine, deps *Deps) {
 	e.GET("/policies", deps.EnterpriseController.ListPolicies)
 	e.POST("/policies/:id/apply", deps.EnterpriseController.ApplyPolicy)
 	e.GET("/applications/list", deps.EnterpriseController.ListMyApplications)
+	e.POST("/account/deletion", deps.EnterpriseController.ApplyDeletion)
+	e.GET("/carriers", deps.EnterpriseController.ListCarriers)
+	e.GET("/carriers/:id", deps.EnterpriseController.GetCarrier)
+	e.POST("/policies/:id/follow", deps.EnterpriseController.FollowPolicy)
+	e.DELETE("/policies/:id/follow", deps.EnterpriseController.UnfollowPolicy)
+	e.GET("/policies/followed", deps.EnterpriseController.ListFollowedPolicies)
 
 	ai := r.Group("/api/v1/enterprise")
 	ai.Use(middleware.AuthMiddleware(deps.Config.JWT))
@@ -96,6 +104,7 @@ func registerCarrierRoutes(r *gin.Engine, deps *Deps) {
 	c.POST("/incubation/:id/approve", deps.CarrierController.ReviewIncubation)
 	c.POST("/incubation/:id/reject", deps.CarrierController.ReviewIncubation)
 	c.POST("/incubation/:id/return", deps.CarrierController.ReviewIncubation)
+	c.POST("/incubation/:id/complete", deps.CarrierController.CompleteIncubation)
 	c.GET("/changes/list", deps.CarrierController.ListPendingChanges)
 	c.POST("/changes/:id/approve", deps.CarrierController.ReviewChange)
 	c.POST("/changes/:id/reject", deps.CarrierController.ReviewChange)
@@ -107,6 +116,7 @@ func registerCarrierRoutes(r *gin.Engine, deps *Deps) {
 	c.GET("/applications/enterprise", deps.CarrierController.ListEnterpriseApplications)
 	c.POST("/applications/:id/review", deps.CarrierController.ReviewEnterpriseApplication)
 	c.GET("/performances", deps.CarrierController.ListCampaigns)
+	c.POST("/account/deletion", deps.CarrierController.ApplyDeletion)
 	c.POST("/performances/:id/submit", deps.CarrierController.SubmitPerformance)
 }
 
@@ -118,16 +128,22 @@ func registerGovernmentRoutes(r *gin.Engine, deps *Deps) {
 	g.POST("/policies/templates", deps.GovernmentController.CreatePolicyTemplate)
 	g.POST("/policies", deps.GovernmentController.PublishPolicy)
 	g.GET("/policies/list", deps.GovernmentController.ListPolicies)
+	g.PUT("/policies/:id", deps.GovernmentController.UpdatePolicy)
 	g.GET("/enterprises", deps.GovernmentController.SearchEnterprises)
 	g.GET("/enterprises/:id", deps.GovernmentController.GetEnterprise)
 	g.PUT("/enterprises/:id", deps.GovernmentController.EditEnterprise)
+	g.DELETE("/enterprises/:id", deps.GovernmentController.DeleteEnterprise)
+	g.DELETE("/carriers/:id", deps.GovernmentController.DeleteCarrier)
 	g.GET("/carriers", deps.GovernmentController.SearchCarriers)
 	g.POST("/applications/:id/review", deps.GovernmentController.ReviewPolicyApplication)
 	g.GET("/applications/list", deps.GovernmentController.ListPolicyApplications)
 	g.POST("/performances/templates", deps.GovernmentController.CreatePerformanceTemplate)
 	g.POST("/performances/campaigns", deps.GovernmentController.StartCampaign)
 	g.GET("/performances/submissions", deps.GovernmentController.ListSubmissions)
+	g.GET("/account/deletions", deps.GovernmentController.ListDeletionRequests)
+	g.POST("/account/deletions/:id/review", deps.GovernmentController.ReviewDeletionRequest)
 	g.POST("/performances/:id/score", deps.GovernmentController.ScoreSubmission)
+	g.POST("/incubation/:id/complete", deps.GovernmentController.CompleteIncubation)
 }
 
 func registerFileRoutes(r *gin.Engine, deps *Deps) {
@@ -136,7 +152,20 @@ func registerFileRoutes(r *gin.Engine, deps *Deps) {
 	}
 	f := r.Group("/api/v1/files")
 	f.Use(middleware.AuthMiddleware(deps.Config.JWT))
+	f.Use(middleware.GlobalRateLimit())
 	f.GET("/limit", deps.FileController.GetUploadLimit)
 	f.POST("/upload", deps.FileController.Upload)
 	f.GET("/:id/download", deps.FileController.Download)
+	f.GET("/list", deps.FileController.ListFiles)
+	f.DELETE("/:id", deps.FileController.DeleteFile)
+}
+
+func registerNotificationRoutes(r *gin.Engine, deps *Deps) {
+	if deps.NotificationController == nil {
+		return
+	}
+	n := r.Group("/api/v1/notifications")
+	n.Use(middleware.AuthMiddleware(deps.Config.JWT))
+	n.GET("/subscribe", deps.NotificationController.Subscribe)
+	n.PATCH("/read", deps.NotificationController.MarkRead)
 }

@@ -15,5 +15,8 @@ func AllModels() []any {
 		&PerformanceCampaign{},
 		&PerformanceSubmission{},
 		&File{},
+		&Notification{},
+		&AccountDeletionRequest{},
+		&PolicyFollow{},
 	}
 }

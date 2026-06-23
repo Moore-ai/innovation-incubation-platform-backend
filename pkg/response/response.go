@@ -4,17 +4,18 @@ import (
 	"net/http"
 
 	"innovation-incubation-platform-backend/pkg/errcode"
+
 	"github.com/gin-gonic/gin"
 )
 
 type PageData struct {
-	List     interface{} `json:"list"`
-	Total    int64       `json:"total"`
-	Page     int         `json:"page"`
-	PageSize int         `json:"page_size"`
+	List     any   `json:"list"`
+	Total    int64 `json:"total"`
+	Page     int   `json:"page"`
+	PageSize int   `json:"page_size"`
 }
 
-func Success(c *gin.Context, data interface{}) {
+func Success(c *gin.Context, data any) {
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
 		"message": "success",
@@ -22,7 +23,7 @@ func Success(c *gin.Context, data interface{}) {
 	})
 }
 
-func SuccessPage(c *gin.Context, list interface{}, total int64, page, pageSize int) {
+func SuccessPage(c *gin.Context, list any, total int64, page, pageSize int) {
 	Success(c, PageData{List: list, Total: total, Page: page, PageSize: pageSize})
 }
 

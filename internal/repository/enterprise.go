@@ -71,6 +71,12 @@ func (r *EnterpriseRepo) UpdateChange(change *model.MajorChange) error {
 	return r.db.Save(change).Error
 }
 
+func (r *EnterpriseRepo) FindUserIDByEnterpriseID(entID uint) (uint, error) {
+	var ent model.Enterprise
+	err := r.db.Select("user_id").First(&ent, entID).Error
+	return ent.UserID, err
+}
+
 func (r *EnterpriseRepo) FindApprovedApplications(entID uint) ([]model.PolicyApplication, error) {
 	var apps []model.PolicyApplication
 	err := r.db.Where("applicant_type = ? AND applicant_id = ? AND status IN ?", string(model.ApplicantEnterprise), entID, []string{string(model.ApprovalApproved)}).

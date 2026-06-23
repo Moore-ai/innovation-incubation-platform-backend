@@ -33,7 +33,7 @@ func SeedPolicies(e *casbin.Enforcer) {
 		{"*", "/api/v1/auth/*", "(GET|POST|PUT)"},
 	}
 	for _, p := range policies {
-		args := make([]interface{}, len(p))
+		args := make([]any, len(p))
 		for i, v := range p {
 			args[i] = v
 		}

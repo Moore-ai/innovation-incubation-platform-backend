@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"log/slog"
@@ -14,14 +15,18 @@ import (
 )
 
 type EnterpriseService struct {
-	repo       *repository.EnterpriseRepo
-	commonRepo *repository.CommonRepo
-	db         *gorm.DB
-	sm         *statemachine.StateMachine
+	repo        *repository.EnterpriseRepo
+	carrierRepo *repository.CarrierRepo
+	commonRepo  *repository.CommonRepo
+	db          *gorm.DB
+	sm          *statemachine.StateMachine
+	notifSvc    *NotificationService
+	assigner    *Assigner
+	followRepo  *repository.PolicyFollowRepo
 }
 
-func NewEnterpriseService(repo *repository.EnterpriseRepo, commonRepo *repository.CommonRepo, db *gorm.DB) *EnterpriseService {
-	return &EnterpriseService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM()}
+func NewEnterpriseService(repo *repository.EnterpriseRepo, carrierRepo *repository.CarrierRepo, commonRepo *repository.CommonRepo, db *gorm.DB, notifSvc *NotificationService, assigner *Assigner, followRepo *repository.PolicyFollowRepo) *EnterpriseService {
+	return &EnterpriseService{repo: repo, carrierRepo: carrierRepo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM(), notifSvc: notifSvc, assigner: assigner, followRepo: followRepo}
 }
 
 func (s *EnterpriseService) GetMyEnterpriseInfo(userID uint) (*model.Enterprise, error) {
@@ -74,6 +79,15 @@ func (s *EnterpriseService) ApplyIncubation(userID uint, req *dto.IncubationAppl
 		Action:     model.ActionSubmit,
 		ReviewerID: 0,
 	})
+	// 通知所属载体
+	var carrierUserID uint
+	s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", req.CarrierID).Take(&carrierUserID)
+	if carrierUserID > 0 {
+		s.notifSvc.Send(carrierUserID, model.NotifIncubationPending,
+			"有一份新的入驻申请待审核",
+			fmt.Sprintf("企业「%s」提交了入驻申请", ent.Name),
+			model.TargetIncubation, record.ID)
+	}
 	return record, nil
 }
 
@@ -100,6 +114,7 @@ var allowedChangeTypes = []string{
 	"企业规模",
 	"企业地址",
 	"法定代表人",
+	"入孵协议文件",
 }
 
 func validateChangeType(t string) error {
@@ -142,6 +157,19 @@ func (s *EnterpriseService) ApplyChange(userID uint, req *dto.ChangeApplyReq) (*
 		Step:       model.StepCarrierReview,
 		Action:     model.ActionSubmit,
 	})
+	// 通知企业所属载体（通过入驻记录查找最新关联的载体）
+	var carrierID uint
+	s.db.Model(&model.IncubationRecord{}).Select("carrier_id").Where("enterprise_id = ?", ent.ID).Order("created_at DESC").Limit(1).Take(&carrierID)
+	if carrierID > 0 {
+		var carrierUserID uint
+		s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", carrierID).Take(&carrierUserID)
+		if carrierUserID > 0 {
+			s.notifSvc.Send(carrierUserID, model.NotifChangePending,
+				"有一条新的变更申请待审核",
+				fmt.Sprintf("企业「%s」提交了「%s」变更", ent.Name, req.ChangeType),
+				model.TargetMajorChange, change.ID)
+		}
+	}
 	return change, nil
 }
 
@@ -182,7 +210,56 @@ func (s *EnterpriseService) ReeditChange(id uint, userID uint, req *dto.ChangeAp
 		Step:       model.StepCarrierReview,
 		Action:     model.ActionSubmit,
 	})
+	// 通知载体
+	var entCarrierID uint
+	s.db.Model(&model.IncubationRecord{}).Select("carrier_id").Where("enterprise_id = ?", change.EnterpriseID).Order("created_at DESC").Limit(1).Take(&entCarrierID)
+	if entCarrierID > 0 {
+		var carrierUserID uint
+		s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", entCarrierID).Take(&carrierUserID)
+		if carrierUserID > 0 {
+			s.notifSvc.Send(carrierUserID, model.NotifChangePending,
+				"有一条新的变更申请待审核",
+				fmt.Sprintf("企业重新提交了「%s」变更", change.ChangeType),
+				model.TargetMajorChange, change.ID)
+		}
+	}
 	return change, nil
+}
+
+func (s *EnterpriseService) ApplyDeletion(userID uint, reason string) error {
+	if reason == "" {
+		return errcode.ErrInvalidParams.WithMsg("请填写注销原因")
+	}
+	ent, err := s.repo.FindEnterpriseByUserID(userID)
+	if err != nil {
+		return errcode.ErrNotFound.WithMsg("企业信息未找到")
+	}
+	var existing int64
+	s.db.Model(&model.AccountDeletionRequest{}).Where("user_id = ? AND status = ?", userID, model.ApprovalPending).Count(&existing)
+	if existing > 0 {
+		return errcode.ErrStatusInvalid.WithMsg("您已有一笔待处理的注销申请，请等待审核结果")
+	}
+	req := &model.AccountDeletionRequest{
+		UserID:       userID,
+		Role:         string(model.RoleEnterprise),
+		EnterpriseID: &ent.ID,
+		Reason:       reason,
+		Status:       model.ApprovalPending,
+	}
+	if err := s.db.Create(req).Error; err != nil {
+		return errcode.ErrInternal
+	}
+	// 通知政务（轮询分配）
+	uid, err := s.assigner.Next("government")
+	if err != nil {
+		slog.Error("assigner next failed", "error", err)
+	} else {
+		s.notifSvc.Send(uid, model.NotifDeletionApplied,
+			"有一条新的注销申请待审核",
+			fmt.Sprintf("企业「%s」提交了账号注销申请", ent.Name),
+			model.TargetAccountDeletion, req.ID)
+	}
+	return nil
 }
 
 func (s *EnterpriseService) ListAvailablePolicies(userID uint, role string, page, pageSize int) ([]model.Policy, int64, error) {
@@ -228,10 +305,75 @@ func (s *EnterpriseService) ApplyPolicy(userID uint, policyID uint, req *dto.Pol
 		Step:       model.StepCarrierReview,
 		Action:     model.ActionSubmit,
 	})
+	// 通知所属载体
+	var carrierID uint
+	s.db.Model(&model.IncubationRecord{}).Select("carrier_id").Where("enterprise_id = ?", ent.ID).Order("created_at DESC").Limit(1).Take(&carrierID)
+	if carrierID > 0 {
+		var carrierUserID uint
+		s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", carrierID).Take(&carrierUserID)
+		if carrierUserID > 0 {
+			s.notifSvc.Send(carrierUserID, model.NotifApplicationPending,
+				"有一条新的政策申报待审核",
+				fmt.Sprintf("企业「%s」申报了政策「%s」", ent.Name, policy.Title),
+				model.TargetPolicy, app.ID)
+		}
+	}
 	return app, nil
 }
 
 func (s *EnterpriseService) ListMyApplications(userID uint, page, pageSize int) ([]model.PolicyApplication, int64, error) {
 	ent, _ := s.repo.FindEnterpriseByUserID(userID)
 	return s.commonRepo.ListApplicationsByApplicant(string(model.ApplicantEnterprise), ent.ID, page, pageSize)
+}
+
+func (s *EnterpriseService) FollowPolicy(userID, policyID uint) error {
+	ent, err := s.repo.FindEnterpriseByUserID(userID)
+	if err != nil {
+		return errcode.ErrNotFound.WithMsg("企业信息未找到")
+	}
+	exists, err := s.followRepo.Exists(ent.ID, policyID)
+	if err != nil {
+		return errcode.ErrInternal
+	}
+	if exists {
+		return errcode.ErrDuplicate.WithMsg("已关注该政策")
+	}
+	if _, err := s.commonRepo.FindPolicyByID(policyID); err != nil {
+		return errcode.ErrNotFound.WithMsg("政策不存在")
+	}
+	if err := s.followRepo.Create(ent.ID, policyID); err != nil {
+		return errcode.ErrDuplicate.WithMsg("已关注该政策")
+	}
+	return nil
+}
+
+func (s *EnterpriseService) UnfollowPolicy(userID, policyID uint) error {
+	ent, err := s.repo.FindEnterpriseByUserID(userID)
+	if err != nil {
+		return errcode.ErrNotFound.WithMsg("企业信息未找到")
+	}
+	if err := s.followRepo.Delete(ent.ID, policyID); err != nil {
+		return errcode.ErrNotFound.WithMsg("未关注该政策")
+	}
+	return nil
+}
+
+func (s *EnterpriseService) ListFollowedPolicies(userID uint, page, pageSize int) ([]model.PolicyFollow, int64, error) {
+	ent, err := s.repo.FindEnterpriseByUserID(userID)
+	if err != nil {
+		return nil, 0, errcode.ErrNotFound.WithMsg("企业信息未找到")
+	}
+	return s.followRepo.ListByEnterprise(ent.ID, page, pageSize)
+}
+
+func (s *EnterpriseService) ListCarriers(page, pageSize int) ([]model.Carrier, int64, error) {
+	return s.carrierRepo.ListAll(page, pageSize)
+}
+
+func (s *EnterpriseService) GetCarrier(id uint) (*model.Carrier, error) {
+	c, err := s.carrierRepo.FindByID(id)
+	if err != nil {
+		return nil, errcode.ErrNotFound.WithMsg("载体不存在")
+	}
+	return c, nil
 }

@@ -35,6 +35,19 @@ func (sm *StateMachine) Transition(currentStatus, action string) (string, error)
 	return newStatus, nil
 }
 
+func PolicyApprovalSM() *StateMachine {
+	sm := New()
+	sm.Register("draft", "submit", "pending")
+	sm.Register("pending", "approve", "gov_review")
+	sm.Register("pending", "reject", "rejected")
+	sm.Register("pending", "return", "returned")
+	sm.Register("gov_review", "approve", "approved")
+	sm.Register("gov_review", "reject", "rejected")
+	sm.Register("gov_review", "return", "returned")
+	sm.Register("returned", "submit", "pending")
+	return sm
+}
+
 func DefaultApprovalSM() *StateMachine {
 	sm := New()
 	sm.Register("draft", "submit", "pending")

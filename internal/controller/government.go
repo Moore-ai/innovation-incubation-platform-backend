@@ -1,12 +1,14 @@
-﻿package controller
+package controller
 
 import (
 	"strconv"
 
 	"innovation-incubation-platform-backend/internal/dto"
+	"innovation-incubation-platform-backend/internal/middleware"
+	"innovation-incubation-platform-backend/internal/service"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/response"
-	"innovation-incubation-platform-backend/internal/service"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -44,6 +46,24 @@ func (ctl *GovernmentController) PublishPolicy(c *gin.Context) {
 		return
 	}
 	response.Success(c, p)
+}
+
+func (ctl *GovernmentController) UpdatePolicy(c *gin.Context) {
+	policyID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+	var req dto.PublishPolicyReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
+		return
+	}
+	if err := ctl.svc.UpdatePolicy(uint(policyID), &req); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
 }
 
 func (ctl *GovernmentController) ListPolicies(c *gin.Context) {
@@ -113,7 +133,7 @@ func (ctl *GovernmentController) ReviewPolicyApplication(c *gin.Context) {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
 	}
-	if err := ctl.svc.ReviewPolicyApplication(uint(id), &req); err != nil {
+	if err := ctl.svc.ReviewPolicyApplication(middleware.GetUserID(c), uint(id), &req); err != nil {
 		response.Error(c, err)
 		return
 	}
@@ -178,6 +198,78 @@ func (ctl *GovernmentController) ScoreSubmission(c *gin.Context) {
 		return
 	}
 	if err := ctl.svc.ScoreSubmission(uint(id), &req); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+func (ctl *GovernmentController) CompleteIncubation(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+	if err := ctl.svc.CompleteIncubation(middleware.GetUserID(c), uint(id)); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+func (ctl *GovernmentController) DeleteEnterprise(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+	if err := ctl.svc.DeleteEnterprise(uint(id), middleware.GetUserID(c)); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+func (ctl *GovernmentController) DeleteCarrier(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+	if err := ctl.svc.DeleteCarrier(uint(id), middleware.GetUserID(c)); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+func (ctl *GovernmentController) ListDeletionRequests(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	status := c.Query("status")
+	list, total, err := ctl.svc.ListDeletionRequests(page, pageSize, status)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.SuccessPage(c, list, total, page, pageSize)
+}
+
+func (ctl *GovernmentController) ReviewDeletionRequest(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+	var req struct {
+		Action  string `json:"action"`
+		Comment string `json:"comment"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || (req.Action != "approve" && req.Action != "reject") {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("action 必须为 approve 或 reject"))
+		return
+	}
+	if err := ctl.svc.ReviewDeletionRequest(middleware.GetUserID(c), uint(id), req.Action, req.Comment); err != nil {
 		response.Error(c, err)
 		return
 	}

@@ -77,7 +77,7 @@ func cleanLLMOutput(s string) string {
 	return strings.TrimSpace(cleaned)
 }
 
-func toJSONString(v interface{}) string {
+func toJSONString(v any) string {
 	b, _ := json.Marshal(v)
 	if len(b) == 0 {
 		return "{}"

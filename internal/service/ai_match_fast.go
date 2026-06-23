@@ -8,8 +8,8 @@ func FieldMatchRule(ent *model.Enterprise, policy *model.Policy) string {
 		return "unknown"
 	}
 
-	industries, _ := fields["applicable_industries"].([]interface{})
-	scales, _ := fields["applicable_scales"].([]interface{})
+	industries, _ := fields["applicable_industries"].([]any)
+	scales, _ := fields["applicable_scales"].([]any)
 	regions := toSlice(fields["applicable_region"])
 
 	matched := 0
@@ -46,20 +46,20 @@ func FieldMatchRule(ent *model.Enterprise, policy *model.Policy) string {
 	return "none"
 }
 
-// toSlice converts a JSON value to []interface{}, handling both []interface{} and single string.
-func toSlice(v interface{}) []interface{} {
+// toSlice converts a JSON value to []any, handling both []any and single string.
+func toSlice(v any) []any {
 	switch val := v.(type) {
-	case []interface{}:
+	case []any:
 		return val
 	case string:
 		if val != "" {
-			return []interface{}{val}
+			return []any{val}
 		}
 	}
 	return nil
 }
 
-func containsAny(str string, candidates []interface{}) bool {
+func containsAny(str string, candidates []any) bool {
 	for _, c := range candidates {
 		if s, ok := c.(string); ok && s == str {
 			return true

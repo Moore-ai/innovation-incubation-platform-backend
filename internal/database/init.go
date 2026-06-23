@@ -22,5 +22,12 @@ func MustInit(cfg *config.Config) *gorm.DB {
 		os.Exit(1)
 	}
 
+	// 迁移：旧版 files.data 列从 NOT NULL 改为允许 NULL
+	db.Exec(`DO $$ BEGIN
+		IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='files' AND column_name='data' AND is_nullable='NO') THEN
+			ALTER TABLE files ALTER COLUMN data DROP NOT NULL;
+		END IF;
+	END $$;`)
+
 	return db
 }

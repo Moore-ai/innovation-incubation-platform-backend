@@ -144,6 +144,43 @@ func (ctl *EnterpriseController) ListMyApplications(c *gin.Context) {
 	response.SuccessPage(c, apps, total, page, pageSize)
 }
 
+func (ctl *EnterpriseController) FollowPolicy(c *gin.Context) {
+	policyID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+	if err := ctl.svc.FollowPolicy(middleware.GetUserID(c), uint(policyID)); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+func (ctl *EnterpriseController) UnfollowPolicy(c *gin.Context) {
+	policyID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+	if err := ctl.svc.UnfollowPolicy(middleware.GetUserID(c), uint(policyID)); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+func (ctl *EnterpriseController) ListFollowedPolicies(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	list, total, err := ctl.svc.ListFollowedPolicies(middleware.GetUserID(c), page, pageSize)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.SuccessPage(c, list, total, page, pageSize)
+}
+
 func (ctl *EnterpriseController) GetMyEnterpriseInfo(c *gin.Context) {
 	ent, err := ctl.svc.GetMyEnterpriseInfo(middleware.GetUserID(c))
 	if err != nil {
@@ -151,6 +188,21 @@ func (ctl *EnterpriseController) GetMyEnterpriseInfo(c *gin.Context) {
 		return
 	}
 	response.Success(c, ent)
+}
+
+func (ctl *EnterpriseController) ApplyDeletion(c *gin.Context) {
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("请填写注销原因"))
+		return
+	}
+	if err := ctl.svc.ApplyDeletion(middleware.GetUserID(c), req.Reason); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
 }
 
 func (ctl *EnterpriseController) ListChangeTypes(c *gin.Context) {
@@ -169,6 +221,31 @@ func (ctl *EnterpriseController) RecommendPolicy(c *gin.Context) {
 		return
 	}
 	response.Success(c, result)
+}
+
+func (ctl *EnterpriseController) ListCarriers(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	list, total, err := ctl.svc.ListCarriers(page, pageSize)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.SuccessPage(c, list, total, page, pageSize)
+}
+
+func (ctl *EnterpriseController) GetCarrier(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+	carrier, err := ctl.svc.GetCarrier(uint(id))
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, carrier)
 }
 
 func (ctl *EnterpriseController) PrefillApplication(c *gin.Context) {
