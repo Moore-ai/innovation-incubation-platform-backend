@@ -46,11 +46,9 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 	p := &model.Policy{
 		TemplateID:    req.TemplateID,
 		Title:         req.Title,
-		Conditions:    req.Conditions,
-		SubsidyAmount: req.SubsidyAmount,
+		Requirements: req.Requirements,
 		StartDate:     req.StartDate,
 		EndDate:       req.EndDate,
-		FileID:        req.FileID,
 		Status:        model.PolicyPublished,
 		PublishedAt:   &now,
 	}
@@ -108,11 +106,9 @@ func (s *GovernmentService) UpdatePolicy(policyID uint, req *dto.PublishPolicyRe
 		return errcode.ErrNotFound
 	}
 	p.Title = req.Title
-	p.Conditions = req.Conditions
-	p.SubsidyAmount = req.SubsidyAmount
+	p.Requirements = req.Requirements
 	p.StartDate = req.StartDate
 	p.EndDate = req.EndDate
-	p.FileID = req.FileID
 	if err := s.repo.UpdatePolicy(p); err != nil {
 		return errcode.ErrInternal
 	}
