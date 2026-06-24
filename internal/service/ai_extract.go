@@ -27,7 +27,7 @@ func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) err
 		toJSONString(policy.Requirements),
 		`{"policy_name":"政策名称","applicable_industries":["适用行业列表"],"applicable_scales":["适用企业规模，如大型、中型、小型、微型"],"applicable_status":"适用企业状态，如：初创期、成长期","subsidy_type":"补贴类型，如：资金补贴、税收优惠","subsidy_amount":"补贴金额","subsidy_condition":"补贴的具体条件","applicable_region":"适用区域，比如安徽省合肥市蜀山区","required_documents":[所需材料清单]}`,
 	)
-	fields, err := chatAndParse[extractedFields](s, ctx, s.prompts.extract, userMsg, "AI提取结果解析失败")
+	fields, err := chatAndParse[extractedFields](s, ctx, "extract", s.prompts.extract, userMsg, "AI提取结果解析失败")
 	if err != nil {
 		return err
 	}
@@ -38,13 +38,19 @@ func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) err
 	return s.govRepo.UpdatePolicy(policy)
 }
 
-// cleanLLMOutput strips markdown code block wrapping and extra whitespace from LLM JSON output.
+// cleanLLMOutput extracts JSON content from markdown code block wrapping.
 func cleanLLMOutput(s string) string {
-	cleaned := strings.TrimSpace(s)
-	cleaned = strings.TrimPrefix(cleaned, "```json")
-	cleaned = strings.TrimPrefix(cleaned, "```")
-	cleaned = strings.TrimSuffix(cleaned, "```")
-	return strings.TrimSpace(cleaned)
+	s = strings.TrimSpace(s)
+	for _, prefix := range []string{"```json", "```"} {
+		if idx := strings.Index(s, prefix); idx >= 0 {
+			s = s[idx+len(prefix):]
+			break
+		}
+	}
+	if idx := strings.LastIndex(s, "```"); idx >= 0 {
+		s = s[:idx]
+	}
+	return strings.TrimSpace(s)
 }
 
 func toJSONString(v any) string {

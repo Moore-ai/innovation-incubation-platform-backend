@@ -13,14 +13,15 @@ import (
 
 // chatAndParse sends a Chat request and unmarshals the response into the target type T.
 // Returns typed pointer on success, or an errcode.ErrAIService error on failure.
-func chatAndParse[T any](s *AIService, ctx context.Context, systemPrompt, userMsg, parseErrMsg string) (*T, error) {
+func chatAndParse[T any](s *AIService, ctx context.Context, opName, systemPrompt, userMsg, parseErrMsg string) (*T, error) {
 	text, err := s.client.Chat(ctx, systemPrompt, userMsg)
 	if err != nil {
+		slog.Warn("AI chat failed", "op", opName, "error", err)
 		return nil, errcode.ErrAIService.WithMsg("AI服务暂不可用")
 	}
 	var result T
 	if err := json.Unmarshal([]byte(cleanLLMOutput(text)), &result); err != nil {
-		slog.Error("AI parse failed", "error", err)
+		slog.Error("AI parse failed", "op", opName, "error", err)
 		return nil, errcode.ErrAIService.WithMsg(parseErrMsg)
 	}
 	return &result, nil

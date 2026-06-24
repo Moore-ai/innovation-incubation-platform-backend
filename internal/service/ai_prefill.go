@@ -28,6 +28,9 @@ func (s *AIService) PrefillApplication(ctx context.Context, userID uint, policyI
 	}
 
 	// 查找指定模板 ID 的材料
+	if policy.Requirements == nil {
+		return nil, errcode.ErrInvalidParams.WithMsg("政策暂无申报要求")
+	}
 	var targetMaterial model.ApplicationMaterial
 	found := false
 	for _, m := range policy.Requirements.ApplicationMaterials {
@@ -45,7 +48,10 @@ func (s *AIService) PrefillApplication(ctx context.Context, userID uint, policyI
 		return nil, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("材料「%s」没有可预填充的模板", targetMaterial.Name))
 	}
 
-	schemaJSON, _ := json.Marshal(targetMaterial.MaterialTemplate.FormSchema)
+	schemaJSON, err := json.Marshal(targetMaterial.MaterialTemplate.FormSchema)
+	if err != nil {
+		return nil, errcode.ErrInternal.WithMsg("模板Schema序列化失败")
+	}
 
 	history, err := s.entRepo.FindApprovedApplications(ent.ID)
 	if err != nil {
@@ -62,7 +68,7 @@ func (s *AIService) PrefillApplication(ctx context.Context, userID uint, policyI
 		ent.Name, ent.CreditCode, ent.Industry, ent.Scale, ent.Address, ent.LegalPerson,
 		historyJSON, targetMaterial.Name, string(schemaJSON))
 
-	result, err := chatAndParse[model.JSONMap](s, ctx, s.prompts.prefill, userMsg, "AI预填充结果解析失败")
+	result, err := chatAndParse[model.JSONMap](s, ctx, "prefill", s.prompts.prefill, userMsg, "AI预填充结果解析失败")
 	if err != nil {
 		return nil, err
 	}

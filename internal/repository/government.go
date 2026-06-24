@@ -24,7 +24,7 @@ func (r *GovernmentRepo) CreatePolicy(p *model.Policy) error {
 
 func (r *GovernmentRepo) FindPolicyByID(id uint) (*model.Policy, error) {
 	var p model.Policy
-	err := r.db.Preload("Template").First(&p, id).Error
+	err := r.db.First(&p, id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (r *GovernmentRepo) ListPolicies(page, pageSize int) ([]model.Policy, int64
 	var total int64
 	q := r.db.Model(&model.Policy{})
 	q.Count(&total)
-	err := q.Preload("Template").Order("created_at DESC").
+	err := q.Order("created_at DESC").
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&policies).Error
 	return policies, total, err
 }

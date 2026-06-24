@@ -20,14 +20,14 @@ func (r *CommonRepo) ListPoliciesByTarget(role string, page, pageSize int) ([]mo
 		Joins("JOIN policy_templates ON policy_templates.id = policies.template_id").
 		Where("policies.status = ? AND (policy_templates.target_role = ? OR policy_templates.target_role = 'both')", model.PolicyPublished, role)
 	q.Count(&total)
-	err := q.Preload("Template").Order("policies.created_at DESC").
+	err := q.Order("policies.created_at DESC").
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&policies).Error
 	return policies, total, err
 }
 
 func (r *CommonRepo) FindPolicyByID(id uint) (*model.Policy, error) {
 	var policy model.Policy
-	err := r.db.Preload("Template").First(&policy, id).Error
+	err := r.db.First(&policy, id).Error
 	if err != nil {
 		return nil, err
 	}

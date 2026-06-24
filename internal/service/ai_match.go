@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"innovation-incubation-platform-backend/pkg/errcode"
 )
@@ -40,9 +39,8 @@ func (s *AIService) MatchPolicy(ctx context.Context, userID uint, policyID uint)
 		`{"level":"high|partial|none|unknown","reason":"给出详细的匹配分析理由,必须包含适用条件和补贴额度等信息(你的对话对象是执行本次政策匹配的企业)"}`,
 	)
 
-	result, err := chatAndParse[PolicyMatchResult](s, ctx, s.prompts.match, userMsg, "AI匹配失败")
+	result, err := chatAndParse[PolicyMatchResult](s, ctx, "match", s.prompts.match, userMsg, "AI匹配失败")
 	if err != nil {
-		slog.Warn("LLM match failed, fallback", "policy_id", policyID, "error", err)
 		return fallbackMatch(), nil
 	}
 	return result, nil
