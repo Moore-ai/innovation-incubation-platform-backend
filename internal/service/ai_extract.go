@@ -13,7 +13,7 @@ type extractedFields struct {
 	PolicyName           string   `json:"policy_name"`           // 政策名称
 	ApplicableIndustries []string `json:"applicable_industries"` // 适用行业
 	ApplicableScales     []string `json:"applicable_scales"`     // 适用企业规模
-	ApplicableStatus     []string `json:"applicable_status"`     // 适用企业状态（如：初创期、成长期）
+	ApplicableStatus     string   `json:"applicable_status"`     // 适用企业状态（如：初创期、成长期）
 	SubsidyType          string   `json:"subsidy_type"`          // 补贴类型（如：资金补贴、税收优惠）
 	SubsidyAmount        string   `json:"subsidy_amount"`        // 补贴金额
 	SubsidyCondition     string   `json:"subsidy_condition"`     // 补贴条件
