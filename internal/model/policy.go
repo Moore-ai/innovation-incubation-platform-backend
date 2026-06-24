@@ -22,7 +22,6 @@ type Policy struct {
 	Status          PolicyStatus       `gorm:"size:16;default:draft" json:"status"`
 	PublishedAt     *time.Time         `json:"published_at"`
 	ExtractedFields JSONMap            `gorm:"type:jsonb" json:"extracted_fields"`
-	MatchLevel      string             `gorm:"-" json:"match_level,omitempty"`
 }
 
 func (Policy) TableName() string { return "policies" }

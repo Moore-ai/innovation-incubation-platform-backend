@@ -2,15 +2,16 @@ package service
 
 import (
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
-	"log/slog"
 
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/statemachine"
+
 	"gorm.io/gorm"
 )
 
@@ -266,16 +267,6 @@ func (s *EnterpriseService) ListAvailablePolicies(userID uint, role string, page
 	policies, total, err := s.commonRepo.ListPoliciesByTarget(role, page, pageSize)
 	if err != nil {
 		return nil, 0, err
-	}
-
-	ent, err := s.repo.FindEnterpriseByUserID(userID)
-	if err != nil {
-		slog.Warn("ListAvailablePolicies: enterprise not found for match level", "user_id", userID, "error", err)
-		return policies, total, nil
-	}
-
-	for i := range policies {
-		policies[i].MatchLevel = FieldMatchRule(ent, &policies[i])
 	}
 	return policies, total, nil
 }

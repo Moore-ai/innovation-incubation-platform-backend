@@ -17,7 +17,7 @@ type extractedFields struct {
 	SubsidyType          string   `json:"subsidy_type"`          // 补贴类型（如：资金补贴、税收优惠）
 	SubsidyAmount        string   `json:"subsidy_amount"`        // 补贴金额
 	SubsidyCondition     string   `json:"subsidy_condition"`     // 补贴条件
-	ApplicableRegion     string   `json:"applicable_region"`     // 适用区域；也可能是 JSON 数组，FieldMatchRule 中处理
+	ApplicableRegion     string   `json:"applicable_region"`     // 适用区域；也可能是 JSON 数组
 	RequiredDocuments    []string `json:"required_documents"`    // 所需材料清单
 }
 
