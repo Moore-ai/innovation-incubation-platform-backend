@@ -35,7 +35,7 @@ func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) err
 	var extracted model.JSONMap
 	json.Unmarshal(b, &extracted)
 	policy.ExtractedFields = extracted
-	return s.govRepo.UpdatePolicy(policy)
+	return nil
 }
 
 // cleanLLMOutput extracts JSON content from markdown code block wrapping.

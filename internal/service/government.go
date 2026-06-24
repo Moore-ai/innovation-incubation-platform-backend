@@ -69,17 +69,12 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 			}
 		}
 	}
+
+	if err := s.aiSvc.ExtractPolicy(ctx, p); err != nil {
+		return nil, errcode.ErrAIService.WithMsg("AI提取政策字段失败，请重试")
+	}
 	if err := s.repo.CreatePolicy(p); err != nil {
 		return nil, errcode.ErrInternal
-	}
-
-	// 同步 AI 提取 — 失败则删除 policy 并返回错误
-	if err := s.aiSvc.ExtractPolicy(ctx, p); err != nil {
-		slog.Error("AI extract policy failed, rolling back", "policy_id", p.ID, "error", err)
-		if delErr := s.repo.DeletePolicy(p.ID); delErr != nil {
-			slog.Error("failed to rollback policy after AI extract failure", "policy_id", p.ID, "delete_error", delErr)
-		}
-		return nil, errcode.ErrAIService.WithMsg("AI提取政策字段失败，请重试")
 	}
 
 	// 通知目标用户群
@@ -417,7 +412,8 @@ func (s *GovernmentService) ReviewDeletionRequest(govUserID uint, reqID uint, ac
 		return errcode.ErrStatusInvalid.WithMsg("该申请已被处理")
 	}
 
-	if action == "approve" {
+	switch action {
+	case "approve":
 		// 删除前捕获企业/载体名称（用于通知）
 		var entName string
 		var carrierName string
@@ -450,7 +446,7 @@ func (s *GovernmentService) ReviewDeletionRequest(govUserID uint, reqID uint, ac
 			// 执行删除
 			return s.executeDeletionTx(tx, &r)
 		})
-	} else if action == "reject" {
+	case "reject":
 		return s.db.Transaction(func(tx *gorm.DB) error {
 			if err := s.notifSvc.Send(r.UserID, model.NotifDeletionRejected,
 				"账号注销申请被拒绝",
