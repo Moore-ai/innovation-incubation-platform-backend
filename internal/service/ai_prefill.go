@@ -10,9 +10,13 @@ import (
 	"innovation-incubation-platform-backend/pkg/errcode"
 )
 
-// PrefillApplication generates prefilled form data for an enterprise based on its profile,
-// the target policy's form schema, and approved application history.
-func (s *AIService) PrefillApplication(ctx context.Context, userID uint, policyID uint) (model.JSONMap, error) {
+// PrefillApplication prefills the specified material template with enterprise data.
+// Returns prefilled JSON matching the material's FormSchema, or empty map if templateID is 0.
+func (s *AIService) PrefillApplication(ctx context.Context, userID uint, policyID uint, templateID uint) (model.JSONMap, error) {
+	if templateID == 0 {
+		return model.JSONMap{}, nil
+	}
+
 	ent, err := s.entRepo.FindEnterpriseByUserID(userID)
 	if err != nil {
 		return nil, errcode.ErrNotFound
@@ -22,11 +26,26 @@ func (s *AIService) PrefillApplication(ctx context.Context, userID uint, policyI
 	if err != nil {
 		return nil, errcode.ErrNotFound.WithMsg("政策不存在")
 	}
-	formSchema := "{}"
-	if policy.Template.FormSchema != nil {
-		b, _ := json.Marshal(policy.Template.FormSchema)
-		formSchema = string(b)
+
+	// 查找指定模板 ID 的材料
+	var targetMaterial model.ApplicationMaterial
+	found := false
+	for _, m := range policy.Requirements.ApplicationMaterials {
+		if m.MaterialTemplate != nil && m.MaterialTemplate.ID == templateID {
+			targetMaterial = m
+			found = true
+			break
+		}
 	}
+
+	if !found {
+		return nil, errcode.ErrInvalidParams.WithMsg("材料模板不存在")
+	}
+	if targetMaterial.MaterialTemplate.FormSchema == nil {
+		return nil, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("材料「%s」没有可预填充的模板", targetMaterial.Name))
+	}
+
+	schemaJSON, _ := json.Marshal(targetMaterial.MaterialTemplate.FormSchema)
 
 	history, err := s.entRepo.FindApprovedApplications(ent.ID)
 	if err != nil {
@@ -38,9 +57,10 @@ func (s *AIService) PrefillApplication(ctx context.Context, userID uint, policyI
 	}
 
 	userMsg := fmt.Sprintf("企业信息：名称=%s、信用代码=%s、行业=%s、规模=%s、地址=%s、法人=%s\n"+
-		"历史申报数据(已通过审批): %s\n\n目标表单 Schema: \n%s\n\n请严格按表单Schema的字段结构输出预填充数据，只返回JSON",
+		"历史申报数据(已通过审批): %s\n\n材料「%s」的模板:\n%s\n\n"+
+		"请严格按模板的字段结构生成预填充数据，只返回JSON",
 		ent.Name, ent.CreditCode, ent.Industry, ent.Scale, ent.Address, ent.LegalPerson,
-		historyJSON, formSchema)
+		historyJSON, targetMaterial.Name, string(schemaJSON))
 
 	result, err := chatAndParse[model.JSONMap](s, ctx, s.prompts.prefill, userMsg, "AI预填充结果解析失败")
 	if err != nil {

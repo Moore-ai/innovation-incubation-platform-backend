@@ -48,7 +48,8 @@ type ReviewReq struct {
 }
 
 type PrefillReq struct {
-	PolicyID uint `json:"policy_id"`
+	PolicyID   uint `json:"policy_id"`
+	TemplateID uint `json:"template_id"` // 要预填充的材料模板 ID，0 表示不预填充材料
 }
 
 type MarkReadReq struct {
