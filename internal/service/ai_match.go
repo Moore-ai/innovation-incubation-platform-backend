@@ -2,11 +2,9 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 
-	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/pkg/errcode"
 )
 
@@ -42,24 +40,17 @@ func (s *AIService) MatchPolicy(ctx context.Context, userID uint, policyID uint)
 		`{"level":"high|partial|none|unknown","reason":"给出详细的匹配分析理由,必须包含适用条件和补贴额度等信息(你的对话对象是执行本次政策匹配的企业)"}`,
 	)
 
-	text, err := s.client.Chat(ctx, s.prompts.match, userMsg)
+	result, err := chatAndParse[PolicyMatchResult](s, ctx, s.prompts.match, userMsg, "AI匹配失败")
 	if err != nil {
-		slog.Warn("LLM match failed, fallback to rule match", "policy_id", policyID, "error", err)
-		return fallbackMatch(ent, policy), nil
+		slog.Warn("LLM match failed, fallback", "policy_id", policyID, "error", err)
+		return fallbackMatch(), nil
 	}
-
-	var result PolicyMatchResult
-	if err := json.Unmarshal([]byte(cleanLLMOutput(text)), &result); err != nil {
-		slog.Warn("LLM match parse failed, fallback to rule match", "error", err)
-		return fallbackMatch(ent, policy), nil
-	}
-	return &result, nil
+	return result, nil
 }
 
-func fallbackMatch(ent *model.Enterprise, policy *model.Policy) *PolicyMatchResult {
-	level := FieldMatchRule(ent, policy)
+func fallbackMatch() *PolicyMatchResult {
 	return &PolicyMatchResult{
-		Level:  level,
-		Reason: "AI暂不可用，当前显示为自动匹配结果",
+		Level:  "unknown",
+		Reason: "AI暂不可用",
 	}
 }
