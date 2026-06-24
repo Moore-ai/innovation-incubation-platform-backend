@@ -167,6 +167,7 @@ func registerNotificationRoutes(r *gin.Engine, deps *Deps) {
 	}
 	n := r.Group("/api/v1/notifications")
 	n.Use(middleware.AuthMiddleware(deps.Config.JWT))
-	n.GET("/subscribe", deps.NotificationController.Subscribe)
+	n.GET("/", deps.NotificationController.List)
+	n.GET("/stream", deps.NotificationController.Subscribe)
 	n.PATCH("/read", deps.NotificationController.MarkRead)
 }
