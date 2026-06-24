@@ -42,14 +42,9 @@ func (s *AIService) PrefillApplication(ctx context.Context, userID uint, policyI
 		ent.Name, ent.CreditCode, ent.Industry, ent.Scale, ent.Address, ent.LegalPerson,
 		historyJSON, formSchema)
 
-	text, err := s.client.Chat(ctx, s.prompts.prefill, userMsg)
+	result, err := chatAndParse[model.JSONMap](s, ctx, s.prompts.prefill, userMsg, "AI预填充结果解析失败")
 	if err != nil {
-		return nil, errcode.ErrAIService.WithMsg("AI服务暂不可用，请手动填写")
+		return nil, err
 	}
-
-	var data model.JSONMap
-	if err := json.Unmarshal([]byte(cleanLLMOutput(text)), &data); err != nil {
-		return nil, errcode.ErrAIService.WithMsg("AI预填充结果解析失败")
-	}
-	return data, nil
+	return *result, nil
 }
