@@ -132,7 +132,7 @@ func registerGovernmentRoutes(r *gin.Engine, deps *Deps) {
 	}
 	g := protectedGroup(r, "/gov", deps)
 	g.POST("/policies", deps.GovernmentController.PublishPolicy)
-	g.GET("/policies/list", deps.GovernmentController.ListPolicies)
+	g.GET("/policies", deps.GovernmentController.ListPolicies)
 	g.PUT("/policies/:id", deps.GovernmentController.UpdatePolicy)
 	g.GET("/enterprises", deps.GovernmentController.SearchEnterprises)
 	g.GET("/enterprises/:id", deps.GovernmentController.GetEnterprise)
@@ -141,7 +141,7 @@ func registerGovernmentRoutes(r *gin.Engine, deps *Deps) {
 	g.DELETE("/carriers/:id", deps.GovernmentController.DeleteCarrier)
 	g.GET("/carriers", deps.GovernmentController.SearchCarriers)
 	g.POST("/applications/:id/review", deps.GovernmentController.ReviewPolicyApplication)
-	g.GET("/applications/list", deps.GovernmentController.ListPolicyApplications)
+	g.GET("/applications", deps.GovernmentController.ListPolicyApplications)
 	g.POST("/performances/templates", deps.GovernmentController.CreatePerformanceTemplate)
 	g.POST("/performances/campaigns", deps.GovernmentController.StartCampaign)
 	g.GET("/performances/submissions", deps.GovernmentController.ListSubmissions)
