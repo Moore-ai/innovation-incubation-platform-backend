@@ -27,6 +27,7 @@ func RegisterRoutes(r *gin.Engine, deps *Deps) {
 	r.Use(gin.Recovery())
 
 	registerAuthRoutes(r, deps)
+	registerUserRoutes(r, deps)
 	registerEnterpriseRoutes(r, deps)
 	registerCarrierRoutes(r, deps)
 	registerGovernmentRoutes(r, deps)
@@ -56,9 +57,14 @@ func registerAuthRoutes(r *gin.Engine, deps *Deps) {
 	pub.Use(middleware.RouteRateLimit(10))
 	pub.POST("/register", deps.AuthController.Register)
 	pub.POST("/login", deps.AuthController.Login)
+}
 
-	me := protectedGroup(r, "/auth", deps)
-	me.GET("/me", deps.AuthController.GetMe)
+func registerUserRoutes(r *gin.Engine, deps *Deps) {
+	if deps.AuthController == nil {
+		return
+	}
+	u := protectedGroup(r, "/users", deps)
+	u.GET("/me", deps.AuthController.GetMe)
 }
 
 func registerEnterpriseRoutes(r *gin.Engine, deps *Deps) {

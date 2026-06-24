@@ -15,8 +15,41 @@ type PageData struct {
 	PageSize int   `json:"page_size"`
 }
 
+var errHTTPStatus = map[int]int{
+	0:     200,
+	10001: http.StatusBadRequest,
+	10002: http.StatusNotFound,
+	10003: http.StatusConflict,
+	10101: http.StatusUnauthorized,
+	10102: http.StatusForbidden,
+	10103: http.StatusTooManyRequests,
+	10201: http.StatusConflict,
+	10202: http.StatusConflict,
+	10301: http.StatusBadGateway,
+	10302: http.StatusGatewayTimeout,
+	50000: http.StatusInternalServerError,
+}
+
+func errToHTTP(code int) int {
+	if status, ok := errHTTPStatus[code]; ok {
+		return status
+	}
+	return http.StatusInternalServerError
+}
+
 func Success(c *gin.Context, data any) {
 	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "success",
+		"data":    data,
+	})
+}
+
+func Created(c *gin.Context, data any, location string) {
+	if location != "" {
+		c.Header("Location", location)
+	}
+	c.JSON(http.StatusCreated, gin.H{
 		"code":    0,
 		"message": "success",
 		"data":    data,
@@ -29,13 +62,13 @@ func SuccessPage(c *gin.Context, list any, total int64, page, pageSize int) {
 
 func Error(c *gin.Context, err error) {
 	if appErr, ok := err.(*errcode.AppError); ok {
-		c.JSON(http.StatusOK, gin.H{
+		c.JSON(errToHTTP(appErr.Code), gin.H{
 			"code":    appErr.Code,
 			"message": appErr.Message,
 		})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
+	c.JSON(http.StatusInternalServerError, gin.H{
 		"code":    50000,
 		"message": err.Error(),
 	})
