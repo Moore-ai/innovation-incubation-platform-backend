@@ -20,7 +20,7 @@ async function fetchNotifications(token: string, timeoutMs = 3000): Promise<any[
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const resp = await fetch("http://localhost:8080/api/v1/notifications/subscribe", {
+    const resp = await fetch("http://localhost:8080/api/v1/notifications/stream", {
       headers: { Authorization: `Bearer ${token}` },
       signal: ac.signal,
     });
@@ -51,7 +51,7 @@ async function waitForSSEUpdate(
 ): Promise<any | null> {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
-  const resp = await fetch("http://localhost:8080/api/v1/notifications/subscribe", {
+  const resp = await fetch("http://localhost:8080/api/v1/notifications/stream", {
     headers: { Authorization: `Bearer ${token}` },
     signal: ac.signal,
   });
@@ -199,7 +199,7 @@ async function main() {
   // ====================== 政务直接删除企业 → 载体通知 ======================
   console.log("\n=== 政务直接删除企业 → 载体通知 ===");
   api.setToken(ent2Token);
-  const ent2Info = await api.get("/enterprise/my-info");
+  const ent2Info = await api.get("/enterprise/profile");
   const ent2Id = ent2Info.data?.id;
   assertOk("获取企业 ID", typeof ent2Id === "number" && ent2Id > 0);
   carApi.setToken(carToken);

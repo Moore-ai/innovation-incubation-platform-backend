@@ -144,7 +144,7 @@ func registerGovernmentRoutes(r *gin.Engine, deps *Deps) {
 	g.GET("/account/deletions", deps.GovernmentController.ListDeletionRequests)
 	g.POST("/account/deletions/:id/review", deps.GovernmentController.ReviewDeletionRequest)
 	g.POST("/performances/:id/score", deps.GovernmentController.ScoreSubmission)
-	g.POST("/incubation/:id/complete", deps.GovernmentController.CompleteIncubation)
+	g.POST("/incubations/:id/complete", deps.GovernmentController.CompleteIncubation)
 }
 
 func registerFileRoutes(r *gin.Engine, deps *Deps) {
@@ -157,7 +157,7 @@ func registerFileRoutes(r *gin.Engine, deps *Deps) {
 	f.GET("/limit", deps.FileController.GetUploadLimit)
 	f.POST("/upload", deps.FileController.Upload)
 	f.GET("/:id/download", deps.FileController.Download)
-	f.GET("/", deps.FileController.ListFiles)
+	f.GET("", deps.FileController.ListFiles)
 	f.DELETE("/:id", deps.FileController.DeleteFile)
 }
 
@@ -167,7 +167,7 @@ func registerNotificationRoutes(r *gin.Engine, deps *Deps) {
 	}
 	n := r.Group("/api/v1/notifications")
 	n.Use(middleware.AuthMiddleware(deps.Config.JWT))
-	n.GET("/", deps.NotificationController.List)
+	n.GET("", deps.NotificationController.List)
 	n.GET("/stream", deps.NotificationController.Subscribe)
 	n.PATCH("/read", deps.NotificationController.MarkRead)
 }

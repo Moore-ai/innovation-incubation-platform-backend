@@ -21,7 +21,9 @@ func (r *NotificationRepo) Create(n *model.Notification) error {
 func (r *NotificationRepo) ListByUser(userID uint, page, pageSize int) ([]model.Notification, int64, error) {
 	var list []model.Notification
 	var total int64
-	r.db.Model(&model.Notification{}).Where("user_id = ?", userID).Count(&total)
+	if err := r.db.Model(&model.Notification{}).Where("user_id = ?", userID).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 	err := r.db.Where("user_id = ?", userID).Order("created_at DESC").
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
 	return list, total, err

@@ -29,8 +29,14 @@ func NewNotificationController(repo *repository.NotificationRepo, hub *service.S
 
 func (ctl *NotificationController) List(c *gin.Context) {
 	userID := middleware.GetUserID(c)
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+	pageSize, err := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if err != nil || pageSize < 1 {
+		pageSize = 20
+	}
 	list, total, err := ctl.repo.ListByUser(userID, page, pageSize)
 	if err != nil {
 		response.Error(c, errcode.ErrInternal)

@@ -62,10 +62,13 @@ func SuccessPage(c *gin.Context, list any, total int64, page, pageSize int) {
 		"code":    0,
 		"message": "success",
 		"data":    PageData{List: list, Total: total, Page: page, PageSize: pageSize},
-		"links": gin.H{
-			"self": fmt.Sprintf("%s?page=%d&page_size=%d", c.Request.URL.Path, page, pageSize),
-			"next": fmt.Sprintf("%s?page=%d&page_size=%d", c.Request.URL.Path, page+1, pageSize),
-		},
+		"links": func() gin.H {
+			links := gin.H{"self": fmt.Sprintf("%s?page=%d&page_size=%d", c.Request.URL.Path, page, pageSize)}
+			if int64(page)*int64(pageSize) < total {
+				links["next"] = fmt.Sprintf("%s?page=%d&page_size=%d", c.Request.URL.Path, page+1, pageSize)
+			}
+			return links
+		}(),
 	})
 }
 
