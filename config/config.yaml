@@ -16,7 +16,7 @@ jwt:
 
 ai:
   provider: anthropic
-  anthropic:
+  openai:
     api_key: ${AI_API_KEY}
     base_url: ${AI_BASE_URL}
     model: ${AI_MODEL}

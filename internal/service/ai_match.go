@@ -6,10 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/cloudwego/eino/components/prompt"
-	"github.com/cloudwego/eino/compose"
-	"github.com/cloudwego/eino/schema"
-
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/pkg/errcode"
 )
@@ -18,61 +14,6 @@ import (
 type PolicyMatchResult struct {
 	Level  string `json:"level"`
 	Reason string `json:"reason"`
-}
-
-func (s *AIService) compileMatchGraph(ctx context.Context) (compose.Runnable[map[string]any, *PolicyMatchResult], error) {
-	// prep: 在 Graph 内将 ent/policy 对象序列化为模板变量，调用方只需传入原始对象
-	prep := compose.InvokableLambda(func(_ context.Context, input map[string]any) (map[string]any, error) {
-		ent, ok := input["enterprise"].(*model.Enterprise)
-		if !ok {
-			return nil, fmt.Errorf("prep: missing or invalid enterprise")
-		}
-		policy, ok := input["policy"].(*model.Policy)
-		if !ok {
-			return nil, fmt.Errorf("prep: missing or invalid policy")
-		}
-
-		var extracted any
-		if policy.ExtractedFields != nil {
-			extracted = policy.ExtractedFields
-		} else if policy.Requirements != nil {
-			extracted = policy.Requirements
-		}
-
-		return map[string]any{
-			"industry":      ent.Industry,
-			"scale":         ent.Scale,
-			"address":       ent.Address,
-			"title":         policy.Title,
-			"requirements":    toJSONString(policy.Requirements),
-			"extracted":     toJSONString(extracted),
-			"output_schema": `{"level":"high|partial|none|unknown","reason":"给出详细的匹配分析理由, 必须包含适用条件和补贴额度等信息(你的对话对象是执行本次政策匹配的企业)"}`,
-		}, nil
-	})
-
-	tmpl := prompt.FromMessages(schema.FString,
-		schema.SystemMessage(s.prompts.match),
-		schema.UserMessage("企业画像：行业={industry}、规模={scale}、地址={address}\n政策标题: {title}\n政策条件: {requirements}\n提取字段: {extracted}\n\n"+
-			"请按以下格式返回 JSON, 不要附带其他内容：\n{output_schema}"),
-	)
-
-	graph := compose.NewGraph[map[string]any, *PolicyMatchResult]()
-	graph.AddLambdaNode("prep", prep)
-	graph.AddChatTemplateNode("prompt", tmpl)
-	graph.AddChatModelNode("model", s.cm)
-	graph.AddLambdaNode("parse", compose.InvokableLambda(func(_ context.Context, msg *schema.Message) (*PolicyMatchResult, error) {
-		var result PolicyMatchResult
-		if err := json.Unmarshal([]byte(cleanLLMOutput(msg.Content)), &result); err != nil {
-			return &PolicyMatchResult{Level: "partial", Reason: "AI分析结果格式异常, 当前显示为自动匹配结果"}, nil
-		}
-		return &result, nil
-	}))
-	graph.AddEdge(compose.START, "prep")
-	graph.AddEdge("prep", "prompt")
-	graph.AddEdge("prompt", "model")
-	graph.AddEdge("model", "parse")
-	graph.AddEdge("parse", compose.END)
-	return graph.Compile(ctx)
 }
 
 // MatchPolicy performs LLM-based policy matching for an enterprise against a specific policy.
@@ -87,21 +28,32 @@ func (s *AIService) MatchPolicy(ctx context.Context, userID uint, policyID uint)
 		return nil, errcode.ErrNotFound.WithMsg("政策不存在")
 	}
 
-	graph, err := s.compileMatchGraph(ctx)
-	if err != nil {
-		slog.Warn("MatchPolicy: compileMatchGraph failed, fallback to rule match", "error", err)
-		return fallbackMatch(ent, policy), nil
+	var extractedFields any
+	if policy.ExtractedFields != nil {
+		extractedFields = policy.ExtractedFields
+	} else {
+		extractedFields = policy.Requirements
 	}
+	userMsg := fmt.Sprintf("企业画像：行业=%s、规模=%s、地址=%s\n政策标题: %s\n政策条件: %s\n提取字段: %s\n\n请按以下格式返回JSON,不要附带其他内容：\n%s",
+		ent.Industry, ent.Scale, ent.Address,
+		policy.Title,
+		toJSONString(policy.Requirements),
+		toJSONString(extractedFields),
+		`{"level":"high|partial|none|unknown","reason":"给出详细的匹配分析理由,必须包含适用条件和补贴额度等信息(你的对话对象是执行本次政策匹配的企业)"}`,
+	)
 
-	result, err := graph.Invoke(ctx, map[string]any{
-		"enterprise": ent,
-		"policy":     policy,
-	})
+	text, err := s.client.Chat(ctx, s.prompts.match, userMsg)
 	if err != nil {
 		slog.Warn("LLM match failed, fallback to rule match", "policy_id", policyID, "error", err)
 		return fallbackMatch(ent, policy), nil
 	}
-	return result, nil
+
+	var result PolicyMatchResult
+	if err := json.Unmarshal([]byte(cleanLLMOutput(text)), &result); err != nil {
+		slog.Warn("LLM match parse failed, fallback to rule match", "error", err)
+		return fallbackMatch(ent, policy), nil
+	}
+	return &result, nil
 }
 
 func fallbackMatch(ent *model.Enterprise, policy *model.Policy) *PolicyMatchResult {
