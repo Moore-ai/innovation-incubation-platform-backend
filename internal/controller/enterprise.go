@@ -249,16 +249,19 @@ func (ctl *EnterpriseController) GetCarrier(c *gin.Context) {
 }
 
 func (ctl *EnterpriseController) PrefillApplication(c *gin.Context) {
-	var req dto.PrefillReq
+	policyID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || policyID == 0 {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("policy_id 不能为空"))
+		return
+	}
+	var req struct {
+		MaterialTemplateID uint `json:"material_template_id"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
 		return
 	}
-	if req.PolicyID == 0 {
-		response.Error(c, errcode.ErrInvalidParams.WithMsg("policy_id 不能为空"))
-		return
-	}
-	data, rErr := ctl.aiSvc.PrefillApplication(c.Request.Context(), middleware.GetUserID(c), req.PolicyID, req.MaterialTemplateID)
+	data, rErr := ctl.aiSvc.PrefillApplication(c.Request.Context(), middleware.GetUserID(c), uint(policyID), req.MaterialTemplateID)
 	if rErr != nil {
 		response.Error(c, rErr)
 		return

@@ -60,14 +60,14 @@ async function main() {
 
   // ====================== 企业信息 ======================
   console.log("\n=== 企业信息 ===");
-  const info = await api.get("/enterprise/my-info");
+  const info = await api.get("/enterprise/profile");
   assertOk("获取企业信息成功", info.code === 0);
   assertOk("企业名称正确", info.data?.name === `测试企业${ts}`);
   assertOk("信用代码正确", info.data?.credit_code === `CRED${ts}`);
 
   // ====================== 变更类型 ======================
   console.log("\n=== 变更类型 ===");
-  const changeTypes = await api.get("/enterprise/changes/types");
+  const changeTypes = await api.get("/enterprise/change-types");
   assertOk("获取变更类型列表", changeTypes.code === 0);
   const types = changeTypes.data as string[];
   assertOk("变更类型是数组", Array.isArray(types) && types.length > 0);
@@ -88,7 +88,7 @@ async function main() {
 
   // ====================== 入驻列表 ======================
   console.log("\n=== 入驻列表 ===");
-  const incubateList = await api.get("/enterprise/incubation/list");
+  const incubateList = await api.get("/enterprise/incubations");
   assertOk("获取入驻列表", incubateList.code === 0);
   assertOk("列表包含新建记录", Array.isArray(incubateList.data?.list) && incubateList.data.list.length > 0);
 
@@ -113,7 +113,7 @@ async function main() {
 
   // ====================== 变更列表 ======================
   console.log("\n=== 变更列表 ===");
-  const changeList = await api.get("/enterprise/changes/list");
+  const changeList = await api.get("/enterprise/changes");
   assertOk("获取变更列表", changeList.code === 0);
   assertOk("列表包含新建记录", Array.isArray(changeList.data?.list) && changeList.data.list.length > 0);
 
@@ -154,7 +154,7 @@ async function main() {
 
   // ====================== 申报列表 ======================
   console.log("\n=== 申报列表 ===");
-  const apps = await api.get("/enterprise/applications/list");
+  const apps = await api.get("/enterprise/applications");
   assertOk("获取申报列表", apps.code === 0);
   assertOk("列表是数组", Array.isArray(apps.data?.list));
 
@@ -169,8 +169,9 @@ async function main() {
     console.log("  ⏭️  无可用政策，跳过 AI 推荐测试");
   }
 
-  const prefill = await api.post("/enterprise/policies/prefill", {
-    policy_id: firstPolicy?.id ?? 0,
+  const prefillPolicyId = firstPolicy?.id ?? 0;
+  const prefill = await api.post(`/enterprise/policies/${prefillPolicyId}/prefill`, {
+    // policy_id is now in URL path
     material_template_id: 0,
   });
   // 即使找不到政策，也应返回业务错误而非 500
@@ -190,17 +191,17 @@ async function main() {
   const notFound = await api.get("/enterprise/incubation/99999");
   assertOk("不存在的入驻返回错误", notFound.code !== 0);
 
-  const badPrefill = await api.post("/enterprise/policies/prefill", {});
+  const badPrefill = await api.post("/enterprise/policies/0/prefill", {});
   assertOk("空预填请求返回错误", badPrefill.code !== 0);
 
   // ====================== 权限验证 ======================
   console.log("\n=== 权限验证 ===");
   api.setToken("");
-  const noAuth = await api.get("/enterprise/my-info");
+  const noAuth = await api.get("/enterprise/profile");
   assertOk("无 token 被拒绝", noAuth.code !== 0);
 
   api.setToken(carrierToken);
-  const wrongRole = await api.get("/enterprise/my-info");
+  const wrongRole = await api.get("/enterprise/profile");
   assertOk("载体不能访问企业接口", wrongRole.code !== 0);
 
   // ====================== 汇总 ======================

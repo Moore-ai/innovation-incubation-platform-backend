@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"fmt"
+
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/middleware"
 	"innovation-incubation-platform-backend/pkg/errcode"
@@ -28,7 +30,7 @@ func (ctl *AuthController) Register(c *gin.Context) {
 		response.Error(c, err)
 		return
 	}
-	response.Success(c, resp)
+	response.Created(c, resp, fmt.Sprintf("/api/v1/users/%d", resp.User.ID))
 }
 
 func (ctl *AuthController) Login(c *gin.Context) {

@@ -33,7 +33,7 @@ async function main() {
 
   // 建立 SSE 连接，使用 AbortController 在收到数据后断开
   const ac = new AbortController();
-  const ssePromise = fetch("http://localhost:8080/api/v1/notifications/subscribe", {
+  const ssePromise = fetch("http://localhost:8080/api/v1/notifications/stream", {
     headers: { Authorization: `Bearer ${api.tokenStr}` },
     signal: ac.signal,
   });
@@ -53,7 +53,7 @@ async function main() {
   assertOk("SSE 连接建立成功", sseOk);
 
   // 无 token 订阅被拒绝
-  const noAuthSSE = await fetch("http://localhost:8080/api/v1/notifications/subscribe");
+  const noAuthSSE = await fetch("http://localhost:8080/api/v1/notifications/stream");
   assertOk("无 token SSE 被拒绝", noAuthSSE.status !== 200);
 
   // ====================== 标记已读 ======================

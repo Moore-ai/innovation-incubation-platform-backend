@@ -3,6 +3,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"innovation-incubation-platform-backend/config"
@@ -24,6 +25,24 @@ type NotificationController struct {
 
 func NewNotificationController(repo *repository.NotificationRepo, hub *service.SSEHub, cfg *config.Config) *NotificationController {
 	return &NotificationController{repo: repo, hub: hub, cfg: cfg}
+}
+
+func (ctl *NotificationController) List(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+	pageSize, err := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if err != nil || pageSize < 1 {
+		pageSize = 20
+	}
+	list, total, err := ctl.repo.ListByUser(userID, page, pageSize)
+	if err != nil {
+		response.Error(c, errcode.ErrInternal)
+		return
+	}
+	response.SuccessPage(c, list, total, page, pageSize)
 }
 
 func (ctl *NotificationController) Subscribe(c *gin.Context) {
