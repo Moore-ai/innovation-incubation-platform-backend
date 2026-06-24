@@ -47,11 +47,6 @@ type ReviewReq struct {
 	Comment string `json:"comment"`
 }
 
-type PrefillReq struct {
-	PolicyID          uint `json:"policy_id"`
-	MaterialTemplateID uint `json:"material_template_id"` // 要预填充的材料模板 ID，0 表示不预填充材料
-}
-
 type MarkReadReq struct {
 	IDs []uint `json:"ids" binding:"required,min=1"`
 }

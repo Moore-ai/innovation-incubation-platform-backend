@@ -72,24 +72,24 @@ func registerEnterpriseRoutes(r *gin.Engine, deps *Deps) {
 		return
 	}
 	e := protectedGroup(r, "/enterprise", deps)
-	e.GET("/my-info", deps.EnterpriseController.GetMyEnterpriseInfo)
-	e.POST("/incubation", deps.EnterpriseController.ApplyIncubation)
-	e.GET("/incubation/:id", deps.EnterpriseController.GetIncubation)
-	e.GET("/incubation/list", deps.EnterpriseController.ListMyIncubation)
+	e.GET("/profile", deps.EnterpriseController.GetMyEnterpriseInfo)
+	e.POST("/incubations", deps.EnterpriseController.ApplyIncubation)
+	e.GET("/incubations/:id", deps.EnterpriseController.GetIncubation)
+	e.GET("/incubations", deps.EnterpriseController.ListMyIncubation)
 	e.POST("/changes", deps.EnterpriseController.ApplyChange)
-	e.GET("/changes/types", deps.EnterpriseController.ListChangeTypes)
+	e.GET("/change-types", deps.EnterpriseController.ListChangeTypes)
 	e.GET("/changes/:id", deps.EnterpriseController.GetChange)
-	e.GET("/changes/list", deps.EnterpriseController.ListMyChanges)
+	e.GET("/changes", deps.EnterpriseController.ListMyChanges)
 	e.PUT("/changes/:id", deps.EnterpriseController.ReeditChange)
 	e.GET("/policies", deps.EnterpriseController.ListPolicies)
 	e.POST("/policies/:id/apply", deps.EnterpriseController.ApplyPolicy)
-	e.GET("/applications/list", deps.EnterpriseController.ListMyApplications)
+	e.GET("/applications", deps.EnterpriseController.ListMyApplications)
 	e.POST("/account/deletion", deps.EnterpriseController.ApplyDeletion)
 	e.GET("/carriers", deps.EnterpriseController.ListCarriers)
 	e.GET("/carriers/:id", deps.EnterpriseController.GetCarrier)
 	e.POST("/policies/:id/follow", deps.EnterpriseController.FollowPolicy)
 	e.DELETE("/policies/:id/follow", deps.EnterpriseController.UnfollowPolicy)
-	e.GET("/policies/followed", deps.EnterpriseController.ListFollowedPolicies)
+	e.GET("/policies/follows", deps.EnterpriseController.ListFollowedPolicies)
 
 	ai := r.Group("/api/v1/enterprise")
 	ai.Use(middleware.AuthMiddleware(deps.Config.JWT))
@@ -98,7 +98,7 @@ func registerEnterpriseRoutes(r *gin.Engine, deps *Deps) {
 	}
 	ai.Use(middleware.RouteRateLimit(5))
 	ai.GET("/policies/:id/recommend", deps.EnterpriseController.RecommendPolicy)
-	ai.POST("/policies/prefill", deps.EnterpriseController.PrefillApplication)
+	ai.POST("/policies/:id/prefill", deps.EnterpriseController.PrefillApplication)
 }
 
 func registerCarrierRoutes(r *gin.Engine, deps *Deps) {

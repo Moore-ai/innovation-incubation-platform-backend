@@ -1,6 +1,7 @@
 package response
 
 import (
+	"fmt"
 	"net/http"
 
 	"innovation-incubation-platform-backend/pkg/errcode"
@@ -57,7 +58,15 @@ func Created(c *gin.Context, data any, location string) {
 }
 
 func SuccessPage(c *gin.Context, list any, total int64, page, pageSize int) {
-	Success(c, PageData{List: list, Total: total, Page: page, PageSize: pageSize})
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "success",
+		"data":    PageData{List: list, Total: total, Page: page, PageSize: pageSize},
+		"links": gin.H{
+			"self": fmt.Sprintf("%s?page=%d&page_size=%d", c.Request.URL.Path, page, pageSize),
+			"next": fmt.Sprintf("%s?page=%d&page_size=%d", c.Request.URL.Path, page+1, pageSize),
+		},
+	})
 }
 
 func Error(c *gin.Context, err error) {
