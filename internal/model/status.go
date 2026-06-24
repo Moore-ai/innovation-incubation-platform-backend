@@ -47,7 +47,7 @@ const (
 	ActionReturn  ApprovalAction = "return"
 )
 
-// TargetRole — PolicyTemplate.TargetRole
+// TargetRole — Policy.TargetRole（政策发布时的目标角色：enterprise / carrier / both）
 type TargetRole string
 
 const (

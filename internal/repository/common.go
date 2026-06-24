@@ -17,10 +17,9 @@ func (r *CommonRepo) ListPoliciesByTarget(role string, page, pageSize int) ([]mo
 	var policies []model.Policy
 	var total int64
 	q := r.db.Model(&model.Policy{}).
-		Joins("JOIN policy_templates ON policy_templates.id = policies.template_id").
-		Where("policies.status = ? AND (policy_templates.target_role = ? OR policy_templates.target_role = 'both')", model.PolicyPublished, role)
+		Where("status = ? AND (target_role = ? OR target_role = 'both')", model.PolicyPublished, role)
 	q.Count(&total)
-	err := q.Order("policies.created_at DESC").
+	err := q.Order("created_at DESC").
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&policies).Error
 	return policies, total, err
 }

@@ -125,7 +125,6 @@ func registerGovernmentRoutes(r *gin.Engine, deps *Deps) {
 		return
 	}
 	g := protectedGroup(r, "/gov", deps)
-	g.POST("/policies/templates", deps.GovernmentController.CreatePolicyTemplate)
 	g.POST("/policies", deps.GovernmentController.PublishPolicy)
 	g.GET("/policies/list", deps.GovernmentController.ListPolicies)
 	g.PUT("/policies/:id", deps.GovernmentController.UpdatePolicy)

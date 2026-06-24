@@ -14,10 +14,6 @@ func NewGovernmentRepo(db *gorm.DB) *GovernmentRepo {
 	return &GovernmentRepo{db: db}
 }
 
-func (r *GovernmentRepo) CreatePolicyTemplate(t *model.PolicyTemplate) error {
-	return r.db.Create(t).Error
-}
-
 func (r *GovernmentRepo) CreatePolicy(p *model.Policy) error {
 	return r.db.Create(p).Error
 }

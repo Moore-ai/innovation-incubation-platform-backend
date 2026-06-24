@@ -38,6 +38,16 @@ func MustInit(cfg *config.Config) *gorm.DB {
 	END $$;`)
 	db.Exec(`ALTER TABLE policies DROP COLUMN IF EXISTS subsidy_amount;`)
 	db.Exec(`ALTER TABLE policies DROP COLUMN IF EXISTS file_id;`)
+	// 迁移：回填 target_role（仅当 policy_templates 表存在时执行）
+	db.Exec(`DO $$ BEGIN
+		IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='policy_templates') THEN
+			UPDATE policies SET target_role = pt.target_role
+			FROM policy_templates pt WHERE policies.template_id = pt.id;
+			UPDATE policies SET target_role = 'enterprise' WHERE target_role IS NULL OR target_role = '';
+		END IF;
+	END $$;`)
+	db.Exec(`ALTER TABLE policies DROP COLUMN IF EXISTS template_id;`)
+	db.Exec(`DROP TABLE IF EXISTS policy_templates CASCADE;`)
 
 	return db
 }

@@ -171,6 +171,7 @@ async function main() {
 
   const prefill = await api.post("/enterprise/policies/prefill", {
     policy_id: firstPolicy?.id ?? 0,
+    material_template_id: 0,
   });
   // 即使找不到政策，也应返回业务错误而非 500
   assertOk("AI 预填已响应", prefill.code !== 500);

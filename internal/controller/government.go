@@ -20,20 +20,6 @@ func NewGovernmentController(svc *service.GovernmentService) *GovernmentControll
 	return &GovernmentController{svc: svc}
 }
 
-func (ctl *GovernmentController) CreatePolicyTemplate(c *gin.Context) {
-	var req dto.PolicyTemplateReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
-		return
-	}
-	t, err := ctl.svc.CreatePolicyTemplate(&req)
-	if err != nil {
-		response.Error(c, err)
-		return
-	}
-	response.Success(c, t)
-}
-
 func (ctl *GovernmentController) PublishPolicy(c *gin.Context) {
 	var req dto.PublishPolicyReq
 	if err := c.ShouldBindJSON(&req); err != nil {

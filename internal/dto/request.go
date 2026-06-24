@@ -48,8 +48,8 @@ type ReviewReq struct {
 }
 
 type PrefillReq struct {
-	PolicyID   uint `json:"policy_id"`
-	TemplateID uint `json:"template_id"` // 要预填充的材料模板 ID，0 表示不预填充材料
+	PolicyID          uint `json:"policy_id"`
+	MaterialTemplateID uint `json:"material_template_id"` // 要预填充的材料模板 ID，0 表示不预填充材料
 }
 
 type MarkReadReq struct {
@@ -66,15 +66,8 @@ type CarrierInfoReq struct {
 	Description  string `json:"description"`
 }
 
-type PolicyTemplateReq struct {
-	Name        string        `json:"name"`
-	Description string        `json:"description"`
-	FormSchema  model.JSONMap `json:"form_schema"`
-	TargetRole  string        `json:"target_role"`
-}
-
 type PublishPolicyReq struct {
-	TemplateID   uint                     `json:"template_id"`
+	TargetRole   string                   `json:"target_role" binding:"required,oneof=enterprise carrier both"`
 	Title        string                   `json:"title"`
 	Requirements *model.PolicyRequirement `json:"requirements" binding:"required"`
 	StartDate    string                   `json:"start_date"`

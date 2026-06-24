@@ -258,7 +258,7 @@ func (ctl *EnterpriseController) PrefillApplication(c *gin.Context) {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg("policy_id 不能为空"))
 		return
 	}
-	data, rErr := ctl.aiSvc.PrefillApplication(c.Request.Context(), middleware.GetUserID(c), req.PolicyID, req.TemplateID)
+	data, rErr := ctl.aiSvc.PrefillApplication(c.Request.Context(), middleware.GetUserID(c), req.PolicyID, req.MaterialTemplateID)
 	if rErr != nil {
 		response.Error(c, rErr)
 		return

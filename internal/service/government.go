@@ -30,27 +30,20 @@ func NewGovernmentService(repo *repository.GovernmentRepo, deletionRepo *reposit
 	return &GovernmentService{repo: repo, deletionRepo: deletionRepo, followRepo: followRepo, db: db, sm: statemachine.DefaultApprovalSM(), policySM: statemachine.PolicyApprovalSM(), aiSvc: aiSvc, notifSvc: notifSvc}
 }
 
-func (s *GovernmentService) CreatePolicyTemplate(req *dto.PolicyTemplateReq) (*model.PolicyTemplate, error) {
-	t := &model.PolicyTemplate{
-		Name: req.Name, Description: req.Description,
-		FormSchema: req.FormSchema, TargetRole: model.TargetRole(req.TargetRole),
-	}
-	if err := s.repo.CreatePolicyTemplate(t); err != nil {
-		return nil, errcode.ErrInternal
-	}
-	return t, nil
-}
-
 func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishPolicyReq) (*model.Policy, error) {
 	now := time.Now()
 	p := &model.Policy{
-		TemplateID:   req.TemplateID,
+		TargetRole:   model.TargetRole(req.TargetRole),
 		Title:        req.Title,
 		Requirements: req.Requirements,
 		StartDate:    req.StartDate,
 		EndDate:      req.EndDate,
 		Status:       model.PolicyPublished,
 		PublishedAt:  &now,
+	}
+	// 验证政策目标角色
+	if req.TargetRole != string(model.RoleEnterprise) && req.TargetRole != string(model.RoleCarrier) && req.TargetRole != string(model.RoleBoth) {
+		return nil, errcode.ErrInvalidParams.WithMsg("target_role 必须为 enterprise、carrier 或 both")
 	}
 	// 验证申报材料必要性
 	if req.Requirements != nil {
@@ -78,8 +71,7 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 	}
 
 	// 通知目标用户群
-	var targetRole string
-	s.db.Model(&model.PolicyTemplate{}).Select("target_role").Where("id = ?", req.TemplateID).Take(&targetRole)
+	targetRole := string(p.TargetRole)
 	if targetRole != "" {
 		if targetRole == string(model.RoleBoth) || targetRole == string(model.RoleEnterprise) {
 			entIDs, _ := s.repo.FindUserIDsByRole(string(model.RoleEnterprise))
@@ -121,6 +113,7 @@ func (s *GovernmentService) UpdatePolicy(ctx context.Context, policyID uint, req
 	p.Requirements = req.Requirements
 	p.StartDate = req.StartDate
 	p.EndDate = req.EndDate
+	p.TargetRole = model.TargetRole(req.TargetRole)
 	// 验证申报材料必要性
 	if req.Requirements != nil {
 		for _, m := range req.Requirements.ApplicationMaterials {

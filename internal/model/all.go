@@ -7,7 +7,6 @@ func AllModels() []any {
 		&Carrier{},
 		&IncubationRecord{},
 		&MajorChange{},
-		&PolicyTemplate{},
 		&Policy{},
 		&PolicyApplication{},
 		&Approval{},

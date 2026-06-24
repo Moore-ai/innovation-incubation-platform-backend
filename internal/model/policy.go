@@ -7,14 +7,13 @@ type PolicyTemplate struct {
 	Name        string     `gorm:"size:255;not null" json:"name"`
 	Description string     `gorm:"type:text" json:"description"`
 	FormSchema  JSONMap    `gorm:"type:jsonb" json:"form_schema"`
-	TargetRole  TargetRole `gorm:"size:32;not null" json:"target_role"` // enterprise, carrier, both
 }
 
 func (PolicyTemplate) TableName() string { return "policy_templates" }
 
 type Policy struct {
 	BaseModel
-	TemplateID      uint               `gorm:"index;not null" json:"template_id"`
+	TargetRole      TargetRole         `gorm:"size:32;not null" json:"target_role"`
 	Title           string             `gorm:"size:255;not null" json:"title"`
 	Requirements    *PolicyRequirement `gorm:"type:jsonb" json:"requirements"`
 	StartDate       string             `gorm:"size:32" json:"start_date"`
