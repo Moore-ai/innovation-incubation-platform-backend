@@ -12,6 +12,7 @@ var testCfg = config.FileMatchConfig{
 	WeightKeyword: 0.4,
 	WeightPrefix:  0.2,
 	Threshold:     0.6,
+	StopWords:     []string{"复印件", "原件", "扫描件", "照片", "图片", "副本", "电子版", "扫描"},
 }
 
 func TestJaroWinkler(t *testing.T) {
@@ -124,7 +125,7 @@ func TestSearchReturnsSorted(t *testing.T) {
 }
 
 func TestExtractKeywords(t *testing.T) {
-	kw := tokenize("营业执照复印件扫描件")
+	kw := tokenize("营业执照复印件扫描件", testCfg.StopWords)
 	for _, w := range kw {
 		if w == "复印件" || w == "扫描件" {
 			t.Errorf("stop word '%s' should be removed", w)

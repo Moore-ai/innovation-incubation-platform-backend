@@ -10,9 +10,6 @@ import (
 	"innovation-incubation-platform-backend/internal/model"
 )
 
-// stopWords 文件名中无意义的后缀词
-var stopWords = []string{"复印件", "原件", "扫描件", "照片", "图片", "副本", "电子版", "扫描"}
-
 var tokenRe = regexp.MustCompile(`[\p{Han}a-zA-Z0-9]+`)
 
 // MatchResult 文件匹配结果
@@ -25,7 +22,7 @@ type MatchResult struct {
 // Search 对 query 与 files 列表执行三维评分匹配，返回按分数降序排列的结果
 func Search(query string, formats []string, files []model.File, cfg config.FileMatchConfig) []MatchResult {
 	var results []MatchResult
-	queryTokens := tokenize(query)
+	queryTokens := tokenize(query, cfg.StopWords)
 
 	for _, f := range files {
 		score := calculateScore(f.Filename, query, queryTokens, cfg)
@@ -68,7 +65,7 @@ func Match(materialName string, formats []string, files []model.File, cfg config
 }
 
 // tokenize 分词，去除扩展名和停用词，保留中文/英文/数字片段
-func tokenize(s string) []string {
+func tokenize(s string, stopWords []string) []string {
 	s = strings.ToLower(s)
 	for _, sw := range stopWords {
 		s = strings.ReplaceAll(s, sw, "")
@@ -97,7 +94,7 @@ func calculateScore(filename, query string, queryTokens []string, cfg config.Fil
 	name := nameOnly(filename)
 
 	sjw := jaroWinkler(name, query) * cfg.WeightJaro
-	skw := keywordScore(tokenize(name), queryTokens) * cfg.WeightKeyword
+	skw := keywordScore(tokenize(name, cfg.StopWords), queryTokens) * cfg.WeightKeyword
 	sp := prefixScore(name, query) * cfg.WeightPrefix
 
 	return sjw + skw + sp

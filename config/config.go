@@ -25,10 +25,11 @@ type Config struct {
 }
 
 type FileMatchConfig struct {
-	WeightJaro    float64 `mapstructure:"weight_jaro"`
-	WeightKeyword float64 `mapstructure:"weight_keyword"`
-	WeightPrefix  float64 `mapstructure:"weight_prefix"`
-	Threshold     float64 `mapstructure:"threshold"`
+	WeightJaro    float64  `mapstructure:"weight_jaro"`
+	WeightKeyword float64  `mapstructure:"weight_keyword"`
+	WeightPrefix  float64  `mapstructure:"weight_prefix"`
+	Threshold     float64  `mapstructure:"threshold"`
+	StopWords     []string `mapstructure:"stop_words"`
 }
 
 type NotificationConfig struct {
@@ -164,6 +165,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("filematch.weight_keyword", 0.4)
 	v.SetDefault("filematch.weight_prefix", 0.2)
 	v.SetDefault("filematch.threshold", 0.6)
+	v.SetDefault("filematch.stop_words", []string{"复印件", "原件", "扫描件", "照片", "图片", "副本", "电子版", "扫描"})
 
 	if err := v.ReadConfig(bytes.NewReader([]byte(expanded))); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)

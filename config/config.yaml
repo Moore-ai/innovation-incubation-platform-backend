@@ -22,6 +22,21 @@ ai:
     model: ${AI_MODEL}
     timeout_seconds: 30
 
+filematch:
+  weight_jaro: 0.4
+  weight_keyword: 0.4
+  weight_prefix: 0.2
+  threshold: 0.6
+  stop_words:
+    - 复印件
+    - 原件
+    - 扫描件
+    - 照片
+    - 图片
+    - 副本
+    - 电子版
+    - 扫描
+
 redis:
   addr: ${REDIS_ADDR}
   password: ""
@@ -45,9 +60,3 @@ notification:
   heartbeat_seconds: 30
   recent_count: 20
   max_conns_per_user: 10
-
-filematch:
-  weight_jaro: 0.4
-  weight_keyword: 0.4
-  weight_prefix: 0.2
-  threshold: 0.6
