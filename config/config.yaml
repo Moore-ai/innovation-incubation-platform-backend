@@ -37,6 +37,10 @@ filematch:
     - 电子版
     - 扫描
 
+search:
+  method: structured
+  max_results: 10
+
 redis:
   addr: ${REDIS_ADDR}
   password: ""

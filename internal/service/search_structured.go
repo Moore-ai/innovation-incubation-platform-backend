@@ -86,30 +86,34 @@ func (s *StructuredSearch) searchPolicies(ctx context.Context, criteria *SearchC
 		scores = append(scores, scoreCase{"applicable_region", criteria.ApplicableRegion})
 	}
 
+	maxResults := s.cfg.MaxResults
+	if maxResults <= 0 {
+		maxResults = 10
+	}
+
 	if len(scores) == 0 {
 		// 无条件，返回最近发布
 		var policies []model.Policy
-		s.db.Where("status = ?", model.PolicyPublished).Order("published_at DESC").Limit(s.cfg.MaxResults).Find(&policies)
+		if err := s.db.WithContext(ctx).Where("status = ?", model.PolicyPublished).
+			Order("published_at DESC").Limit(maxResults).Find(&policies).Error; err != nil {
+			slog.Error("search policies failed", "error", err)
+			return nil, errcode.ErrInternal
+		}
 		return policies, nil
 	}
 
-	// 构建条件：先查 ID，再完整查询（避免 Raw SQL 反序列化 JSONB 问题）
+	// 参数化关键词，避免 SQL 注入
+	var args []any
 	var orParts []string
 	for _, sc := range scores {
-		orParts = append(orParts, fmt.Sprintf("extracted_fields->>'%s' ILIKE '%%%%%s%%%%'", sc.field, sc.keyword))
+		orParts = append(orParts, fmt.Sprintf("extracted_fields->>'%s' ILIKE ?", sc.field))
+		args = append(args, "%"+sc.keyword+"%")
 	}
+	args = append(args, string(model.PolicyPublished))
 	where := "(" + strings.Join(orParts, " OR ") + ") AND status = ?"
 
-	// 排序：命中数降序 + 发布时间降序
-	var scoreParts []string
-	for _, sc := range scores {
-		scoreParts = append(scoreParts, fmt.Sprintf("CASE WHEN extracted_fields->>'%s' ILIKE '%%%%%s%%%%' THEN 1 ELSE 0 END", sc.field, sc.keyword))
-	}
-	order := "(" + strings.Join(scoreParts, " + ") + ") DESC, published_at DESC"
-
 	var policies []model.Policy
-	tx := s.db.Where(where, string(model.PolicyPublished)).Order(order).Limit(s.cfg.MaxResults)
-	// 预加载 Policy 的关联字段（如果有）
+	tx := s.db.WithContext(ctx).Where(where, args...).Order("published_at DESC").Limit(maxResults)
 	if err := tx.Find(&policies).Error; err != nil {
 		slog.Error("search policies failed", "error", err)
 		return nil, errcode.ErrInternal
