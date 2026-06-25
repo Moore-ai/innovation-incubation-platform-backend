@@ -53,15 +53,17 @@ type JWTConfig struct {
 }
 
 type AIConfig struct {
-	Provider string                 `mapstructure:"provider"`
-	OpenAI   OpenAICompatibleConfig `mapstructure:"openai"`
-	Prompts  PromptsConfig          `mapstructure:"prompts"`
+	Provider     string                 `mapstructure:"provider"`
+	OpenAI       OpenAICompatibleConfig `mapstructure:"openai"`
+	Prompts      PromptsConfig          `mapstructure:"prompts"`
+	MaxFileChars int                    `mapstructure:"max_file_chars"`
 }
 
 type PromptsConfig struct {
-	Extract string `mapstructure:"extract"`
-	Match   string `mapstructure:"match"`
-	Prefill string `mapstructure:"prefill"`
+	Extract   string `mapstructure:"extract"`
+	Match     string `mapstructure:"match"`
+	Prefill   string `mapstructure:"prefill"`
+	Summarize string `mapstructure:"summarize"`
 }
 
 type OpenAICompatibleConfig struct {
@@ -160,5 +162,6 @@ func Load(path string) (*Config, error) {
 	MustLoadPromptFile("config/prompts/extract.txt", &cfg.AI.Prompts.Extract)
 	MustLoadPromptFile("config/prompts/match.txt", &cfg.AI.Prompts.Match)
 	MustLoadPromptFile("config/prompts/prefill.txt", &cfg.AI.Prompts.Prefill)
+	MustLoadPromptFile("config/prompts/summarize.txt", &cfg.AI.Prompts.Summarize)
 	return &cfg, nil
 }

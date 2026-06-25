@@ -7,6 +7,8 @@ type File struct {
 	Size        int64  `json:"size"`
 	StoragePath string `gorm:"size:512" json:"-"`
 	UploadedBy  uint   `gorm:"index" json:"-"`
+	RawText     string `gorm:"type:text" json:"-"`
+	Summary     string `gorm:"type:text" json:"summary"`
 }
 
 func (File) TableName() string { return "files" }

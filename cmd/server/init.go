@@ -60,7 +60,7 @@ func initRepositories(db *gorm.DB) *repositories {
 
 func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service.SSEHub) *services {
 	aiClient := aiclient.New(cfg.AI.OpenAI.BaseURL, cfg.AI.OpenAI.APIKey, cfg.AI.OpenAI.Model, cfg.AI.OpenAI.TimeoutSeconds)
-	aiSvc := service.NewAIService(aiClient, r.ent, r.gov, cfg)
+	aiSvc := service.NewAIService(aiClient, r.ent, r.gov, r.file, cfg)
 	notifSvc := service.NewNotificationService(r.notif, hub)
 	assigner := service.NewAssigner(r.common)
 
