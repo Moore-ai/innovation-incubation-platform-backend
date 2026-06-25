@@ -12,21 +12,30 @@ import (
 )
 
 type Config struct {
-	Server    ServerConfig    `mapstructure:"server"`
-	DB        DBConfig        `mapstructure:"db"`
-	JWT       JWTConfig       `mapstructure:"jwt"`
-	AI        AIConfig        `mapstructure:"ai"`
-	Redis     RedisConfig     `mapstructure:"redis"`
-	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
-	Upload    UploadConfig    `mapstructure:"upload"`
-	Log       LogConfig       `mapstructure:"log"`
+	Server       ServerConfig       `mapstructure:"server"`
+	DB           DBConfig           `mapstructure:"db"`
+	JWT          JWTConfig          `mapstructure:"jwt"`
+	AI           AIConfig           `mapstructure:"ai"`
+	Redis        RedisConfig        `mapstructure:"redis"`
+	RateLimit    RateLimitConfig    `mapstructure:"rate_limit"`
+	Upload       UploadConfig       `mapstructure:"upload"`
+	Log          LogConfig          `mapstructure:"log"`
 	Notification NotificationConfig `mapstructure:"notification"`
+	FileMatch    FileMatchConfig    `mapstructure:"filematch"`
+}
+
+type FileMatchConfig struct {
+	WeightJaro    float64  `mapstructure:"weight_jaro"`
+	WeightKeyword float64  `mapstructure:"weight_keyword"`
+	WeightPrefix  float64  `mapstructure:"weight_prefix"`
+	Threshold     float64  `mapstructure:"threshold"`
+	StopWords     []string `mapstructure:"stop_words"`
 }
 
 type NotificationConfig struct {
-	HeartbeatSeconds int  `mapstructure:"heartbeat_seconds"`
-	RecentCount      int  `mapstructure:"recent_count"`
-	MaxConnsPerUser  int  `mapstructure:"max_conns_per_user"`
+	HeartbeatSeconds int `mapstructure:"heartbeat_seconds"`
+	RecentCount      int `mapstructure:"recent_count"`
+	MaxConnsPerUser  int `mapstructure:"max_conns_per_user"`
 }
 
 type LogConfig struct {
@@ -151,6 +160,14 @@ func Load(path string) (*Config, error) {
 	v := viper.New()
 	v.SetConfigType("yaml")
 	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	v.SetDefault("filematch.weight_jaro", 0.4)
+	v.SetDefault("filematch.weight_keyword", 0.4)
+	v.SetDefault("filematch.weight_prefix", 0.2)
+	v.SetDefault("filematch.threshold", 0.6)
+	v.SetDefault("filematch.stop_words", []string{"复印件", "原件", "扫描件", "照片", "图片", "副本", "电子版", "扫描"})
+
 	if err := v.ReadConfig(bytes.NewReader([]byte(expanded))); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}

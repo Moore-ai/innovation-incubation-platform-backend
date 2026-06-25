@@ -291,7 +291,7 @@ func (s *CarrierService) ApplyCarrierPolicy(userID uint, policyID uint, req *dto
 		PolicyID:      policyID,
 		ApplicantID:   carrier.ID,
 		ApplicantType: model.ApplicantCarrier,
-		FormData:      req.FormData,
+		Materials: req.Materials,
 		Status:        model.ApprovalPending,
 	}
 	s.commonRepo.CreatePolicyApplication(app)

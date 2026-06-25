@@ -49,7 +49,7 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 	if req.Requirements != nil {
 		for _, m := range req.Requirements.ApplicationMaterials {
 			if !m.Necessity.IsValid() {
-				return nil, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("材料必要性无效: %s, 必须为「necessary」或「unnecessary」", m.Necessity))
+				return nil, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("材料必要性无效: %s, 必须为「必要」或「非必要」", m.Necessity))
 			}
 		}
 	}
@@ -64,7 +64,7 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 		// 验证咨询方式类型
 		for _, cm := range req.Requirements.ContactMethods {
 			if !cm.Type.IsValid() {
-				return nil, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("咨询方式类型无效: %s，必须为 phone/email/address/wechat/website/other", cm.Type))
+				return nil, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("咨询方式类型无效: %s，必须为 phone/email/qq/address/wechat/website/other", cm.Type))
 			}
 		}
 	}
@@ -139,7 +139,7 @@ func (s *GovernmentService) UpdatePolicy(ctx context.Context, policyID uint, req
 		// 验证咨询方式类型
 		for _, cm := range req.Requirements.ContactMethods {
 			if !cm.Type.IsValid() {
-				return errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("咨询方式类型无效: %s，必须为 phone/email/address/wechat/website/other", cm.Type))
+				return errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("咨询方式类型无效: %s，必须为 phone/email/qq/address/wechat/website/other", cm.Type))
 			}
 		}
 	}
