@@ -42,13 +42,13 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 		PublishedAt:  &now,
 	}
 	// 验证政策目标角色
-	if req.TargetRole != string(model.RoleEnterprise) && req.TargetRole != string(model.RoleCarrier) && req.TargetRole != string(model.RoleBoth) {
+	if !model.TargetRole(req.TargetRole).IsValid() {
 		return nil, errcode.ErrInvalidParams.WithMsg("target_role 必须为 enterprise、carrier 或 both")
 	}
 	// 验证申报材料必要性
 	if req.Requirements != nil {
 		for _, m := range req.Requirements.ApplicationMaterials {
-			if m.Necessity != model.NecessityRequired && m.Necessity != model.NecessityNotRequired {
+			if !m.Necessity.IsValid() {
 				return nil, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("材料必要性无效: %s, 必须为「necessary」或「unnecessary」", m.Necessity))
 			}
 		}
@@ -63,9 +63,7 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 		}
 		// 验证咨询方式类型
 		for _, cm := range req.Requirements.ContactMethods {
-			if cm.Type != model.ContactPhone && cm.Type != model.ContactEmail &&
-				cm.Type != model.ContactAddress && cm.Type != model.ContactWechat &&
-				cm.Type != model.ContactWebsite && cm.Type != model.ContactOther {
+			if !cm.Type.IsValid() {
 				return nil, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("咨询方式类型无效: %s，必须为 phone/email/address/wechat/website/other", cm.Type))
 			}
 		}
@@ -125,7 +123,7 @@ func (s *GovernmentService) UpdatePolicy(ctx context.Context, policyID uint, req
 	// 验证申报材料必要性
 	if req.Requirements != nil {
 		for _, m := range req.Requirements.ApplicationMaterials {
-			if m.Necessity != model.NecessityRequired && m.Necessity != model.NecessityNotRequired {
+			if !m.Necessity.IsValid() {
 				return errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("材料必要性无效: %s，必须为「必要」或「非必要」", m.Necessity))
 			}
 		}
@@ -140,9 +138,7 @@ func (s *GovernmentService) UpdatePolicy(ctx context.Context, policyID uint, req
 		}
 		// 验证咨询方式类型
 		for _, cm := range req.Requirements.ContactMethods {
-			if cm.Type != model.ContactPhone && cm.Type != model.ContactEmail &&
-				cm.Type != model.ContactAddress && cm.Type != model.ContactWechat &&
-				cm.Type != model.ContactWebsite && cm.Type != model.ContactOther {
+			if !cm.Type.IsValid() {
 				return errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("咨询方式类型无效: %s，必须为 phone/email/address/wechat/website/other", cm.Type))
 			}
 		}
