@@ -43,7 +43,6 @@ func Search(query string, formats []string, files []model.File, cfg config.FileM
 			}
 			if !match {
 				warning = fmt.Sprintf("文件「%s」扩展名不匹配，要求 %s 格式", f.Filename, strings.Join(formats, "/"))
-				score *= 0.5 // 格式不匹配降分
 			}
 		}
 
