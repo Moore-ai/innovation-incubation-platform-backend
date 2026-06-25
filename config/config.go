@@ -159,6 +159,12 @@ func Load(path string) (*Config, error) {
 	v := viper.New()
 	v.SetConfigType("yaml")
 	v.AutomaticEnv()
+
+	v.SetDefault("filematch.weight_jaro", 0.4)
+	v.SetDefault("filematch.weight_keyword", 0.4)
+	v.SetDefault("filematch.weight_prefix", 0.2)
+	v.SetDefault("filematch.threshold", 0.6)
+
 	if err := v.ReadConfig(bytes.NewReader([]byte(expanded))); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}

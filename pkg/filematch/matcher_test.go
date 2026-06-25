@@ -53,3 +53,63 @@ func TestMatchBelowThreshold(t *testing.T) {
 		t.Errorf("expected no match, got file_id=%d score=%.2f", r.FileID, r.Score)
 	}
 }
+
+func TestMatchFuzzy(t *testing.T) {
+	files := []model.File{
+		{BaseModel: model.BaseModel{ID: 4}, Filename: "营业执照副本.pdf"},
+		{BaseModel: model.BaseModel{ID: 5}, Filename: "企业法人营业执照扫描件.jpg"},
+	}
+	r := Match("营业执照", []string{"pdf"}, files, testCfg)
+	if r == nil || r.FileID != 4 {
+		t.Errorf("expected best match file_id=4 (PDF优先), got %v", r)
+	}
+}
+
+func TestMatchStopWords(t *testing.T) {
+	files := []model.File{
+		{BaseModel: model.BaseModel{ID: 6}, Filename: "营业执照复印件.png"},
+	}
+	r := Match("营业执照", []string{"pdf"}, files, testCfg)
+	if r == nil {
+		t.Fatal("expected match despite stop word and extension mismatch")
+	}
+	if r.Warning == "" {
+		t.Error("expected extension warning for .png vs pdf")
+	}
+}
+
+func TestMatchNoFormats(t *testing.T) {
+	files := []model.File{
+		{BaseModel: model.BaseModel{ID: 7}, Filename: "营业执照.bmp"},
+	}
+	r := Match("营业执照", nil, files, testCfg)
+	if r == nil || r.FileID != 7 {
+		t.Errorf("expected match with no format restriction, got %v", r)
+	}
+	if r.Warning != "" {
+		t.Errorf("expected no warning when formats is empty, got %s", r.Warning)
+	}
+}
+
+func TestJaroWinklerIdentical(t *testing.T) {
+	s := jaroWinkler("营业执照", "营业执照")
+	if s != 1.0 {
+		t.Errorf("identical strings should get score 1.0, got %f", s)
+	}
+}
+
+func TestJaroWinklerEmpty(t *testing.T) {
+	s := jaroWinkler("", "")
+	if s != 1.0 {
+		t.Errorf("both empty should return 1.0, got %f", s)
+	}
+}
+
+func TestExtractKeywords(t *testing.T) {
+	kw := extractKeywords("营业执照复印件扫描件")
+	for _, w := range kw {
+		if w == "复印件" || w == "扫描件" {
+			t.Errorf("stop word '%s' should be removed", w)
+		}
+	}
+}
