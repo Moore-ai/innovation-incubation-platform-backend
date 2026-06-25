@@ -1,61 +1,71 @@
 package filematch
 
-func jaro(s1, s2 string) float64 {
-	if s1 == s2 {
-		return 1.0
+func jaroWinkler(s1, s2 string) float64 {
+	r1 := []rune(s1)
+	r2 := []rune(s2)
+
+	if len(r1) == 0 || len(r2) == 0 {
+		if len(r1) == 0 && len(r2) == 0 {
+			return 1.0
+		}
+		return 0
 	}
-	matchDist := max(len(s1), len(s2))/2 - 1
-	if matchDist < 0 {
-		matchDist = 0
-	}
+
+	maxDist := max(max(len(r1), len(r2))/2-1, 0)
+
+	matches1 := make([]bool, len(r1))
+	matches2 := make([]bool, len(r2))
+
 	matches := 0
-	s1Matches := make([]bool, len(s1))
-	s2Matches := make([]bool, len(s2))
-	transpositions := 0
-	for i := range s1 {
-		lo := max(0, i-matchDist)
-		hi := min(len(s2)-1, i+matchDist)
-		for j := lo; j <= hi; j++ {
-			if s2Matches[j] || s1[i] != s2[j] {
+	for i := range r1 {
+		start := max(0, i-maxDist)
+		end := min(len(r2), i+maxDist+1)
+		for j := start; j < end; j++ {
+			if matches2[j] {
 				continue
 			}
-			s1Matches[i] = true
-			s2Matches[j] = true
+			if r1[i] != r2[j] {
+				continue
+			}
+			matches1[i] = true
+			matches2[j] = true
 			matches++
 			break
 		}
 	}
+
 	if matches == 0 {
-		return 0.0
+		return 0
 	}
+
+	transpositions := 0
 	k := 0
-	for i := range s1 {
-		if !s1Matches[i] {
+	for i := range r1 {
+		if !matches1[i] {
 			continue
 		}
-		for !s2Matches[k] {
+		for !matches2[k] {
 			k++
 		}
-		if s1[i] != s2[k] {
+		if r1[i] != r2[k] {
 			transpositions++
 		}
 		k++
 	}
 	transpositions /= 2
-	return (float64(matches)/float64(len(s1)) +
-		float64(matches)/float64(len(s2)) +
-		float64(matches-transpositions)/float64(matches)) / 3.0
-}
 
-func jaroWinkler(s1, s2 string) float64 {
-	j := jaro(s1, s2)
+	jaro := (float64(matches)/float64(len(r1)) +
+		float64(matches)/float64(len(r2)) +
+		float64(matches-transpositions)/float64(matches)) / 3.0
+
 	prefix := 0
-	for i := 0; i < min(4, min(len(s1), len(s2))); i++ {
-		if s1[i] == s2[i] {
+	maxPrefix := min(4, len(r1), len(r2))
+	for i := 0; i < maxPrefix; i++ {
+		if r1[i] == r2[i] {
 			prefix++
 		} else {
 			break
 		}
 	}
-	return j + float64(prefix)*0.1*(1.0-j)
+	return jaro + float64(prefix)*0.1*(1-jaro)
 }

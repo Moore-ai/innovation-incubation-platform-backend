@@ -21,6 +21,20 @@ func TestJaroWinkler(t *testing.T) {
 	}
 }
 
+func TestJaroWinklerIdentical(t *testing.T) {
+	s := jaroWinkler("营业执照", "营业执照")
+	if s != 1.0 {
+		t.Errorf("identical strings should get score 1.0, got %f", s)
+	}
+}
+
+func TestJaroWinklerEmpty(t *testing.T) {
+	s := jaroWinkler("", "")
+	if s != 1.0 {
+		t.Errorf("both empty should return 1.0, got %f", s)
+	}
+}
+
 func TestMatchExact(t *testing.T) {
 	files := []model.File{
 		{BaseModel: model.BaseModel{ID: 1}, Filename: "营业执照.pdf"},
@@ -28,6 +42,9 @@ func TestMatchExact(t *testing.T) {
 	r := Match("营业执照", []string{"pdf"}, files, testCfg)
 	if r == nil || r.FileID != 1 {
 		t.Errorf("expected match file_id=1, got %v", r)
+	}
+	if r.Warning != "" {
+		t.Errorf("expected no warning, got %s", r.Warning)
 	}
 }
 
@@ -61,7 +78,7 @@ func TestMatchFuzzy(t *testing.T) {
 	}
 	r := Match("营业执照", []string{"pdf"}, files, testCfg)
 	if r == nil || r.FileID != 4 {
-		t.Errorf("expected best match file_id=4 (PDF优先), got %v", r)
+		t.Errorf("expected best match file_id=4 (PDF), got %v", r)
 	}
 }
 
@@ -91,22 +108,23 @@ func TestMatchNoFormats(t *testing.T) {
 	}
 }
 
-func TestJaroWinklerIdentical(t *testing.T) {
-	s := jaroWinkler("营业执照", "营业执照")
-	if s != 1.0 {
-		t.Errorf("identical strings should get score 1.0, got %f", s)
+func TestSearchReturnsSorted(t *testing.T) {
+	files := []model.File{
+		{BaseModel: model.BaseModel{ID: 8}, Filename: "营业执照副本.jpg"},
+		{BaseModel: model.BaseModel{ID: 9}, Filename: "公司章程.doc"},
+		{BaseModel: model.BaseModel{ID: 10}, Filename: "企业营业执照.pdf"},
 	}
-}
-
-func TestJaroWinklerEmpty(t *testing.T) {
-	s := jaroWinkler("", "")
-	if s != 1.0 {
-		t.Errorf("both empty should return 1.0, got %f", s)
+	results := Search("营业执照", nil, files, testCfg)
+	if len(results) < 2 {
+		t.Fatalf("expected at least 2 results, got %d", len(results))
+	}
+	if results[0].Score < results[1].Score {
+		t.Error("results should be sorted descending by score")
 	}
 }
 
 func TestExtractKeywords(t *testing.T) {
-	kw := extractKeywords("营业执照复印件扫描件")
+	kw := tokenize("营业执照复印件扫描件")
 	for _, w := range kw {
 		if w == "复印件" || w == "扫描件" {
 			t.Errorf("stop word '%s' should be removed", w)
