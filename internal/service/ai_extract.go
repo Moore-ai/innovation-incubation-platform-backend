@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 
 	"golang.org/x/sync/errgroup"
 
@@ -25,10 +26,12 @@ type extractedFields struct {
 	RequiredDocuments    []string `json:"required_documents"`    // 所需材料清单
 }
 
-func (s *AIService) ensureFileSummaries(ctx context.Context, policy *model.Policy) error {
+func (s *AIService) collectFileSummaries(ctx context.Context, policy *model.Policy) []string {
 	if policy.Requirements == nil {
 		return nil
 	}
+	var summaries []string
+	var mu sync.Mutex
 	g, ctx := errgroup.WithContext(ctx)
 	for _, basis := range policy.Requirements.LegalBasis {
 		g.Go(func() error {
@@ -36,37 +39,37 @@ func (s *AIService) ensureFileSummaries(ctx context.Context, policy *model.Polic
 			if err != nil {
 				return nil // 文件不存在，跳过
 			}
-			if file.Summary != "" || file.RawText == "" {
-				return nil // 已有摘要或无法生成，跳过
+			// 如果没有摘要但有原始文字，先并发生成
+			if file.Summary == "" && file.RawText != "" {
+				if err := s.SummarizeFile(ctx, file); err != nil {
+					slog.Warn("summarize file failed", "file_id", basis.FileID, "error", err)
+					return nil // 摘要失败不阻断
+				}
+				// 重新从 DB 获取最新的 summary
+				file, err = s.fileRepo.FindByID(basis.FileID)
+				if err != nil {
+					return nil
+				}
 			}
-			return s.SummarizeFile(ctx, file)
+			if file.Summary != "" {
+				mu.Lock()
+				summaries = append(summaries, fmt.Sprintf("- %s：%s", basis.Title, file.Summary))
+				mu.Unlock()
+			}
+			return nil
 		})
 	}
-	return g.Wait()
+	g.Wait()
+	return summaries
 }
 
 func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) error {
-	// 1. 确保所有法律依据文件有摘要（并发生成）
-	if err := s.ensureFileSummaries(ctx, policy); err != nil {
-		slog.Warn("ensure file summaries failed, continuing without summaries", "error", err)
-	}
-
-	// 2. 构建 userMsg
+	// 构建 userMsg（并发生成缺失的摘要 + 收集已有摘要）
 	var msg string
 	msg += fmt.Sprintf("政策标题：%s\n", policy.Title)
 	msg += fmt.Sprintf("政策内容：%s\n", toJSONString(policy.Requirements))
 
-	// 3. 收集法律依据文件摘要
-	var legalSummaries []string
-	if policy.Requirements != nil {
-		for _, basis := range policy.Requirements.LegalBasis {
-			file, err := s.fileRepo.FindByID(basis.FileID)
-			if err == nil && file.Summary != "" {
-				legalSummaries = append(legalSummaries,
-					fmt.Sprintf("- %s：%s", basis.Title, file.Summary))
-			}
-		}
-	}
+	legalSummaries := s.collectFileSummaries(ctx, policy)
 	if len(legalSummaries) > 0 {
 		msg += "政策依据文件摘要：\n" + strings.Join(legalSummaries, "\n") + "\n"
 	}
