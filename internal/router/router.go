@@ -97,6 +97,7 @@ func registerEnterpriseRoutes(r *gin.Engine, deps *Deps) {
 		ai.Use(middleware.RbacMiddleware(deps.Enforcer))
 	}
 	ai.Use(middleware.RouteRateLimit(5))
+	ai.POST("/policies/search", deps.EnterpriseController.SearchPolicies)
 	ai.GET("/policies/:id/recommend", deps.EnterpriseController.RecommendPolicy)
 	ai.POST("/policies/:id/prefill", deps.EnterpriseController.PrefillApplication)
 }

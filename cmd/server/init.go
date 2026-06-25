@@ -33,6 +33,7 @@ type services struct {
 	gov     *service.GovernmentService
 	notif   *service.NotificationService
 	file    *service.FileService
+	search  service.PolicySearch
 }
 
 type controllers struct {
@@ -71,6 +72,8 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 	}
 	fileSvc := service.NewFileService(fileStorage, r.file, cfg)
 
+	searchSvc := service.NewStructuredSearch(aiSvc, db, cfg.Search)
+
 	return &services{
 		auth:    service.NewAuthService(r.auth, cfg.JWT),
 		ent:     service.NewEnterpriseService(r.ent, r.carrier, r.common, db, notifSvc, assigner, r.policyFollow),
@@ -79,13 +82,14 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 		gov:     service.NewGovernmentService(r.gov, r.deletion, r.policyFollow, db, aiSvc, notifSvc),
 		notif:   notifSvc,
 		file:    fileSvc,
+		search:  searchSvc,
 	}
 }
 
 func initControllers(r *repositories, s *services, cfg *config.Config, hub *service.SSEHub) *controllers {
 	return &controllers{
 		auth:    controller.NewAuthController(s.auth),
-		ent:     controller.NewEnterpriseController(s.ent, s.ai),
+		ent:     controller.NewEnterpriseController(s.ent, s.ai, s.search),
 		carrier: controller.NewCarrierController(s.carrier),
 		gov:     controller.NewGovernmentController(s.gov),
 		file:    controller.NewFileController(s.file, cfg),

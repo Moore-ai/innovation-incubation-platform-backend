@@ -1,6 +1,11 @@
 package model
 
-import "time"
+import (
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
+	"time"
+)
 
 type PolicyTemplate struct {
 	BaseModel
@@ -37,6 +42,30 @@ type ExtractedPolicy struct {
 	RequiredDocuments    []string `json:"required_documents"`
 }
 
+// Scan implements sql.Scanner for JSONB deserialization.
+func (e *ExtractedPolicy) Scan(src any) error {
+    if src == nil {
+        *e = ExtractedPolicy{}
+        return nil
+    }
+    switch v := src.(type) {
+    case []byte:
+        return json.Unmarshal(v, e)
+    case string:
+        return json.Unmarshal([]byte(v), e)
+    default:
+        return fmt.Errorf("unsupported type: %T", src)
+    }
+}
+
+// Value implements driver.Valuer for JSONB serialization.
+func (e *ExtractedPolicy) Value() (driver.Value, error) {
+    if e == nil {
+        return nil, nil
+    }
+    return json.Marshal(e)
+}
+
 func (Policy) TableName() string { return "policies" }
 
 type MaterialFileItem struct {
@@ -70,6 +99,28 @@ type PolicyRequirement struct {
 	Process              *string               `json:"process,omitempty"`
 	LegalBasis           []LegalBasisFile      `json:"legal_basis,omitempty"`
 	ContactMethods       []ContactMethod       `json:"contact_methods,omitempty"`
+}
+
+func (r *PolicyRequirement) Scan(src any) error {
+	if src == nil {
+		*r = PolicyRequirement{}
+		return nil
+	}
+	switch v := src.(type) {
+	case []byte:
+		return json.Unmarshal(v, r)
+	case string:
+		return json.Unmarshal([]byte(v), r)
+	default:
+		return fmt.Errorf("unsupported type: %T", src)
+	}
+}
+
+func (r *PolicyRequirement) Value() (driver.Value, error) {
+	if r == nil {
+		return nil, nil
+	}
+	return json.Marshal(r)
 }
 
 type ApplicationMaterial struct {

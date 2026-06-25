@@ -14,12 +14,13 @@ import (
 )
 
 type EnterpriseController struct {
-	svc   *service.EnterpriseService
-	aiSvc *service.AIService
+	svc       *service.EnterpriseService
+	aiSvc     *service.AIService
+	searchSvc service.PolicySearch
 }
 
-func NewEnterpriseController(svc *service.EnterpriseService, aiSvc *service.AIService) *EnterpriseController {
-	return &EnterpriseController{svc: svc, aiSvc: aiSvc}
+func NewEnterpriseController(svc *service.EnterpriseService, aiSvc *service.AIService, searchSvc service.PolicySearch) *EnterpriseController {
+	return &EnterpriseController{svc: svc, aiSvc: aiSvc, searchSvc: searchSvc}
 }
 
 func (ctl *EnterpriseController) ApplyIncubation(c *gin.Context) {
@@ -260,4 +261,20 @@ func (ctl *EnterpriseController) PrefillApplication(c *gin.Context) {
 		return
 	}
 	response.Success(c, data)
+}
+
+func (ctl *EnterpriseController) SearchPolicies(c *gin.Context) {
+	var req struct {
+		Query string `json:"query" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("请输入搜索内容"))
+		return
+	}
+	policies, err := ctl.searchSvc.Search(c.Request.Context(), middleware.GetUserID(c), req.Query)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, policies)
 }
