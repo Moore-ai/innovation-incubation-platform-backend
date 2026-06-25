@@ -79,6 +79,7 @@ type PromptsConfig struct {
 	Match     string `mapstructure:"match"`
 	Prefill   string `mapstructure:"prefill"`
 	Summarize string `mapstructure:"summarize"`
+	Search    string `mapstructure:"search"`
 }
 
 type OpenAICompatibleConfig struct {
@@ -188,5 +189,6 @@ func Load(path string) (*Config, error) {
 	MustLoadPromptFile("config/prompts/match.txt", &cfg.AI.Prompts.Match)
 	MustLoadPromptFile("config/prompts/prefill.txt", &cfg.AI.Prompts.Prefill)
 	MustLoadPromptFile("config/prompts/summarize.txt", &cfg.AI.Prompts.Summarize)
+	MustLoadPromptFile("config/prompts/search.txt", &cfg.AI.Prompts.Search)
 	return &cfg, nil
 }
