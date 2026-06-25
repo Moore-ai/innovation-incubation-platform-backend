@@ -14,6 +14,7 @@ import (
 
 type extractedFields struct {
 	PolicyName           string   `json:"policy_name"`           // 政策名称
+	PolicySummary        string   `json:"policy_summary"`        // 政策概括
 	ApplicableIndustries []string `json:"applicable_industries"` // 适用行业
 	ApplicableScales     []string `json:"applicable_scales"`     // 适用企业规模
 	ApplicableStatus     string   `json:"applicable_status"`     // 适用企业状态（如：初创期、成长期）
@@ -71,7 +72,7 @@ func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) err
 	}
 
 	msg += fmt.Sprintf("\n\n严格按照以下 JSON 格式返回（字符串字段必须用双引号括起来，数组字段必须用方括号），不要附带其他内容：\n%s",
-		`{"policy_name":"政策名称","applicable_industries":["适用行业列表"],"applicable_scales":["适用企业规模，如大型、中型、小型、微型"],"applicable_status":"适用企业状态，如：初创期、成长期","subsidy_type":"补贴类型","subsidy_amount":"补贴金额","subsidy_condition":"补贴的具体条件","applicable_region":"适用区域","required_documents":["所需材料清单"]}`,
+		`{"policy_name":"政策名称","policy_summary":"政策概括，200字以内","applicable_industries":["适用行业列表"],"applicable_scales":["适用企业规模，如大型、中型、小型、微型"],"applicable_status":"适用企业状态，如：初创期、成长期","subsidy_type":"补贴类型","subsidy_amount":"补贴金额","subsidy_condition":"补贴的具体条件","applicable_region":"适用区域","required_documents":["所需材料清单"]}`,
 	)
 
 	fields, err := chatAndParse[extractedFields](s, ctx, "extract", s.prompts.extract, msg, "AI提取结果解析失败")

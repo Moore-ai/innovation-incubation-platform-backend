@@ -31,15 +31,15 @@ async function main() {
 
   // ====================== 2. 上传政策文件 ======================
   console.log("\n=== 上传政策文件 ===");
-  const docPath = path.resolve("../sample/安徽省数据要素改革发展专项资金重点支持方向（2026年版）.doc");
+  const docPath = path.resolve("../sample/安徽省数据要素改革发展专项资金重点支持方向（2026年版）.docx");
   if (!fs.existsSync(docPath)) {
     console.error("  ❌ 文件不存在:", docPath);
     process.exitCode = 1;
     return;
   }
   const fileBuf = fs.readFileSync(docPath);
-  const blob = new Blob([fileBuf], { type: "application/msword" });
-  const upload = await api.uploadFile("/files/upload", blob, "安徽省数据要素改革发展专项资金重点支持方向（2026年版）.doc");
+  const blob = new Blob([fileBuf], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+  const upload = await api.uploadFile("/files/upload", blob, "安徽省数据要素改革发展专项资金重点支持方向（2026年版）.docx");
   assertOk("上传文件成功", upload.code === 0);
   const fileId = upload.data?.file_id;
   assertOk("返回 file_id", typeof fileId === "number" && fileId > 0);
@@ -73,7 +73,24 @@ async function main() {
   const pub = await api.post("/gov/policies", publishBody);
   if (pub.code === 0) {
     assertOk("发布政策成功", true);
+
+    // 查询文件详情（含摘要）
+    console.log("\n  ===== 法律依据文件详情 =====");
+    const fileInfo = await api.get("/files?page=1&per_page=5");
+    if (fileInfo.code === 0 && fileInfo.data?.list) {
+      const matched = fileInfo.data.list.find((f) => f.id === fileId);
+      if (matched) {
+        console.log("  文件名:", matched.filename);
+        console.log("  文件摘要:", matched.summary || "(摘要为空)");
+      }
+    }
+
     console.log("\n  ===== AI 提取结果 (ExtractedFields) =====");
+    if (pub.data?.extracted_fields?.policy_summary) {
+      console.log("\n  --- 政策摘要 ---");
+      console.log("  " + pub.data.extracted_fields.policy_summary);
+      console.log("");
+    }
     console.log(JSON.stringify(pub.data?.extracted_fields, null, 2));
   } else {
     console.log(`  ⚠️ 发布失败 (code=${pub.code}): ${pub.message}`);
