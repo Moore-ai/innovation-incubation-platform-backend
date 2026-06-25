@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -17,6 +18,7 @@ import (
 	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/internal/storage"
 	"innovation-incubation-platform-backend/pkg/errcode"
+	"innovation-incubation-platform-backend/pkg/fileparser"
 )
 
 type FileService struct {
@@ -49,7 +51,15 @@ func (s *FileService) Upload(ctx context.Context, reader io.Reader, filename, mi
 	}
 	path := s.generatePath(ext)
 
-	if err := s.storage.Save(ctx, path, reader); err != nil {
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, errcode.ErrInternal
+	}
+	if size <= 0 {
+		size = int64(len(data))
+	}
+
+	if err := s.storage.Save(ctx, path, bytes.NewReader(data)); err != nil {
 		return nil, errcode.ErrInternal
 	}
 
@@ -64,6 +74,17 @@ func (s *FileService) Upload(ctx context.Context, reader io.Reader, filename, mi
 		s.storage.Delete(ctx, path)
 		return nil, errcode.ErrInternal
 	}
+
+	// 解析文件内容（尽力而为，失败不阻断）
+	rawText, err := fileparser.Parse(bytes.NewReader(data), size, ext)
+	if err != nil {
+		slog.Warn("file parse failed", "file_id", f.ID, "ext", ext, "error", err)
+	} else if rawText != "" {
+		if err := s.repo.SetRawText(f.ID, rawText); err != nil {
+			slog.Error("file set raw text failed", "file_id", f.ID, "error", err)
+		}
+	}
+
 	return f, nil
 }
 
