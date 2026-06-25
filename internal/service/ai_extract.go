@@ -70,8 +70,8 @@ func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) err
 		msg += "政策依据文件摘要：\n" + strings.Join(legalSummaries, "\n") + "\n"
 	}
 
-	msg += fmt.Sprintf("\n\n请严格按以下格式返回JSON，不要附带其他内容：\n%s",
-		`{"policy_name":"政策名称","applicable_industries":["适用行业列表"],"applicable_scales":["适用企业规模，如大型、中型、小型、微型"],"applicable_status":"适用企业状态，如：初创期、成长期","subsidy_type":"补贴类型，如：资金补贴、税收优惠","subsidy_amount":"补贴金额","subsidy_condition":"补贴的具体条件","applicable_region":"适用区域，比如安徽省合肥市蜀山区","required_documents":[所需材料清单]}`,
+	msg += fmt.Sprintf("\n\n严格按照以下 JSON 格式返回（字符串字段必须用双引号括起来，数组字段必须用方括号），不要附带其他内容：\n%s",
+		`{"policy_name":"政策名称","applicable_industries":["适用行业列表"],"applicable_scales":["适用企业规模，如大型、中型、小型、微型"],"applicable_status":"适用企业状态，如：初创期、成长期","subsidy_type":"补贴类型","subsidy_amount":"补贴金额","subsidy_condition":"补贴的具体条件","applicable_region":"适用区域","required_documents":["所需材料清单"]}`,
 	)
 
 	fields, err := chatAndParse[extractedFields](s, ctx, "extract", s.prompts.extract, msg, "AI提取结果解析失败")
