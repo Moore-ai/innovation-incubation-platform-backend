@@ -55,6 +55,14 @@ func (r *FileRepo) Delete(id uint) error {
 	return r.db.Delete(&model.File{}, id).Error
 }
 
+func (r *FileRepo) SetRawText(id uint, rawText string) error {
+	return r.db.Model(&model.File{}).Where("id = ?", id).Update("raw_text", rawText).Error
+}
+
+func (r *FileRepo) UpdateSummary(id uint, summary string) error {
+	return r.db.Model(&model.File{}).Where("id = ?", id).Update("summary", summary).Error
+}
+
 func (r *FileRepo) CheckFileAccess(fileID, userID uint) (bool, error) {
 	var count int64
 	err := r.db.Model(&model.IncubationRecord{}).
