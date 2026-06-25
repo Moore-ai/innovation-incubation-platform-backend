@@ -43,6 +43,7 @@ func Search(query string, formats []string, files []model.File, cfg config.FileM
 			}
 			if !match {
 				warning = fmt.Sprintf("文件「%s」扩展名不匹配，要求 %s 格式", f.Filename, strings.Join(formats, "/"))
+				score *= 0.5 // 格式不匹配降分
 			}
 		}
 
@@ -67,7 +68,13 @@ func Match(materialName string, formats []string, files []model.File, cfg config
 // tokenize 分词，去除扩展名和停用词，保留中文/英文/数字片段
 func tokenize(s string, stopWords []string) []string {
 	s = strings.ToLower(s)
-	for _, sw := range stopWords {
+	// 按长度降序排列，解决 sub-string 顺序依赖
+	sorted := make([]string, len(stopWords))
+	copy(sorted, stopWords)
+	sort.Slice(sorted, func(i, j int) bool {
+		return len([]rune(sorted[i])) > len([]rune(sorted[j]))
+	})
+	for _, sw := range sorted {
 		s = strings.ReplaceAll(s, sw, "")
 	}
 	return tokenRe.FindAllString(s, -1)
@@ -127,7 +134,7 @@ func keywordScore(fileTokens, queryTokens []string) float64 {
 		}
 	}
 
-	if totalWeight == 0 {
+	if totalWeight < 1e-9 {
 		return 0
 	}
 	return matched / totalWeight

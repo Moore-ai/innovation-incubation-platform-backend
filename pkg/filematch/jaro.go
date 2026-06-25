@@ -1,8 +1,10 @@
 package filematch
 
+import "strings"
+
 func jaroWinkler(s1, s2 string) float64 {
-	r1 := []rune(s1)
-	r2 := []rune(s2)
+	r1 := []rune(strings.ToLower(s1))
+	r2 := []rune(strings.ToLower(s2))
 
 	if len(r1) == 0 || len(r2) == 0 {
 		if len(r1) == 0 && len(r2) == 0 {

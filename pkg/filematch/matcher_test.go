@@ -124,7 +124,7 @@ func TestSearchReturnsSorted(t *testing.T) {
 	}
 }
 
-func TestExtractKeywords(t *testing.T) {
+func TestTokenize(t *testing.T) {
 	kw := tokenize("营业执照复印件扫描件", testCfg.StopWords)
 	for _, w := range kw {
 		if w == "复印件" || w == "扫描件" {

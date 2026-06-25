@@ -160,6 +160,7 @@ func Load(path string) (*Config, error) {
 	v := viper.New()
 	v.SetConfigType("yaml")
 	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	v.SetDefault("filematch.weight_jaro", 0.4)
 	v.SetDefault("filematch.weight_keyword", 0.4)

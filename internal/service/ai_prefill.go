@@ -13,6 +13,11 @@ import (
 // by matching material names against file names using the filematch package.
 // Returns a list of MaterialFileItem — one per material, each with matched file IDs.
 func (s *AIService) PrefillApplication(ctx context.Context, userID uint, policyID uint) ([]model.MaterialFileItem, error) {
+	// 确保企业用户存在
+	if _, err := s.entRepo.FindEnterpriseByUserID(userID); err != nil {
+		return nil, errcode.ErrForbidden.WithMsg("无权访问此接口")
+	}
+
 	policy, err := s.govRepo.FindPolicyByID(policyID)
 	if err != nil {
 		return nil, errcode.ErrNotFound.WithMsg("政策不存在")
@@ -28,7 +33,7 @@ func (s *AIService) PrefillApplication(ctx context.Context, userID uint, policyI
 		// 文件列表获取失败时返回空结果（材料名称仍然返回）
 		var result []model.MaterialFileItem
 		for _, m := range policy.Requirements.ApplicationMaterials {
-			result = append(result, model.MaterialFileItem{Name: m.Name})
+			result = append(result, model.MaterialFileItem{Name: m.Name, FileIDs: make([]uint, 0)})
 		}
 		return result, nil
 	}
