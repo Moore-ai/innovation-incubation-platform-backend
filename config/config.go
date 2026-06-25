@@ -22,6 +22,7 @@ type Config struct {
 	Log          LogConfig          `mapstructure:"log"`
 	Notification NotificationConfig `mapstructure:"notification"`
 	FileMatch    FileMatchConfig    `mapstructure:"filematch"`
+	Search       SearchConfig       `mapstructure:"search"`
 }
 
 type FileMatchConfig struct {
@@ -36,6 +37,11 @@ type NotificationConfig struct {
 	HeartbeatSeconds int `mapstructure:"heartbeat_seconds"`
 	RecentCount      int `mapstructure:"recent_count"`
 	MaxConnsPerUser  int `mapstructure:"max_conns_per_user"`
+}
+
+type SearchConfig struct {
+	Method     string `mapstructure:"method"`
+	MaxResults int    `mapstructure:"max_results"`
 }
 
 type LogConfig struct {
@@ -167,6 +173,8 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("filematch.weight_prefix", 0.2)
 	v.SetDefault("filematch.threshold", 0.6)
 	v.SetDefault("filematch.stop_words", []string{"复印件", "原件", "扫描件", "照片", "图片", "副本", "电子版", "扫描"})
+	v.SetDefault("search.method", "structured")
+	v.SetDefault("search.max_results", 10)
 
 	if err := v.ReadConfig(bytes.NewReader([]byte(expanded))); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
