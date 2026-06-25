@@ -39,7 +39,7 @@ type ChangeApplyReq struct {
 }
 
 type PolicyApplyReq struct {
-	FormData model.JSONMap `json:"form_data"`
+	Materials []model.MaterialFileItem `json:"materials"`
 }
 
 type ReviewReq struct {

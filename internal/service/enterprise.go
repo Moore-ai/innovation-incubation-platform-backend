@@ -284,7 +284,7 @@ func (s *EnterpriseService) ApplyPolicy(userID uint, policyID uint, req *dto.Pol
 		PolicyID:      policyID,
 		ApplicantID:   ent.ID,
 		ApplicantType: model.ApplicantEnterprise,
-		FormData:      req.FormData,
+		Materials: req.Materials,
 		Status:        model.ApprovalPending,
 	}
 	if err := s.commonRepo.CreatePolicyApplication(app); err != nil {

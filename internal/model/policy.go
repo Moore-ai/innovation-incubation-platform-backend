@@ -25,14 +25,19 @@ type Policy struct {
 
 func (Policy) TableName() string { return "policies" }
 
+type MaterialFileItem struct {
+	Name    string `json:"name"`     // 材料名称
+	FileIDs []uint `json:"file_ids"` // 已选择的文件ID列表
+}
+
 type PolicyApplication struct {
 	BaseModel
-	PolicyID      uint           `gorm:"index;not null" json:"policy_id"`
-	ApplicantID   uint           `gorm:"index;not null" json:"applicant_id"`
-	ApplicantType ApplicantType  `gorm:"size:16;not null" json:"applicant_type"` // enterprise, carrier
-	FormData      JSONMap        `gorm:"type:jsonb" json:"form_data"`
-	Status        ApprovalStatus `gorm:"size:32;default:draft" json:"status"` // draft, pending, carrier_review, gov_review, approved, rejected, returned
-	Policy        Policy         `gorm:"foreignKey:PolicyID" json:"-"`
+	PolicyID      uint               `gorm:"index;not null" json:"policy_id"`
+	ApplicantID   uint               `gorm:"index;not null" json:"applicant_id"`
+	ApplicantType ApplicantType      `gorm:"size:16;not null" json:"applicant_type"` // enterprise, carrier
+	Materials     []MaterialFileItem `gorm:"type:jsonb;column:form_data" json:"materials"`
+	Status        ApprovalStatus     `gorm:"size:32;default:draft" json:"status"` // draft, pending, carrier_review, gov_review, approved, rejected, returned
+	Policy        Policy             `gorm:"foreignKey:PolicyID" json:"-"`
 }
 
 func (PolicyApplication) TableName() string { return "policy_applications" }

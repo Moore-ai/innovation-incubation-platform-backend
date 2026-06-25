@@ -21,6 +21,14 @@ type Config struct {
 	Upload    UploadConfig    `mapstructure:"upload"`
 	Log       LogConfig       `mapstructure:"log"`
 	Notification NotificationConfig `mapstructure:"notification"`
+	FileMatch    FileMatchConfig    `mapstructure:"filematch"`
+}
+
+type FileMatchConfig struct {
+	WeightJaro    float64 `mapstructure:"weight_jaro"`
+	WeightKeyword float64 `mapstructure:"weight_keyword"`
+	WeightPrefix  float64 `mapstructure:"weight_prefix"`
+	Threshold     float64 `mapstructure:"threshold"`
 }
 
 type NotificationConfig struct {
