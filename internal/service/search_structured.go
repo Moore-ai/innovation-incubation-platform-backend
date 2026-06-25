@@ -93,27 +93,24 @@ func (s *StructuredSearch) searchPolicies(ctx context.Context, criteria *SearchC
 		return policies, nil
 	}
 
-	// 用 raw SQL 避免 ORM 复杂嵌套
-	query := `SELECT id, title, target_role, requirements, start_date, end_date, status, published_at, extracted_fields
-		FROM policies WHERE status = $1 AND (`
-	args := []any{string(model.PolicyPublished)}
-
+	// 构建条件：先查 ID，再完整查询（避免 Raw SQL 反序列化 JSONB 问题）
 	var orParts []string
 	for _, sc := range scores {
 		orParts = append(orParts, fmt.Sprintf("extracted_fields->>'%s' ILIKE '%%%%%s%%%%'", sc.field, sc.keyword))
 	}
-	query += strings.Join(orParts, " OR ") + ")"
+	where := "(" + strings.Join(orParts, " OR ") + ") AND status = ?"
 
 	// 排序：命中数降序 + 发布时间降序
 	var scoreParts []string
 	for _, sc := range scores {
 		scoreParts = append(scoreParts, fmt.Sprintf("CASE WHEN extracted_fields->>'%s' ILIKE '%%%%%s%%%%' THEN 1 ELSE 0 END", sc.field, sc.keyword))
 	}
-	query += " ORDER BY (" + strings.Join(scoreParts, " + ") + ") DESC, published_at DESC"
-	query += fmt.Sprintf(" LIMIT %d", s.cfg.MaxResults)
+	order := "(" + strings.Join(scoreParts, " + ") + ") DESC, published_at DESC"
 
 	var policies []model.Policy
-	if err := s.db.Raw(query, args...).Scan(&policies).Error; err != nil {
+	tx := s.db.Where(where, string(model.PolicyPublished)).Order(order).Limit(s.cfg.MaxResults)
+	// 预加载 Policy 的关联字段（如果有）
+	if err := tx.Find(&policies).Error; err != nil {
 		slog.Error("search policies failed", "error", err)
 		return nil, errcode.ErrInternal
 	}

@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"database/sql/driver"
+	"encoding/json"
+	"time"
+)
 
 type PolicyTemplate struct {
 	BaseModel
@@ -37,6 +41,19 @@ type ExtractedPolicy struct {
 	RequiredDocuments    []string `json:"required_documents"`
 }
 
+// Scan implements sql.Scanner for JSONB deserialization.
+func (e *ExtractedPolicy) Scan(src any) error {
+    if src == nil {
+        return nil
+    }
+    return json.Unmarshal(src.([]byte), e)
+}
+
+// Value implements driver.Valuer for JSONB serialization.
+func (e ExtractedPolicy) Value() (driver.Value, error) {
+    return json.Marshal(e)
+}
+
 func (Policy) TableName() string { return "policies" }
 
 type MaterialFileItem struct {
@@ -70,6 +87,17 @@ type PolicyRequirement struct {
 	Process              *string               `json:"process,omitempty"`
 	LegalBasis           []LegalBasisFile      `json:"legal_basis,omitempty"`
 	ContactMethods       []ContactMethod       `json:"contact_methods,omitempty"`
+}
+
+func (r *PolicyRequirement) Scan(src any) error {
+	if src == nil {
+		return nil
+	}
+	return json.Unmarshal(src.([]byte), r)
+}
+
+func (r PolicyRequirement) Value() (driver.Value, error) {
+	return json.Marshal(r)
 }
 
 type ApplicationMaterial struct {
