@@ -20,7 +20,7 @@ func parseDOC(r io.Reader) (string, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "pandoc", "-f", "doc", "-t", "plain", "--wrap=none")
+	cmd := exec.CommandContext(ctx, "pandoc", "-t", "plain", "--wrap=none")
 	cmd.Stdin = bytes.NewReader(data)
 	out, err := cmd.Output()
 	if err != nil {

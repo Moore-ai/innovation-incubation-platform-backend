@@ -13,7 +13,7 @@ var pandocAvailable bool
 func init() {
 	_, err := exec.LookPath("pandoc")
 	if err != nil {
-		slog.Warn("pandoc not found in PATH, .doc files will not be parsed")
+		slog.Warn("pandoc not found in PATH, .docx via pandoc not available")
 		pandocAvailable = false
 	} else {
 		pandocAvailable = true
@@ -35,7 +35,7 @@ func Parse(r io.Reader, size int64, ext string) (string, error) {
 		}
 		return parsePDF(ra, size)
 	case ".doc":
-		return parseDOC(r)
+		return "", fmt.Errorf("unsupported format: .doc (old binary), please convert to .docx or .pdf")
 	default:
 		return "", fmt.Errorf("unsupported file extension: %s", ext)
 	}
