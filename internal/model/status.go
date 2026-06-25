@@ -82,3 +82,16 @@ const (
 	NecessityRequired    NecessityType = "necessary"
 	NecessityNotRequired NecessityType = "unnecessary"
 )
+
+// ContactMethodType — ContactMethod.Type
+type ContactMethodType string
+
+const (
+	ContactPhone   ContactMethodType = "phone"
+	ContactEmail   ContactMethodType = "email"
+	ContactAddress ContactMethodType = "address"
+	ContactWechat  ContactMethodType = "wechat"
+	ContactQQ      ContactMethodType = "qq"
+	ContactWebsite ContactMethodType = "website"
+	ContactOther   ContactMethodType = "other"
+)

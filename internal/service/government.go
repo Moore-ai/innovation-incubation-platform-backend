@@ -61,6 +61,14 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 				return nil, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("法律依据文件不存在: file_id=%d", basis.FileID))
 			}
 		}
+		// 验证咨询方式类型
+		for _, cm := range req.Requirements.ContactMethods {
+			if cm.Type != model.ContactPhone && cm.Type != model.ContactEmail &&
+				cm.Type != model.ContactAddress && cm.Type != model.ContactWechat &&
+				cm.Type != model.ContactWebsite && cm.Type != model.ContactOther {
+				return nil, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("咨询方式类型无效: %s，必须为 phone/email/address/wechat/website/other", cm.Type))
+			}
+		}
 	}
 
 	if err := s.aiSvc.ExtractPolicy(ctx, p); err != nil {
@@ -128,6 +136,14 @@ func (s *GovernmentService) UpdatePolicy(ctx context.Context, policyID uint, req
 			var f model.File
 			if err := s.db.First(&f, basis.FileID).Error; err != nil {
 				return errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("法律依据文件不存在: file_id=%d", basis.FileID))
+			}
+		}
+		// 验证咨询方式类型
+		for _, cm := range req.Requirements.ContactMethods {
+			if cm.Type != model.ContactPhone && cm.Type != model.ContactEmail &&
+				cm.Type != model.ContactAddress && cm.Type != model.ContactWechat &&
+				cm.Type != model.ContactWebsite && cm.Type != model.ContactOther {
+				return errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("咨询方式类型无效: %s，必须为 phone/email/address/wechat/website/other", cm.Type))
 			}
 		}
 	}

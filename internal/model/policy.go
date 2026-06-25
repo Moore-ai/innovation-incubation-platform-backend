@@ -37,6 +37,12 @@ type PolicyApplication struct {
 
 func (PolicyApplication) TableName() string { return "policy_applications" }
 
+type ContactMethod struct {
+	Type  ContactMethodType `json:"type"`  // 联系方式类型：phone, email, address, wechat, website, other
+	Value string            `json:"value"` // 联系方式值：电话号码、邮箱地址等
+	Note  string            `json:"note"`  // 备注说明，如"数据资源处：0551-62999897"
+}
+
 // PolicyRequirement 政策要求 — 对应 policies.requirements jsonb 列
 type PolicyRequirement struct {
 	FulfillmentCriteria  *string               `json:"fulfillment_criteria,omitempty"`
@@ -44,6 +50,7 @@ type PolicyRequirement struct {
 	ApplicationMaterials []ApplicationMaterial `json:"application_materials,omitempty"`
 	Process              *string               `json:"process,omitempty"`
 	LegalBasis           []LegalBasisFile      `json:"legal_basis,omitempty"`
+	ContactMethods       []ContactMethod       `json:"contact_methods,omitempty"`
 }
 
 type ApplicationMaterial struct {
