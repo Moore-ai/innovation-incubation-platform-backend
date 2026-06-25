@@ -45,8 +45,31 @@ func (s *StructuredSearch) Search(ctx context.Context, userID uint, query string
 	}
 
 	// 4. AI 精排 + 分析
-	analysis := s.analyzeResults(ctx, query, ent, policies)
-	return &SearchResult{Policies: policies, Analysis: analysis}, nil
+	analysis, rankedIDs := s.analyzeResults(ctx, query, ent, policies)
+
+	// 5. 按 AI 输出的 ranked_ids 重排，未列出的放在末尾
+	if len(rankedIDs) > 0 {
+		ranked := make([]model.Policy, 0, len(policies))
+		seen := make(map[uint]bool, len(rankedIDs))
+		for _, id := range rankedIDs {
+			for _, p := range policies {
+				if p.ID == id && !seen[id] {
+					ranked = append(ranked, p)
+					seen[id] = true
+					break
+				}
+			}
+		}
+		// 补充未在 ranked_ids 中的政策
+		for _, p := range policies {
+			if !seen[p.ID] {
+				ranked = append(ranked, p)
+			}
+		}
+		policies = ranked
+	}
+
+	return &SearchResult{Policies: policies, Analysis: analysis, RankedIDs: rankedIDs}, nil
 }
 
 func (s *StructuredSearch) analyzeQuery(ctx context.Context, query string, ent *model.Enterprise) (*SearchCriteria, error) {
@@ -128,7 +151,11 @@ func (s *StructuredSearch) searchPolicies(ctx context.Context, criteria *SearchC
 	return policies, nil
 }
 
-func (s *StructuredSearch) analyzeResults(ctx context.Context, query string, ent *model.Enterprise, policies []model.Policy) string {
+func (s *StructuredSearch) analyzeResults(ctx context.Context, query string, ent *model.Enterprise, policies []model.Policy) (string, []uint) {
+	// 只分析前 5 条，避免过长
+	if len(policies) > 5 {
+		policies = policies[:5]
+	}
 	if len(policies) == 0 {
 		userMsg := fmt.Sprintf(
 			"企业信息：行业=%s、规模=%s、地址=%s\n用户搜索：%s\n\n数据库中未找到匹配的政策。请分析可能的原因并给出建议。\n严格按照以下 JSON 格式返回，不要附带其他内容：\n{\"text\":\"你的分析内容，200字以内\"}",
@@ -137,9 +164,9 @@ func (s *StructuredSearch) analyzeResults(ctx context.Context, query string, ent
 		result, err := chatAndParse[analysisResult](s.aiSvc, ctx, "search_analysis", s.aiSvc.prompts.search,
 			userMsg, "AI分析失败")
 		if err != nil {
-			return ""
+			return "", nil
 		}
-		return result.Text
+		return result.Text, nil
 	}
 
 	var policyBriefs []string
@@ -156,7 +183,7 @@ func (s *StructuredSearch) analyzeResults(ctx context.Context, query string, ent
 			deadline = p.EndDate
 		}
 		policyBriefs = append(policyBriefs,
-			fmt.Sprintf("「%s」摘要：%s，补贴%s，截止%s", p.Title, summary, amount, deadline))
+			fmt.Sprintf("[%d]「%s」摘要：%s，补贴%s，截止%s", p.ID, p.Title, summary, amount, deadline))
 	}
 
 	userMsg := fmt.Sprintf(
@@ -165,7 +192,7 @@ func (s *StructuredSearch) analyzeResults(ctx context.Context, query string, ent
 			"如果满足，给出个性化的推荐理由和注意事项（包括补贴金额是否匹配、截止时间是否充裕等）；\n"+
 			"如果不满足，说明具体原因（如金额超出预算、截止时间太近等）。\n"+
 			"严格按照以下 JSON 格式返回，不要附带其他内容：\n"+
-			`{"text":"你的分析内容，200字以内"}`,
+			`{"text":"你的分析内容，200字以内","ranked_ids":[最匹配的ID,按推荐度降序]}`,
 		ent.Industry, ent.Scale, ent.Address, query,
 		strings.Join(policyBriefs, "\n"),
 	)
@@ -173,11 +200,12 @@ func (s *StructuredSearch) analyzeResults(ctx context.Context, query string, ent
 	result, err := chatAndParse[analysisResult](s.aiSvc, ctx, "search_analysis", s.aiSvc.prompts.search,
 		userMsg, "AI分析失败")
 	if err != nil {
-		return ""
+		return "", nil
 	}
-	return result.Text
+		return result.Text, result.RankedIDs
 }
 
 type analysisResult struct {
-	Text string `json:"text"`
+	Text      string `json:"text"`
+	RankedIDs []uint `json:"ranked_ids"`
 }

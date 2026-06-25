@@ -8,8 +8,9 @@ import (
 
 // SearchResult 搜索结果，包含政策列表和 AI 分析
 type SearchResult struct {
-	Policies []model.Policy `json:"policies"`
-	Analysis string         `json:"analysis"`
+	Policies  []model.Policy `json:"policies"`
+	Analysis  string         `json:"analysis"`
+	RankedIDs []uint         `json:"ranked_ids,omitempty"`
 }
 
 // PolicySearch 政策搜索器 — 可插拔，通过配置切换实现
