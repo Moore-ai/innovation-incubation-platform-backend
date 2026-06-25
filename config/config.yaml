@@ -45,3 +45,9 @@ notification:
   heartbeat_seconds: 30
   recent_count: 20
   max_conns_per_user: 10
+
+filematch:
+  weight_jaro: 0.4
+  weight_keyword: 0.4
+  weight_prefix: 0.2
+  threshold: 0.6
