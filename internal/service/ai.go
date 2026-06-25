@@ -40,7 +40,8 @@ type AIService struct {
 		match     string
 		prefill   string
 		summarize string
-		search    string
+		search         string
+		searchAnalysis string
 	}
 	maxFileChars int
 }
@@ -57,7 +58,8 @@ func NewAIService(client *aiclient.Client, entRepo *repository.EnterpriseRepo, g
 			match     string
 			prefill   string
 			summarize string
-			search    string
+			search         string
+		searchAnalysis string
 		}{
 			extract:   cfg.AI.Prompts.Extract,
 			match:     cfg.AI.Prompts.Match,

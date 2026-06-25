@@ -75,11 +75,12 @@ type AIConfig struct {
 }
 
 type PromptsConfig struct {
-	Extract   string `mapstructure:"extract"`
-	Match     string `mapstructure:"match"`
-	Prefill   string `mapstructure:"prefill"`
-	Summarize string `mapstructure:"summarize"`
-	Search    string `mapstructure:"search"`
+	Extract        string `mapstructure:"extract"`
+	Match          string `mapstructure:"match"`
+	Prefill        string `mapstructure:"prefill"`
+	Summarize      string `mapstructure:"summarize"`
+	Search         string `mapstructure:"search"`
+	SearchAnalysis string `mapstructure:"search_analysis"`
 }
 
 type OpenAICompatibleConfig struct {
@@ -190,5 +191,6 @@ func Load(path string) (*Config, error) {
 	MustLoadPromptFile("config/prompts/prefill.txt", &cfg.AI.Prompts.Prefill)
 	MustLoadPromptFile("config/prompts/summarize.txt", &cfg.AI.Prompts.Summarize)
 	MustLoadPromptFile("config/prompts/search.txt", &cfg.AI.Prompts.Search)
+	MustLoadPromptFile("config/prompts/search_analysis.txt", &cfg.AI.Prompts.SearchAnalysis)
 	return &cfg, nil
 }
