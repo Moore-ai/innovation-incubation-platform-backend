@@ -3,6 +3,8 @@ package fileparser
 import (
 	"fmt"
 	"io"
+	"log/slog"
+	"strings"
 
 	"github.com/ledongthuc/pdf"
 )
@@ -12,14 +14,16 @@ func parsePDF(r io.ReaderAt, size int64) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("open pdf: %w", err)
 	}
-	var buf string
+	var buf strings.Builder
 	for i := 1; i <= reader.NumPage(); i++ {
 		page := reader.Page(i)
 		text, err := page.GetPlainText(nil)
 		if err != nil {
+			slog.Warn("parse pdf page failed", "page", i, "error", err)
 			continue
 		}
-		buf += text + "\n"
+		buf.WriteString(text)
+		buf.WriteByte('\n')
 	}
-	return buf, nil
+	return buf.String(), nil
 }

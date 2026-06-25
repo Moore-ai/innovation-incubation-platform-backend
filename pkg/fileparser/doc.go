@@ -2,9 +2,11 @@ package fileparser
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os/exec"
+	"time"
 )
 
 func parseDOC(r io.Reader) (string, error) {
@@ -16,7 +18,9 @@ func parseDOC(r io.Reader) (string, error) {
 		return "", fmt.Errorf("read doc input: %w", err)
 	}
 
-	cmd := exec.Command("pandoc", "-f", "doc", "-t", "plain", "--wrap=none")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "pandoc", "-f", "doc", "-t", "plain", "--wrap=none")
 	cmd.Stdin = bytes.NewReader(data)
 	out, err := cmd.Output()
 	if err != nil {

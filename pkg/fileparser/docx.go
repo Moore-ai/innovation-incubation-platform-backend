@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"fmt"
+	"html"
 	"io"
 	"strings"
 )
@@ -52,5 +53,6 @@ func stripXMLTags(s string) string {
 	}
 	// 清理多余空白
 	result := strings.TrimSpace(buf.String())
+	result = html.UnescapeString(result)
 	return result
 }
