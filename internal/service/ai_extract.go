@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
+
+	"golang.org/x/sync/errgroup"
 
 	"innovation-incubation-platform-backend/internal/model"
 )
@@ -21,13 +24,57 @@ type extractedFields struct {
 	RequiredDocuments    []string `json:"required_documents"`    // 所需材料清单
 }
 
+func (s *AIService) ensureFileSummaries(ctx context.Context, policy *model.Policy) error {
+	if policy.Requirements == nil {
+		return nil
+	}
+	g, ctx := errgroup.WithContext(ctx)
+	for _, basis := range policy.Requirements.LegalBasis {
+		g.Go(func() error {
+			file, err := s.fileRepo.FindByID(basis.FileID)
+			if err != nil {
+				return nil // 文件不存在，跳过
+			}
+			if file.Summary != "" || file.RawText == "" {
+				return nil // 已有摘要或无法生成，跳过
+			}
+			return s.SummarizeFile(ctx, file)
+		})
+	}
+	return g.Wait()
+}
+
 func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) error {
-	userMsg := fmt.Sprintf("政策标题：%s\n政策内容：%s\n\n请严格按以下格式返回JSON,不要附带其他内容：\n%s",
-		policy.Title,
-		toJSONString(policy.Requirements),
+	// 1. 确保所有法律依据文件有摘要（并发生成）
+	if err := s.ensureFileSummaries(ctx, policy); err != nil {
+		slog.Warn("ensure file summaries failed, continuing without summaries", "error", err)
+	}
+
+	// 2. 构建 userMsg
+	var msg string
+	msg += fmt.Sprintf("政策标题：%s\n", policy.Title)
+	msg += fmt.Sprintf("政策内容：%s\n", toJSONString(policy.Requirements))
+
+	// 3. 收集法律依据文件摘要
+	var legalSummaries []string
+	if policy.Requirements != nil {
+		for _, basis := range policy.Requirements.LegalBasis {
+			file, err := s.fileRepo.FindByID(basis.FileID)
+			if err == nil && file.Summary != "" {
+				legalSummaries = append(legalSummaries,
+					fmt.Sprintf("- %s：%s", basis.Title, file.Summary))
+			}
+		}
+	}
+	if len(legalSummaries) > 0 {
+		msg += "政策依据文件摘要：\n" + strings.Join(legalSummaries, "\n") + "\n"
+	}
+
+	msg += fmt.Sprintf("\n\n请严格按以下格式返回JSON，不要附带其他内容：\n%s",
 		`{"policy_name":"政策名称","applicable_industries":["适用行业列表"],"applicable_scales":["适用企业规模，如大型、中型、小型、微型"],"applicable_status":"适用企业状态，如：初创期、成长期","subsidy_type":"补贴类型，如：资金补贴、税收优惠","subsidy_amount":"补贴金额","subsidy_condition":"补贴的具体条件","applicable_region":"适用区域，比如安徽省合肥市蜀山区","required_documents":[所需材料清单]}`,
 	)
-	fields, err := chatAndParse[extractedFields](s, ctx, "extract", s.prompts.extract, userMsg, "AI提取结果解析失败")
+
+	fields, err := chatAndParse[extractedFields](s, ctx, "extract", s.prompts.extract, msg, "AI提取结果解析失败")
 	if err != nil {
 		return err
 	}
