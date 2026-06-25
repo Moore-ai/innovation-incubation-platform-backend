@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 
 	"innovation-incubation-platform-backend/config"
+	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/pkg/aiclient"
 	"innovation-incubation-platform-backend/pkg/errcode"
@@ -28,29 +30,62 @@ func chatAndParse[T any](s *AIService, ctx context.Context, opName, systemPrompt
 }
 
 type AIService struct {
-	client  *aiclient.Client
-	entRepo *repository.EnterpriseRepo
-	govRepo *repository.GovernmentRepo
-	prompts struct {
-		extract string
-		match   string
-		prefill string
+	client   *aiclient.Client
+	entRepo  *repository.EnterpriseRepo
+	govRepo  *repository.GovernmentRepo
+	fileRepo *repository.FileRepo
+	prompts  struct {
+		extract   string
+		match     string
+		prefill   string
+		summarize string
+	}
+	maxFileChars int
+}
+
+func NewAIService(client *aiclient.Client, entRepo *repository.EnterpriseRepo, govRepo *repository.GovernmentRepo, fileRepo *repository.FileRepo, cfg *config.Config) *AIService {
+	return &AIService{
+		client:   client,
+		entRepo:  entRepo,
+		govRepo:  govRepo,
+		fileRepo: fileRepo,
+		prompts: struct {
+			extract   string
+			match     string
+			prefill   string
+			summarize string
+		}{
+			extract:   cfg.AI.Prompts.Extract,
+			match:     cfg.AI.Prompts.Match,
+			prefill:   cfg.AI.Prompts.Prefill,
+			summarize: cfg.AI.Prompts.Summarize,
+		},
+		maxFileChars: cfg.AI.MaxFileChars,
 	}
 }
 
-func NewAIService(client *aiclient.Client, entRepo *repository.EnterpriseRepo, govRepo *repository.GovernmentRepo, cfg *config.Config) *AIService {
-	return &AIService{
-		client:  client,
-		entRepo: entRepo,
-		govRepo: govRepo,
-		prompts: struct {
-			extract string
-			match   string
-			prefill string
-		}{
-			extract: cfg.AI.Prompts.Extract,
-			match:   cfg.AI.Prompts.Match,
-			prefill: cfg.AI.Prompts.Prefill,
-		},
+type summaryResult struct {
+	Text string `json:"text"`
+}
+
+func (s *AIService) SummarizeFile(ctx context.Context, file *model.File) error {
+	text := file.RawText
+	if text == "" {
+		return nil
 	}
+	if s.maxFileChars > 0 && len(text) > s.maxFileChars {
+		text = text[:s.maxFileChars]
+	}
+	result, err := chatAndParse[summaryResult](s, ctx, "summarize", s.prompts.summarize,
+		fmt.Sprintf("请概括以下政策文件的核心内容：\n\n%s", text),
+		"AI摘要生成失败")
+	if err != nil {
+		return err
+	}
+	file.Summary = result.Text
+	if err := s.fileRepo.UpdateSummary(file.ID, result.Text); err != nil {
+		slog.Error("file update summary failed", "file_id", file.ID, "error", err)
+		return err
+	}
+	return nil
 }
