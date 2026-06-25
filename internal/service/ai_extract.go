@@ -13,19 +13,6 @@ import (
 	"innovation-incubation-platform-backend/internal/model"
 )
 
-type extractedFields struct {
-	PolicyName           string   `json:"policy_name"`           // 政策名称
-	PolicySummary        string   `json:"policy_summary"`        // 政策概括
-	ApplicableIndustries []string `json:"applicable_industries"` // 适用行业
-	ApplicableScales     []string `json:"applicable_scales"`     // 适用企业规模
-	ApplicableStatus     string   `json:"applicable_status"`     // 适用企业状态（如：初创期、成长期）
-	SubsidyType          string   `json:"subsidy_type"`          // 补贴类型（如：资金补贴、税收优惠）
-	SubsidyAmount        string   `json:"subsidy_amount"`        // 补贴金额
-	SubsidyCondition     string   `json:"subsidy_condition"`     // 补贴条件
-	ApplicableRegion     string   `json:"applicable_region"`     // 适用区域；也可能是 JSON 数组
-	RequiredDocuments    []string `json:"required_documents"`    // 所需材料清单
-}
-
 func (s *AIService) collectFileSummaries(ctx context.Context, policy *model.Policy) []string {
 	if policy.Requirements == nil {
 		return nil
@@ -78,14 +65,11 @@ func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) err
 		`{"policy_name":"政策名称","policy_summary":"政策概括，200字以内","applicable_industries":["适用行业列表"],"applicable_scales":["适用企业规模，如大型、中型、小型、微型"],"applicable_status":"适用企业状态，如：初创期、成长期","subsidy_type":"补贴类型","subsidy_amount":"补贴金额","subsidy_condition":"补贴的具体条件","applicable_region":"适用区域","required_documents":["所需材料清单"]}`,
 	)
 
-	fields, err := chatAndParse[extractedFields](s, ctx, "extract", s.prompts.extract, msg, "AI提取结果解析失败")
+	fields, err := chatAndParse[model.ExtractedPolicy](s, ctx, "extract", s.prompts.extract, msg, "AI提取结果解析失败")
 	if err != nil {
 		return err
 	}
-	b, _ := json.Marshal(fields)
-	var extracted model.JSONMap
-	json.Unmarshal(b, &extracted)
-	policy.ExtractedFields = extracted
+	policy.ExtractedFields = fields
 	return nil
 }
 

@@ -4,9 +4,9 @@ import "time"
 
 type PolicyTemplate struct {
 	BaseModel
-	Name        string     `gorm:"size:255;not null" json:"name"`
-	Description string     `gorm:"type:text" json:"description"`
-	FormSchema  JSONMap    `gorm:"type:jsonb" json:"form_schema"`
+	Name        string  `gorm:"size:255;not null" json:"name"`
+	Description string  `gorm:"type:text" json:"description"`
+	FormSchema  JSONMap `gorm:"type:jsonb" json:"form_schema"`
 }
 
 func (PolicyTemplate) TableName() string { return "policy_templates" }
@@ -20,7 +20,21 @@ type Policy struct {
 	EndDate         string             `gorm:"size:32" json:"end_date"`
 	Status          PolicyStatus       `gorm:"size:16;default:draft" json:"status"`
 	PublishedAt     *time.Time         `json:"published_at"`
-	ExtractedFields JSONMap            `gorm:"type:jsonb" json:"extracted_fields"`
+	ExtractedFields *ExtractedPolicy   `gorm:"type:jsonb" json:"extracted_fields"`
+}
+
+// ExtractedPolicy AI 从政策内容中提取的结构化检索字段
+type ExtractedPolicy struct {
+	PolicyName           string   `json:"policy_name"`
+	PolicySummary        string   `json:"policy_summary"`
+	ApplicableIndustries []string `json:"applicable_industries"`
+	ApplicableScales     []string `json:"applicable_scales"`
+	ApplicableStatus     string   `json:"applicable_status"`
+	SubsidyType          string   `json:"subsidy_type"`
+	SubsidyAmount        string   `json:"subsidy_amount"`
+	SubsidyCondition     string   `json:"subsidy_condition"`
+	ApplicableRegion     string   `json:"applicable_region"`
+	RequiredDocuments    []string `json:"required_documents"`
 }
 
 func (Policy) TableName() string { return "policies" }
