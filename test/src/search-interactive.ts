@@ -49,12 +49,17 @@ async function main() {
     console.log("\n正在搜索...");
     const res = await api.post("/enterprise/policies/search", { query });
     if (res.code === 0) {
-      const list = res.data || [];
+      const result = res.data || {};
+      const list = result.policies || [];
+      const analysis = result.analysis || "";
+      if (analysis) {
+        console.log(`\n🔍 AI 分析：\n${analysis}\n`);
+      }
       if (list.length === 0) {
         console.log("未找到匹配的政策。\n");
         continue;
       }
-      console.log(`\n找到 ${list.length} 条匹配政策（按匹配度排序）：`);
+      console.log(`\n找到 ${list.length} 条匹配政策：`);
       console.log("=".repeat(60));
       for (let i = 0; i < list.length; i++) {
         const p = list[i];

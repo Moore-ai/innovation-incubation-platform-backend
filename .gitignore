@@ -2,6 +2,7 @@ bin/
 log/
 *.md
 *.exe
+*.exe~
 .DS_Store
 config/config.yaml
 .env
