@@ -30,11 +30,12 @@ func chatAndParse[T any](s *AIService, ctx context.Context, opName, systemPrompt
 }
 
 type AIService struct {
-	client   *aiclient.Client
-	entRepo  *repository.EnterpriseRepo
-	govRepo  *repository.GovernmentRepo
-	fileRepo *repository.FileRepo
-	prompts  struct {
+	client       *aiclient.Client
+	entRepo      *repository.EnterpriseRepo
+	govRepo      *repository.GovernmentRepo
+	fileRepo     *repository.FileRepo
+	fileMatchCfg config.FileMatchConfig
+	prompts      struct {
 		extract   string
 		match     string
 		prefill   string
@@ -49,6 +50,7 @@ func NewAIService(client *aiclient.Client, entRepo *repository.EnterpriseRepo, g
 		entRepo:  entRepo,
 		govRepo:  govRepo,
 		fileRepo: fileRepo,
+		fileMatchCfg: cfg.FileMatch,
 		prompts: struct {
 			extract   string
 			match     string
