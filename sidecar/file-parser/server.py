@@ -20,11 +20,7 @@ async def convert(file: UploadFile = File(...), ext: str = Form("")):
 
 
 if __name__ == "__main__":
-    sock_path = sys.argv[1]
-    os.makedirs(os.path.dirname(sock_path), exist_ok=True)
-    if os.path.exists(sock_path):
-        os.remove(sock_path)
-
-    config = uvicorn.Config(app, uds=sock_path, log_level="info")
+    port = int(sys.argv[1])
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="info")
     server = uvicorn.Server(config)
     server.run()

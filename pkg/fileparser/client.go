@@ -9,7 +9,10 @@ import (
 	"net/http"
 )
 
-var globalClient *http.Client
+var (
+	globalClient    *http.Client
+	sidecarBaseURL string // 如 "http://127.0.0.1:54321"
+)
 
 type convertResponse struct {
 	Markdown string `json:"markdown"`
@@ -28,7 +31,7 @@ func parseViaSidecar(r io.Reader, ext string) (string, error) {
 	w.WriteField("ext", ext)
 	w.Close()
 
-	resp, err := globalClient.Post("http://unix/convert", w.FormDataContentType(), body)
+	resp, err := globalClient.Post(sidecarBaseURL+"/convert", w.FormDataContentType(), body)
 	if err != nil {
 		return "", fmt.Errorf("sidecar call failed: %w", err)
 	}

@@ -2,8 +2,6 @@ package fileparser
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net"
@@ -11,15 +9,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"innovation-incubation-platform-backend/config"
 )
 
 type Sidecar struct {
-	cmd      *exec.Cmd
-	sockPath string
-	cfg      config.FileParserConfig
+	cmd  *exec.Cmd
+	port int
+	cfg  config.FileParserConfig
 }
 
 func NewSidecar(cfg config.FileParserConfig) *Sidecar {
@@ -31,16 +30,13 @@ func (s *Sidecar) Start(ctx context.Context) error {
 		return fmt.Errorf("sidecar disabled by config")
 	}
 
-	randBytes := make([]byte, 8)
-	if _, err := rand.Read(randBytes); err != nil {
-		return fmt.Errorf("generate socket id: %w", err)
+	// 找随机空闲端口
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return fmt.Errorf("find free port: %w", err)
 	}
-	sockFile := "fileparser-" + hex.EncodeToString(randBytes) + ".sock"
-	sockDir := s.cfg.SocketDir
-	if sockDir == "" {
-		sockDir = os.TempDir()
-	}
-	s.sockPath = filepath.Join(sockDir, sockFile)
+	s.port = listener.(*net.TCPListener).Addr().(*net.TCPAddr).Port
+	listener.Close()
 
 	pythonPath := filepath.Join(s.cfg.VenvPath, "bin", "python")
 	if _, err := os.Stat(pythonPath); err != nil {
@@ -53,26 +49,28 @@ func (s *Sidecar) Start(ctx context.Context) error {
 		}
 	}
 
-	s.cmd = exec.Command(pythonPath, s.cfg.ScriptPath, s.sockPath)
+	portStr := strconv.Itoa(s.port)
+	s.cmd = exec.Command(pythonPath, s.cfg.ScriptPath, portStr)
 	s.cmd.Stderr = os.Stderr
 	if err := s.cmd.Start(); err != nil {
 		return fmt.Errorf("sidecar start failed: %w", err)
 	}
 
+	// 轮询等待 TCP 就绪
+	addr := fmt.Sprintf("127.0.0.1:%d", s.port)
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("unix", s.sockPath, 500*time.Millisecond)
+		conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
 		if err == nil {
 			conn.Close()
+			sidecarBaseURL = fmt.Sprintf("http://127.0.0.1:%d", s.port)
 			globalClient = &http.Client{
 				Transport: &http.Transport{
-					DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-						return net.Dial("unix", s.sockPath)
-					},
+					DialContext: (&net.Dialer{}).DialContext,
 				},
 				Timeout: time.Duration(s.cfg.TimeoutSec) * time.Second,
 			}
-			slog.Info("file parser sidecar ready", "socket", s.sockPath)
+			slog.Info("file parser sidecar ready", "addr", addr)
 			return nil
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -98,9 +96,6 @@ func (s *Sidecar) Stop() error {
 	case <-time.After(5 * time.Second):
 		s.cmd.Process.Kill()
 		<-done
-	}
-	if s.sockPath != "" {
-		os.Remove(s.sockPath)
 	}
 	return nil
 }
