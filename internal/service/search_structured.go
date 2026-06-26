@@ -136,7 +136,11 @@ func (s *StructuredSearch) searchPolicies(ctx context.Context, criteria *SearchC
 	var args []any
 	var orParts []string
 	for _, sc := range scores {
-		orParts = append(orParts, fmt.Sprintf("extracted_fields->>'%s' ILIKE ?", sc.field))
+		if sc.field == "subsidy_amount" {
+			orParts = append(orParts, `EXISTS (SELECT 1 FROM jsonb_array_elements(extracted_fields->'subsidies') AS s WHERE s->>'amount' ILIKE ?)`)
+		} else {
+			orParts = append(orParts, fmt.Sprintf("extracted_fields->>'%s' ILIKE ?", sc.field))
+		}
 		args = append(args, "%"+sc.keyword+"%")
 	}
 	args = append(args, string(model.PolicyPublished))
@@ -177,7 +181,15 @@ func (s *StructuredSearch) analyzeResults(ctx context.Context, query string, ent
 		deadline := ""
 		if ef != nil {
 			summary = ef.PolicySummary
-			amount = ef.SubsidyAmount
+			if len(ef.Subsidies) > 0 {
+				var amts []string
+				for _, s := range ef.Subsidies {
+					if s.Amount != "" {
+						amts = append(amts, s.Amount)
+					}
+				}
+				amount = strings.Join(amts, ",")
+			}
 		}
 		if p.EndDate != "" {
 			deadline = p.EndDate

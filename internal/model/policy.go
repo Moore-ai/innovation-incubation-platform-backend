@@ -2,10 +2,59 @@ package model
 
 import (
 	"database/sql/driver"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math"
+	"strconv"
+	"strings"
 	"time"
 )
+
+// PGVector 表示 PostgreSQL pgvector 扩展的向量类型
+type PGVector []float32
+
+// Scan implements sql.Scanner for pgvector binary format.
+// pgvector binary: [2B flags][2B reserved][N x 4B float32 BE]
+func (v *PGVector) Scan(src any) error {
+	if src == nil {
+		*v = nil
+		return nil
+	}
+	switch s := src.(type) {
+	case []byte:
+		data := s[4:] // skip flags + reserved
+		n := len(data) / 4
+		*v = make(PGVector, n)
+		for i := range n {
+			bits := binary.BigEndian.Uint32(data[i*4 : (i+1)*4])
+			(*v)[i] = math.Float32frombits(bits)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported pgvector type: %T", src)
+	}
+}
+
+// Value implements driver.Valuer for pgvector binary format.
+func (v PGVector) Value() (driver.Value, error) {
+	buf := make([]byte, 4+4*len(v))
+	binary.BigEndian.PutUint16(buf[0:2], 1) // flags
+	// buf[2:4] reserved
+	for i, f := range v {
+		binary.BigEndian.PutUint32(buf[4+i*4:4+(i+1)*4], math.Float32bits(f))
+	}
+	return buf, nil
+}
+
+// String implements fmt.Stringer, returns "[f1,f2,...]" format.
+func (v PGVector) String() string {
+	s := make([]string, len(v))
+	for i, f := range v {
+		s[i] = strconv.FormatFloat(float64(f), 'f', -1, 32)
+	}
+	return "[" + strings.Join(s, ",") + "]"
+}
 
 type PolicyTemplate struct {
 	BaseModel
@@ -25,45 +74,52 @@ type Policy struct {
 	EndDate         string             `gorm:"size:32" json:"end_date"`
 	Status          PolicyStatus       `gorm:"size:16;default:draft" json:"status"`
 	PublishedAt     *time.Time         `json:"published_at"`
+	Embedding       PGVector           `gorm:"type:vector(1024)" json:"-"`
 	ExtractedFields *ExtractedPolicy   `gorm:"type:jsonb" json:"extracted_fields"`
+}
+
+type SubsidyDetail struct {
+	Condition string   `json:"condition"`
+	Amount    string   `json:"amount"`
+	AmountMin *float64 `json:"amount_min,omitempty"`
+	AmountMax *float64 `json:"amount_max,omitempty"`
 }
 
 // ExtractedPolicy AI 从政策内容中提取的结构化检索字段
 type ExtractedPolicy struct {
-	PolicyName           string   `json:"policy_name"`
-	PolicySummary        string   `json:"policy_summary"`
-	ApplicableIndustries []string `json:"applicable_industries"`
-	ApplicableScales     []string `json:"applicable_scales"`
-	ApplicableStatus     string   `json:"applicable_status"`
-	SubsidyType          string   `json:"subsidy_type"`
-	SubsidyAmount        string   `json:"subsidy_amount"`
-	SubsidyCondition     string   `json:"subsidy_condition"`
-	ApplicableRegion     string   `json:"applicable_region"`
-	RequiredDocuments    []string `json:"required_documents"`
+	PolicyName           string          `json:"policy_name"`
+	PolicySummary        string          `json:"policy_summary"`
+	ApplicableIndustries []string        `json:"applicable_industries"`
+	ApplicableScales     []string        `json:"applicable_scales"`
+	ApplicableStatus     string          `json:"applicable_status"`
+	SubsidyType          string          `json:"subsidy_type"`
+	Subsidies            []SubsidyDetail `json:"subsidies"`
+	ApplicableRegion     string          `json:"applicable_region"`
+	RequiredDocuments    []string        `json:"required_documents"`
 }
 
 // Scan implements sql.Scanner for JSONB deserialization.
 func (e *ExtractedPolicy) Scan(src any) error {
-    if src == nil {
-        *e = ExtractedPolicy{}
-        return nil
-    }
-    switch v := src.(type) {
-    case []byte:
-        return json.Unmarshal(v, e)
-    case string:
-        return json.Unmarshal([]byte(v), e)
-    default:
-        return fmt.Errorf("unsupported type: %T", src)
-    }
+	if src == nil {
+		*e = ExtractedPolicy{}
+		return nil
+	}
+	switch v := src.(type) {
+	case []byte:
+		return json.Unmarshal(v, e)
+	case string:
+		return json.Unmarshal([]byte(v), e)
+	default:
+		return fmt.Errorf("unsupported type: %T", src)
+	}
 }
 
 // Value implements driver.Valuer for JSONB serialization.
 func (e *ExtractedPolicy) Value() (driver.Value, error) {
-    if e == nil {
-        return nil, nil
-    }
-    return json.Marshal(e)
+	if e == nil {
+		return nil, nil
+	}
+	return json.Marshal(e)
 }
 
 func (Policy) TableName() string { return "policies" }
