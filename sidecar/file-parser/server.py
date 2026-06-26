@@ -1,5 +1,6 @@
 import sys
 import os
+from io import BytesIO
 from fastapi import FastAPI, UploadFile, File, Form
 from markitdown import MarkItDown
 import uvicorn
@@ -12,7 +13,7 @@ converter = MarkItDown()
 async def convert(file: UploadFile = File(...), ext: str = Form("")):
     content = await file.read()
     try:
-        result = converter.convert(content, extension=ext)
+        result = converter.convert(BytesIO(content), extension=ext)
         return {"markdown": result.text_content}
     except Exception as e:
         return {"error": str(e)}
