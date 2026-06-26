@@ -4,38 +4,29 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os/exec"
 	"strings"
 )
 
-var pandocAvailable bool
-
-func init() {
-	_, err := exec.LookPath("pandoc")
-	if err != nil {
-		slog.Warn("pandoc not found in PATH, .docx via pandoc not available")
-		pandocAvailable = false
-	} else {
-		pandocAvailable = true
-	}
-}
-
 func Parse(r io.Reader, size int64, ext string) (string, error) {
-	switch strings.ToLower(ext) {
+	ext = strings.ToLower(ext)
+
+	// 优先 sidecar
+	md, err := parseViaSidecar(r, ext)
+	if err == nil {
+		return md, nil
+	}
+	slog.Warn("sidecar parse failed, falling back to local", "ext", ext, "error", err)
+
+	// 降级：仅 .pdf / .docx
+	ra, ok := r.(io.ReaderAt)
+	if !ok {
+		return "", fmt.Errorf("local parser requires io.ReaderAt")
+	}
+	switch ext {
 	case ".docx":
-		ra, ok := r.(io.ReaderAt)
-		if !ok {
-			return "", fmt.Errorf("docx parser requires io.ReaderAt")
-		}
 		return parseDOCX(ra, size)
 	case ".pdf":
-		ra, ok := r.(io.ReaderAt)
-		if !ok {
-			return "", fmt.Errorf("pdf parser requires io.ReaderAt")
-		}
 		return parsePDF(ra, size)
-	case ".doc":
-		return "", fmt.Errorf("unsupported format: .doc (old binary), please convert to .docx or .pdf")
 	default:
 		return "", fmt.Errorf("unsupported file extension: %s", ext)
 	}
