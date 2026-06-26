@@ -9,6 +9,7 @@ import (
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/repository"
+	"innovation-incubation-platform-backend/pkg/aiclient"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/statemachine"
 
@@ -19,15 +20,17 @@ type GovernmentService struct {
 	repo         *repository.GovernmentRepo
 	deletionRepo *repository.DeletionRepo
 	followRepo   *repository.PolicyFollowRepo
+	fileRepo     *repository.FileRepo
 	db           *gorm.DB
 	sm           *statemachine.StateMachine
 	policySM     *statemachine.StateMachine
 	aiSvc        *AIService
 	notifSvc     *NotificationService
+	embedClient  *aiclient.EmbeddingClient
 }
 
-func NewGovernmentService(repo *repository.GovernmentRepo, deletionRepo *repository.DeletionRepo, followRepo *repository.PolicyFollowRepo, db *gorm.DB, aiSvc *AIService, notifSvc *NotificationService) *GovernmentService {
-	return &GovernmentService{repo: repo, deletionRepo: deletionRepo, followRepo: followRepo, db: db, sm: statemachine.DefaultApprovalSM(), policySM: statemachine.PolicyApprovalSM(), aiSvc: aiSvc, notifSvc: notifSvc}
+func NewGovernmentService(repo *repository.GovernmentRepo, deletionRepo *repository.DeletionRepo, followRepo *repository.PolicyFollowRepo, db *gorm.DB, aiSvc *AIService, notifSvc *NotificationService, fileRepo *repository.FileRepo, embedClient *aiclient.EmbeddingClient) *GovernmentService {
+	return &GovernmentService{repo: repo, deletionRepo: deletionRepo, followRepo: followRepo, fileRepo: fileRepo, db: db, sm: statemachine.DefaultApprovalSM(), policySM: statemachine.PolicyApprovalSM(), aiSvc: aiSvc, notifSvc: notifSvc, embedClient: embedClient}
 }
 
 func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishPolicyReq) (*model.Policy, error) {
@@ -71,6 +74,24 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 
 	if err := s.aiSvc.ExtractPolicy(ctx, p); err != nil {
 		return nil, errcode.ErrAIService.WithMsg("AI提取政策字段失败，请重试")
+	}
+	// 同步生成 embedding
+	if s.embedClient != nil {
+		var legalFiles []model.File
+		if p.Requirements != nil {
+			for _, basis := range p.Requirements.LegalBasis {
+				f, _ := s.fileRepo.FindByID(basis.FileID)
+				if f != nil {
+					legalFiles = append(legalFiles, *f)
+				}
+			}
+		}
+		emb, err := s.embedClient.Embed(ctx, buildEmbeddingText(p, legalFiles))
+		if err != nil {
+			slog.Warn("embedding failed", "policy_id", p.ID, "error", err)
+		} else {
+			p.Embedding = emb
+		}
 	}
 	if err := s.repo.CreatePolicy(p); err != nil {
 		return nil, errcode.ErrInternal
@@ -147,6 +168,24 @@ func (s *GovernmentService) UpdatePolicy(ctx context.Context, policyID uint, req
 	if err := s.aiSvc.ExtractPolicy(ctx, p); err != nil {
 		slog.Error("AI extract policy failed after update", "policy_id", policyID, "error", err)
 		// Don't fail the update — the policy fields are saved even if AI extraction fails
+	}
+	// 同步生成 embedding
+	if s.embedClient != nil {
+		var legalFiles []model.File
+		if p.Requirements != nil {
+			for _, basis := range p.Requirements.LegalBasis {
+				f, _ := s.fileRepo.FindByID(basis.FileID)
+				if f != nil {
+					legalFiles = append(legalFiles, *f)
+				}
+			}
+		}
+		emb, err := s.embedClient.Embed(ctx, buildEmbeddingText(p, legalFiles))
+		if err != nil {
+			slog.Warn("embedding failed", "policy_id", p.ID, "error", err)
+		} else {
+			p.Embedding = emb
+		}
 	}
 	if err := s.repo.UpdatePolicy(p); err != nil {
 		return errcode.ErrInternal

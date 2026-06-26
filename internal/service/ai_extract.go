@@ -62,7 +62,7 @@ func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) err
 	}
 
 	msg += fmt.Sprintf("\n\n严格按照以下 JSON 格式返回（字符串字段必须用双引号括起来，数组字段必须用方括号），不要附带其他内容：\n%s",
-		`{"policy_name":"政策名称","policy_summary":"政策概括，200字以内","applicable_industries":["适用行业列表"],"applicable_scales":["适用企业规模，如大型、中型、小型、微型"],"applicable_status":"适用企业状态，如：初创期、成长期","subsidy_type":"补贴类型","subsidy_amount":"补贴金额","subsidy_condition":"补贴的具体条件","applicable_region":"适用区域","required_documents":["所需材料清单"]}`,
+		`{"policy_name":"政策名称","policy_summary":"政策概括，200字以内","applicable_industries":["适用行业列表"],"applicable_scales":["适用企业规模，如大型、中型、小型、微型"],"applicable_status":"适用企业状态，如：初创期、成长期","subsidy_type":"补贴类型","subsidies":[{"condition":"补贴条件","amount":"补贴金额","amount_min":数值(纯数字,省略单位万),"amount_max":数值(纯数字,省略单位万)}],"applicable_region":"适用区域","required_documents":["所需材料清单"]}`,
 	)
 
 	fields, err := chatAndParse[model.ExtractedPolicy](s, ctx, "extract", s.prompts.extract, msg, "AI提取结果解析失败")
@@ -97,4 +97,35 @@ func toJSONString(v any) string {
 		return "{}"
 	}
 	return string(b)
+}
+
+// buildEmbeddingText 从政策结构和法律依据文件摘要拼接 embedding 文本。
+func buildEmbeddingText(p *model.Policy, legalFiles []model.File) string {
+	var parts []string
+	parts = append(parts, p.Title)
+	if p.ExtractedFields != nil {
+		if p.ExtractedFields.PolicySummary != "" {
+			parts = append(parts, p.ExtractedFields.PolicySummary)
+		}
+		for _, s := range p.ExtractedFields.Subsidies {
+			parts = append(parts, "补贴："+s.Condition+"，"+s.Amount)
+		}
+	}
+	if p.Requirements != nil {
+		if p.Requirements.ApplicationCondition != nil {
+			parts = append(parts, *p.Requirements.ApplicationCondition)
+		}
+		if p.Requirements.FulfillmentCriteria != nil {
+			parts = append(parts, *p.Requirements.FulfillmentCriteria)
+		}
+		if p.Requirements.Process != nil {
+			parts = append(parts, *p.Requirements.Process)
+		}
+	}
+	for _, f := range legalFiles {
+		if f.Summary != "" {
+			parts = append(parts, f.Summary)
+		}
+	}
+	return strings.Join(parts, "。")
 }

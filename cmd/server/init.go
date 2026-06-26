@@ -74,12 +74,17 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 
 	searchSvc := service.NewStructuredSearch(aiSvc, db, cfg.Search)
 
+	var embedClient *aiclient.EmbeddingClient
+	if cfg.AI.Embedding.APIKey != "" {
+		embedClient = aiclient.NewEmbeddingClient(cfg.AI.Embedding)
+	}
+
 	return &services{
 		auth:    service.NewAuthService(r.auth, cfg.JWT),
 		ent:     service.NewEnterpriseService(r.ent, r.carrier, r.common, db, notifSvc, assigner, r.policyFollow),
 		ai:      aiSvc,
 		carrier: service.NewCarrierService(r.carrier, r.common, db, notifSvc, assigner),
-		gov:     service.NewGovernmentService(r.gov, r.deletion, r.policyFollow, db, aiSvc, notifSvc),
+		gov:     service.NewGovernmentService(r.gov, r.deletion, r.policyFollow, db, aiSvc, notifSvc, r.file, embedClient),
 		notif:   notifSvc,
 		file:    fileSvc,
 		search:  searchSvc,
