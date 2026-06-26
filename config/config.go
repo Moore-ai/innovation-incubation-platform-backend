@@ -23,6 +23,15 @@ type Config struct {
 	Notification NotificationConfig `mapstructure:"notification"`
 	FileMatch    FileMatchConfig    `mapstructure:"filematch"`
 	Search       SearchConfig       `mapstructure:"search"`
+	FileParser   FileParserConfig   `mapstructure:"file_parser"`
+}
+
+type FileParserConfig struct {
+	Enabled    bool   `mapstructure:"enabled"`
+	VenvPath   string `mapstructure:"venv_path"`
+	ScriptPath string `mapstructure:"script_path"`
+	TimeoutSec int    `mapstructure:"timeout_sec"`
+	SocketDir  string `mapstructure:"socket_dir"`
 }
 
 type FileMatchConfig struct {
@@ -196,6 +205,12 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("search.vector.top_k", 20)
 	v.SetDefault("search.vector.min_score", 0.7)
 	v.SetDefault("search.vector.max_analysis", 5)
+
+	v.SetDefault("file_parser.enabled", true)
+	v.SetDefault("file_parser.venv_path", "sidecar/file-parser/venv")
+	v.SetDefault("file_parser.script_path", "sidecar/file-parser/server.py")
+	v.SetDefault("file_parser.timeout_sec", 30)
+	v.SetDefault("file_parser.socket_dir", "")
 
 	if err := v.ReadConfig(bytes.NewReader([]byte(expanded))); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
