@@ -45,7 +45,7 @@ func (s *StructuredSearch) Search(ctx context.Context, userID uint, query string
 	}
 
 	// 4. AI 精排 + 分析
-	analysis, rankedIDs := s.analyzeResults(ctx, query, ent, policies)
+	analysis, rankedIDs, effect := s.analyzeResults(ctx, query, ent, policies)
 
 	// 5. 按 AI 输出的 ranked_ids 重排，未列出的放在末尾
 	if len(rankedIDs) > 0 {
@@ -69,7 +69,7 @@ func (s *StructuredSearch) Search(ctx context.Context, userID uint, query string
 		policies = ranked
 	}
 
-	return &SearchResult{Policies: policies, Analysis: analysis, RankedIDs: rankedIDs}, nil
+	return &SearchResult{Policies: policies, Analysis: analysis, RankedIDs: rankedIDs, Effect: effect}, nil
 }
 
 func (s *StructuredSearch) analyzeQuery(ctx context.Context, query string, ent *model.Enterprise) (*SearchCriteria, error) {
@@ -151,7 +151,7 @@ func (s *StructuredSearch) searchPolicies(ctx context.Context, criteria *SearchC
 	return policies, nil
 }
 
-func (s *StructuredSearch) analyzeResults(ctx context.Context, query string, ent *model.Enterprise, policies []model.Policy) (string, []uint) {
+func (s *StructuredSearch) analyzeResults(ctx context.Context, query string, ent *model.Enterprise, policies []model.Policy) (string, []uint, string) {
 	// 只分析前 5 条，避免过长
 	if len(policies) > 5 {
 		policies = policies[:5]
@@ -164,9 +164,9 @@ func (s *StructuredSearch) analyzeResults(ctx context.Context, query string, ent
 		result, err := chatAndParse[analysisResult](s.aiSvc, ctx, "search_analysis", s.aiSvc.prompts.search,
 			userMsg, "AI分析失败")
 		if err != nil {
-			return "", nil
+			return "", nil, ""
 		}
-		return result.Text, nil
+		return result.Text, nil, ""
 	}
 
 	var policyBriefs []string
@@ -191,8 +191,9 @@ func (s *StructuredSearch) analyzeResults(ctx context.Context, query string, ent
 			"请分析这些政策是否真正满足用户需求（尤其是金额、时间等精确条件）。\n"+
 			"如果满足，给出个性化的推荐理由和注意事项（包括补贴金额是否匹配、截止时间是否充裕等）；\n"+
 			"如果不满足，说明具体原因（如金额超出预算、截止时间太近等）。\n"+
+			"全部分析完成后，综合、系统性地评估一下本次检索的效果，以高、一般、低做评价。\n"+
 			"严格按照以下 JSON 格式返回，不要附带其他内容：\n"+
-			`{"text":"你的分析内容，200字以内","ranked_ids":[最匹配的ID,按推荐度降序]}`,
+			`{"text":"你的分析内容，200字以内","ranked_ids":[最匹配的ID,按推荐度降序],"effect":"high、partial或者low，分别代表高、一般、低，用于评估本次检索的效果"}`,
 		ent.Industry, ent.Scale, ent.Address, query,
 		strings.Join(policyBriefs, "\n"),
 	)
@@ -200,12 +201,13 @@ func (s *StructuredSearch) analyzeResults(ctx context.Context, query string, ent
 	result, err := chatAndParse[analysisResult](s.aiSvc, ctx, "search_analysis", s.aiSvc.prompts.search,
 		userMsg, "AI分析失败")
 	if err != nil {
-		return "", nil
+		return "", nil, ""
 	}
-		return result.Text, result.RankedIDs
+	return result.Text, result.RankedIDs, result.Effect
 }
 
 type analysisResult struct {
 	Text      string `json:"text"`
 	RankedIDs []uint `json:"ranked_ids"`
+	Effect    string `json:"effect"`
 }

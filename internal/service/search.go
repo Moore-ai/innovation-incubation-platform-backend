@@ -11,6 +11,7 @@ type SearchResult struct {
 	Policies  []model.Policy `json:"policies"`
 	Analysis  string         `json:"analysis"`
 	RankedIDs []uint         `json:"ranked_ids,omitempty"`
+	Effect    string         `json:"effect"`
 }
 
 // PolicySearch 政策搜索器 — 可插拔，通过配置切换实现
