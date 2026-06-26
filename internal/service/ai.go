@@ -125,15 +125,20 @@ func (s *AIService) AnalyzeSearchResults(ctx context.Context, query string, ent 
 
 	var briefs []string
 	for _, p := range policies {
-		ef := p.ExtractedFields
 		title, amount, deadline := p.Title, "", ""
-		if ef != nil {
-			amount = ef.SubsidyType
+		if ef := p.ExtractedFields; ef != nil {
+			var amts []string
+			for _, s := range ef.Subsidies {
+				if s.Amount != "" {
+					amts = append(amts, s.Amount)
+				}
+			}
+			amount = strings.Join(amts, ",")
 		}
 		if p.EndDate != "" {
 			deadline = p.EndDate
 		}
-		briefs = append(briefs, fmt.Sprintf("[%d]「%s」补贴%s，截止%s，概要:%s", p.ID, title, amount, deadline, p.ExtractedFields.PolicySummary))
+		briefs = append(briefs, fmt.Sprintf("[%d]「%s」补贴%s，截止%s", p.ID, title, amount, deadline))
 	}
 
 	userMsg := fmt.Sprintf(

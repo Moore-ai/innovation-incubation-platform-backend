@@ -2,6 +2,7 @@ package aiclient
 
 import (
 	"context"
+	"fmt"
 	openai "github.com/sashabaranov/go-openai"
 
 	"innovation-incubation-platform-backend/config"
@@ -28,6 +29,9 @@ func (c *EmbeddingClient) Embed(ctx context.Context, text string) ([]float32, er
 	})
 	if err != nil {
 		return nil, err
+	}
+	if len(resp.Data) == 0 {
+		return nil, fmt.Errorf("embedding API returned empty data")
 	}
 	return resp.Data[0].Embedding, nil
 }
