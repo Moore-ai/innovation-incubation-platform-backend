@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	globalClient    *http.Client
+	globalClient   *http.Client
 	sidecarBaseURL string // 如 "http://127.0.0.1:54321"
 )
 
@@ -26,9 +26,13 @@ func parseViaSidecar(r io.Reader, ext string) (string, error) {
 
 	body := &bytes.Buffer{}
 	w := multipart.NewWriter(body)
-	filePart, _ := w.CreateFormFile("file", "file"+ext)
-	io.Copy(filePart, r)
-	w.WriteField("ext", ext)
+	filePart, err := w.CreateFormFile("file", "file"+ext)
+	if err != nil {
+		return "", fmt.Errorf("sidecar create form: %w", err)
+	}
+	if _, err := io.Copy(filePart, r); err != nil {
+		return "", fmt.Errorf("sidecar copy body: %w", err)
+	}
 	w.Close()
 
 	resp, err := globalClient.Post(sidecarBaseURL+"/convert", w.FormDataContentType(), body)

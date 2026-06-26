@@ -60,14 +60,17 @@ func (s *Sidecar) Start(ctx context.Context) error {
 	addr := fmt.Sprintf("127.0.0.1:%d", s.port)
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			s.cmd.Process.Kill()
+			return ctx.Err()
+		default:
+		}
 		conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
 		if err == nil {
 			conn.Close()
 			sidecarBaseURL = fmt.Sprintf("http://127.0.0.1:%d", s.port)
 			globalClient = &http.Client{
-				Transport: &http.Transport{
-					DialContext: (&net.Dialer{}).DialContext,
-				},
 				Timeout: time.Duration(s.cfg.TimeoutSec) * time.Second,
 			}
 			slog.Info("file parser sidecar ready", "addr", addr)

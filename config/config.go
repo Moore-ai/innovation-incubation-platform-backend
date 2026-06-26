@@ -31,7 +31,6 @@ type FileParserConfig struct {
 	VenvPath   string `mapstructure:"venv_path"`
 	ScriptPath string `mapstructure:"script_path"`
 	TimeoutSec int    `mapstructure:"timeout_sec"`
-	SocketDir  string `mapstructure:"socket_dir"`
 }
 
 type FileMatchConfig struct {
@@ -210,7 +209,6 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("file_parser.venv_path", "sidecar/file-parser/venv")
 	v.SetDefault("file_parser.script_path", "sidecar/file-parser/server.py")
 	v.SetDefault("file_parser.timeout_sec", 30)
-	v.SetDefault("file_parser.socket_dir", "")
 
 	if err := v.ReadConfig(bytes.NewReader([]byte(expanded))); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
