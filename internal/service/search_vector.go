@@ -65,7 +65,11 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 	}
 
 	// AI 精排
-	analysis, rankedIDs, effect := s.aiSvc.AnalyzeSearchResults(ctx, query, ent, embedded)
+	analysisResult, err := s.aiSvc.AnalyzeSearchResults(ctx, query, ent, embedded)
+	if err != nil {
+		return nil, err
+	}
+	rankedIDs := analysisResult.RankedIDs
 
 	// 按 rankedIDs 重排
 	if len(rankedIDs) > 0 {
@@ -88,5 +92,10 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 		embedded = ranked
 	}
 
-	return &SearchResult{Policies: embedded, Analysis: analysis, RankedIDs: rankedIDs, Effect: effect}, nil
+	return &SearchResult{
+		Policies:  embedded,
+		Analysis:  analysisResult.Text,
+		RankedIDs: rankedIDs,
+		Found:     analysisResult.Found,
+		Effect:    analysisResult.Effect}, nil
 }

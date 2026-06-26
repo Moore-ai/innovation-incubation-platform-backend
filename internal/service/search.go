@@ -11,6 +11,7 @@ type SearchResult struct {
 	Policies  []model.Policy `json:"policies"`
 	Analysis  string         `json:"analysis"`
 	RankedIDs []uint         `json:"ranked_ids,omitempty"`
+	Found     bool           `json:"found"`
 	Effect    string         `json:"effect"`
 }
 

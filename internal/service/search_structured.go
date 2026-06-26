@@ -45,7 +45,11 @@ func (s *StructuredSearch) Search(ctx context.Context, userID uint, query string
 	}
 
 	// 4. AI 精排 + 分析
-	analysis, rankedIDs, effect := s.aiSvc.AnalyzeSearchResults(ctx, query, ent, policies)
+	analysisResult, err := s.aiSvc.AnalyzeSearchResults(ctx, query, ent, policies)
+	if err != nil {
+		return nil, err
+	}
+	rankedIDs := analysisResult.RankedIDs
 
 	// 5. 按 AI 输出的 ranked_ids 重排，未列出的放在末尾
 	if len(rankedIDs) > 0 {
@@ -69,7 +73,12 @@ func (s *StructuredSearch) Search(ctx context.Context, userID uint, query string
 		policies = ranked
 	}
 
-	return &SearchResult{Policies: policies, Analysis: analysis, RankedIDs: rankedIDs, Effect: effect}, nil
+	return &SearchResult{
+		Policies:  policies,
+		Analysis:  analysisResult.Text,
+		RankedIDs: rankedIDs,
+		Found:     analysisResult.Found,
+		Effect:    analysisResult.Effect}, nil
 }
 
 func (s *StructuredSearch) analyzeQuery(ctx context.Context, query string, ent *model.Enterprise) (*SearchCriteria, error) {
