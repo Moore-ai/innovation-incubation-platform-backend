@@ -21,6 +21,12 @@ ai:
     base_url: ${AI_BASE_URL}
     model: ${AI_MODEL}
     timeout_seconds: 30
+  embedding:
+    api_key: ${EMBEDDING_API_KEY}
+    base_url: ${EMBEDDING_BASE_URL}
+    model: text-embedding-v3
+    dimensions: 1024
+    timeout_seconds: 30
 
 filematch:
   weight_jaro: 0.4
@@ -38,8 +44,13 @@ filematch:
     - 扫描
 
 search:
-  method: structured
+  method: vector
   max_results: 10
+  vector:
+    dimensions: 1024
+    top_k: 20
+    min_score: 0.7
+    max_analysis: 5
 
 redis:
   addr: ${REDIS_ADDR}
