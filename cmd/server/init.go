@@ -72,11 +72,24 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 	}
 	fileSvc := service.NewFileService(fileStorage, r.file, cfg)
 
-	searchSvc := service.NewStructuredSearch(aiSvc, db, cfg.Search)
-
 	var embedClient *aiclient.EmbeddingClient
 	if cfg.AI.Embedding.APIKey != "" {
 		embedClient = aiclient.NewEmbeddingClient(cfg.AI.Embedding)
+	}
+
+	var searchSvc service.PolicySearch
+	switch cfg.Search.Method {
+	case "vector":
+		if embedClient == nil {
+			slog.Error("vector search requires embed client, falling back to structured")
+			searchSvc = service.NewStructuredSearch(aiSvc, db, cfg.Search)
+		} else {
+			searchSvc = service.NewVectorSearch(embedClient, aiSvc, db, cfg.Search)
+		}
+	case "structured":
+		searchSvc = service.NewStructuredSearch(aiSvc, db, cfg.Search)
+	default:
+		searchSvc = service.NewStructuredSearch(aiSvc, db, cfg.Search)
 	}
 
 	return &services{

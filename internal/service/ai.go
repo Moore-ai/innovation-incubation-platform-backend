@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/model"
@@ -65,7 +66,8 @@ func NewAIService(client *aiclient.Client, entRepo *repository.EnterpriseRepo, g
 			match:     cfg.AI.Prompts.Match,
 			prefill:   cfg.AI.Prompts.Prefill,
 			summarize: cfg.AI.Prompts.Summarize,
-			search:    cfg.AI.Prompts.Search,
+			search:         cfg.AI.Prompts.Search,
+			searchAnalysis: cfg.AI.Prompts.SearchAnalysis,
 		},
 		maxFileChars: cfg.AI.MaxFileChars,
 	}
@@ -73,6 +75,12 @@ func NewAIService(client *aiclient.Client, entRepo *repository.EnterpriseRepo, g
 
 type summaryResult struct {
 	Text string `json:"text"`
+}
+
+type analysisResult struct {
+	Text      string `json:"text"`
+	RankedIDs []uint `json:"ranked_ids"`
+	Effect    string `json:"effect"`
 }
 
 func (s *AIService) SummarizeFile(ctx context.Context, file *model.File) error {
@@ -95,4 +103,39 @@ func (s *AIService) SummarizeFile(ctx context.Context, file *model.File) error {
 		return err
 	}
 	return nil
+}
+
+// AnalyzeSearchResults uses AI to analyze and rank search results.
+// Returns analysis text, ranked policy IDs, and effect evaluation.
+func (s *AIService) AnalyzeSearchResults(ctx context.Context, query string, ent *model.Enterprise, policies []model.Policy) (analysis string, rankedIDs []uint, effect string) {
+	if len(policies) == 0 {
+		userMsg := fmt.Sprintf("企业信息：行业=%s、规模=%s、地址=%s\n用户搜索：%s\n\n数据库中未找到匹配的政策。请分析原因。\n严格按照 JSON: {\"text\":\"...\",\"ranked_ids\":[],\"effect\":\"low\"}",
+			ent.Industry, ent.Scale, ent.Address, query)
+		r, err := chatAndParse[analysisResult](s, ctx, "search_analysis", s.prompts.searchAnalysis, userMsg, "AI分析失败")
+		if err != nil {
+			return "", nil, ""
+		}
+		return r.Text, nil, r.Effect
+	}
+
+	var briefs []string
+	for _, p := range policies {
+		ef := p.ExtractedFields
+		title, amount, deadline := p.Title, "", ""
+		if ef != nil {
+			amount = ef.SubsidyType
+		}
+		if p.EndDate != "" {
+			deadline = p.EndDate
+		}
+		briefs = append(briefs, fmt.Sprintf("[%d]「%s」补贴%s，截止%s", p.ID, title, amount, deadline))
+	}
+
+	userMsg := fmt.Sprintf("企业信息：行业=%s、规模=%s、地址=%s\n用户搜索：%s\n\n政策列表：\n%s\n\n请分析是否满足需求，以 JSON 输出。",
+		ent.Industry, ent.Scale, ent.Address, query, strings.Join(briefs, "\n"))
+	r, err := chatAndParse[analysisResult](s, ctx, "search_analysis", s.prompts.searchAnalysis, userMsg, "AI分析失败")
+	if err != nil {
+		return "", nil, ""
+	}
+	return r.Text, r.RankedIDs, r.Effect
 }

@@ -45,7 +45,7 @@ func (s *StructuredSearch) Search(ctx context.Context, userID uint, query string
 	}
 
 	// 4. AI 精排 + 分析
-	analysis, rankedIDs, effect := s.analyzeResults(ctx, query, ent, policies)
+	analysis, rankedIDs, effect := s.aiSvc.AnalyzeSearchResults(ctx, query, ent, policies)
 
 	// 5. 按 AI 输出的 ranked_ids 重排，未列出的放在末尾
 	if len(rankedIDs) > 0 {
@@ -153,73 +153,4 @@ func (s *StructuredSearch) searchPolicies(ctx context.Context, criteria *SearchC
 		return nil, errcode.ErrInternal
 	}
 	return policies, nil
-}
-
-func (s *StructuredSearch) analyzeResults(ctx context.Context, query string, ent *model.Enterprise, policies []model.Policy) (string, []uint, string) {
-	// 只分析前 5 条，避免过长
-	if len(policies) > 5 {
-		policies = policies[:5]
-	}
-	if len(policies) == 0 {
-		userMsg := fmt.Sprintf(
-			"企业信息：行业=%s、规模=%s、地址=%s\n用户搜索：%s\n\n数据库中未找到匹配的政策。请分析可能的原因并给出建议。\n严格按照以下 JSON 格式返回，不要附带其他内容：\n{\"text\":\"你的分析内容，200字以内\"}",
-			ent.Industry, ent.Scale, ent.Address, query,
-		)
-		result, err := chatAndParse[analysisResult](s.aiSvc, ctx, "search_analysis", s.aiSvc.prompts.search,
-			userMsg, "AI分析失败")
-		if err != nil {
-			return "", nil, ""
-		}
-		return result.Text, nil, ""
-	}
-
-	var policyBriefs []string
-	for _, p := range policies {
-		ef := p.ExtractedFields
-		summary := ""
-		amount := ""
-		deadline := ""
-		if ef != nil {
-			summary = ef.PolicySummary
-			if len(ef.Subsidies) > 0 {
-				var amts []string
-				for _, s := range ef.Subsidies {
-					if s.Amount != "" {
-						amts = append(amts, s.Amount)
-					}
-				}
-				amount = strings.Join(amts, ",")
-			}
-		}
-		if p.EndDate != "" {
-			deadline = p.EndDate
-		}
-		policyBriefs = append(policyBriefs,
-			fmt.Sprintf("[%d]「%s」摘要：%s，补贴%s，截止%s", p.ID, p.Title, summary, amount, deadline))
-	}
-
-	userMsg := fmt.Sprintf(
-		"企业信息：行业=%s、规模=%s、地址=%s\n用户搜索：%s\n\n以下是数据库中关键词匹配到的相关政策：\n%s\n\n"+
-			"请分析这些政策是否真正满足用户需求（尤其是金额、时间等精确条件）。\n"+
-			"如果满足，给出个性化的推荐理由和注意事项（包括补贴金额是否匹配、截止时间是否充裕等）；\n"+
-			"如果不满足，说明具体原因（如金额超出预算、截止时间太近等）。\n"+
-			"全部分析完成后，综合、系统性地评估一下本次检索的效果，以高、一般、低做评价。\n"+
-			"严格按照以下 JSON 格式返回，不要附带其他内容：\n"+
-			`{"text":"你的分析内容，200字以内","ranked_ids":[最匹配的ID,按推荐度降序],"effect":"high、partial或者low，分别代表高、一般、低，用于评估本次检索的效果"}`,
-		ent.Industry, ent.Scale, ent.Address, query,
-		strings.Join(policyBriefs, "\n"),
-	)
-
-	result, err := chatAndParse[analysisResult](s.aiSvc, ctx, "search_analysis", s.aiSvc.prompts.search,
-		userMsg, "AI分析失败")
-	if err != nil {
-		return "", nil, ""
-	}
-	return result.Text, result.RankedIDs, result.Effect
-}
-
-type analysisResult struct {
-	Text      string `json:"text"`
-	RankedIDs []uint `json:"ranked_ids"`
-	Effect    string `json:"effect"`
 }
