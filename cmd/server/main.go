@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"innovation-incubation-platform-backend/internal/middleware"
 	"innovation-incubation-platform-backend/internal/router"
 	"innovation-incubation-platform-backend/internal/service"
+	"innovation-incubation-platform-backend/pkg/fileparser"
 
 	"github.com/gin-gonic/gin"
 )
@@ -37,6 +39,15 @@ func main() {
 
 	hub := service.NewSSEHub(cfg.Notification.MaxConnsPerUser)
 	repo := initRepositories(db)
+
+	// 启动 file parser sidecar（非阻断）
+	sidecar := fileparser.NewSidecar(cfg.FileParser)
+	if err := sidecar.Start(context.Background()); err != nil {
+		slog.Warn("file parser sidecar not available, falling back to local", "error", err)
+	} else {
+		defer sidecar.Stop()
+	}
+
 	svc := initServices(repo, cfg, db, hub)
 	ctl := initControllers(repo, svc, cfg, hub)
 

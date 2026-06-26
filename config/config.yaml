@@ -75,3 +75,9 @@ notification:
   heartbeat_seconds: 30
   recent_count: 20
   max_conns_per_user: 10
+
+file_parser:
+  enabled: true
+  venv_path: "sidecar/file-parser/venv"
+  script_path: "sidecar/file-parser/server.py"
+  timeout_sec: 30
