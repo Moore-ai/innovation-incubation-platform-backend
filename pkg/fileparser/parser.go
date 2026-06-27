@@ -4,38 +4,39 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os/exec"
 	"strings"
 )
 
-var pandocAvailable bool
-
-func init() {
-	_, err := exec.LookPath("pandoc")
-	if err != nil {
-		slog.Warn("pandoc not found in PATH, .docx via pandoc not available")
-		pandocAvailable = false
-	} else {
-		pandocAvailable = true
-	}
+var supportedExts = map[string]bool{
+	".pdf": true, ".docx": true, ".doc": true,
+	".xlsx": true, ".xls": true, ".pptx": true, ".ppt": true,
+	".html": true, ".htm": true, ".txt": true, ".csv": true,
+	".md": true, ".xml": true, ".json": true, ".zip": true,
+	".epub": true,
 }
 
 func Parse(r io.Reader, size int64, ext string) (string, error) {
-	switch strings.ToLower(ext) {
-	case ".docx":
-		ra, ok := r.(io.ReaderAt)
-		if !ok {
-			return "", fmt.Errorf("docx parser requires io.ReaderAt")
+	ext = strings.ToLower(ext)
+
+	// 优先 sidecar（先校验扩展名白名单）
+	if supportedExts[ext] {
+		md, err := parseViaSidecar(r, ext)
+		if err == nil {
+			return md, nil
 		}
+		slog.Warn("sidecar parse failed, falling back to local", "ext", ext, "error", err)
+	}
+
+	// 降级：仅 .pdf / .docx
+	ra, ok := r.(io.ReaderAt)
+	if !ok {
+		return "", fmt.Errorf("local parser requires io.ReaderAt")
+	}
+	switch ext {
+	case ".docx":
 		return parseDOCX(ra, size)
 	case ".pdf":
-		ra, ok := r.(io.ReaderAt)
-		if !ok {
-			return "", fmt.Errorf("pdf parser requires io.ReaderAt")
-		}
 		return parsePDF(ra, size)
-	case ".doc":
-		return "", fmt.Errorf("unsupported format: .doc (old binary), please convert to .docx or .pdf")
 	default:
 		return "", fmt.Errorf("unsupported file extension: %s", ext)
 	}

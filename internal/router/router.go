@@ -19,6 +19,7 @@ type Deps struct {
 	GovernmentController   *controller.GovernmentController
 	FileController         *controller.FileController
 	NotificationController *controller.NotificationController
+	TestController         *controller.TestController
 }
 
 func RegisterRoutes(r *gin.Engine, deps *Deps) {
@@ -33,6 +34,7 @@ func RegisterRoutes(r *gin.Engine, deps *Deps) {
 	registerGovernmentRoutes(r, deps)
 	registerFileRoutes(r, deps)
 	registerNotificationRoutes(r, deps)
+	registerTestRoutes(r, deps)
 
 	r.GET("/api/v1/health", func(c *gin.Context) {
 		response.Success(c, gin.H{"status": "ok"})
@@ -171,4 +173,13 @@ func registerNotificationRoutes(r *gin.Engine, deps *Deps) {
 	n.GET("", deps.NotificationController.List)
 	n.GET("/stream", deps.NotificationController.Subscribe)
 	n.PATCH("/read", deps.NotificationController.MarkRead)
+}
+
+func registerTestRoutes(r *gin.Engine, deps *Deps) {
+	if deps.TestController == nil || deps.Config.Server.Mode != gin.DebugMode {
+		return
+	}
+	t := r.Group("/api/v1/test")
+	t.POST("/llm", deps.TestController.TestLLM)
+	t.POST("/embedding", deps.TestController.TestEmbedding)
 }

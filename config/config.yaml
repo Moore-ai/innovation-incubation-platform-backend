@@ -21,6 +21,12 @@ ai:
     base_url: ${AI_BASE_URL}
     model: ${AI_MODEL}
     timeout_seconds: 30
+  embedding:
+    api_key: ${EMBEDDING_API_KEY}
+    base_url: ${EMBEDDING_BASE_URL}
+    model: ${EMBEDDING_MODEL}
+    dimensions: 1024
+    timeout_seconds: 30
 
 filematch:
   weight_jaro: 0.4
@@ -38,8 +44,13 @@ filematch:
     - 扫描
 
 search:
-  method: structured
+  method: vector
   max_results: 10
+  vector:
+    dimensions: 1024
+    top_k: 20
+    min_score: 0.7
+    max_analysis: 5
 
 redis:
   addr: ${REDIS_ADDR}
@@ -64,3 +75,9 @@ notification:
   heartbeat_seconds: 30
   recent_count: 20
   max_conns_per_user: 10
+
+file_parser:
+  enabled: true
+  venv_path: "sidecar/file-parser/venv"
+  script_path: "sidecar/file-parser/server.py"
+  timeout_sec: 30
