@@ -21,7 +21,7 @@ func NewHyDEGenerator(client *aiclient.Client) *HyDEGenerator {
 func (g *HyDEGenerator) Generate(ctx context.Context, query string) (string, error) {
 	systemPrompt := "根据用户问题，先写一段可能的答案性段落，用于向量检索的查询文档（不要分析过程）。"
 	userMsg := fmt.Sprintf("问题：%s\n请直接写一段中等长度、客观、包含关键术语的段落。", query)
-	text, err := g.client.Chat(ctx, systemPrompt, userMsg)
+	text, err := g.client.ChatWithMaxTokens(ctx, systemPrompt, userMsg, 512)
 	if err != nil {
 		return "", err
 	}

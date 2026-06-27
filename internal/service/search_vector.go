@@ -49,9 +49,9 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 	// HyDE: 并行生成假设文档，追加到查询列表
 	if s.cfg.Vector.HyDE.Enabled && s.hydeGen != nil {
 		hydeDocs := make([]string, len(queries))
-		g2, hydeCtx := errgroup.WithContext(ctx)
+		g, hydeCtx := errgroup.WithContext(ctx)
 		for i, q := range queries {
-			g2.Go(func() error {
+			g.Go(func() error {
 				doc, err := s.hydeGen.Generate(hydeCtx, q)
 				if err != nil {
 					slog.Warn("HyDE generate failed", "query", q, "error", err)
@@ -61,11 +61,18 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 				return nil
 			})
 		}
-		g2.Wait()
+		if err := g.Wait(); err != nil {
+			slog.Warn("HyDE generation aborted", "error", err)
+		}
+		appended := 0
 		for _, doc := range hydeDocs {
 			if doc != "" {
 				queries = append(queries, doc)
+				appended++
 			}
+		}
+		if appended == 0 {
+			slog.Warn("HyDE generated zero documents, using original queries only", "expected", len(hydeDocs))
 		}
 	}
 
