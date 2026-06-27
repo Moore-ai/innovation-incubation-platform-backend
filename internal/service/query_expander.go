@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 
 	"innovation-incubation-platform-backend/pkg/aiclient"
 )
+
+var listMarkerRe = regexp.MustCompile(`^\s*[-*•]?\s*\d*[.)]\s*`)
 
 type QueryExpander struct {
 	client *aiclient.Client
@@ -40,7 +43,7 @@ func parseVariants(text string, max int) []string {
 	var variants []string
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		line = strings.TrimLeft(line, "- \t0123456789.")
+		line = listMarkerRe.ReplaceAllString(line, "")
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue

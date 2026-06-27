@@ -38,7 +38,11 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 	// MQE: 扩展查询
 	queries := []string{query}
 	if s.cfg.Vector.MQE.Enabled && s.expander != nil {
-		queries, _ = s.expander.Expand(ctx, query)
+		if expanded, expandErr := s.expander.Expand(ctx, query); expandErr != nil {
+			slog.Warn("MQE expand failed, using original query", "error", expandErr)
+		} else {
+			queries = expanded
+		}
 	}
 
 	vcfg := s.cfg.Vector
@@ -50,6 +54,7 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 	// 并行向量检索
 	var mu sync.Mutex
 	var allResults [][]model.Policy
+	var successCount int
 
 	g, gctx := errgroup.WithContext(ctx)
 	for _, q := range queries {
@@ -76,11 +81,17 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 			}
 			mu.Lock()
 			allResults = append(allResults, policies)
+			successCount++
 			mu.Unlock()
 			return nil
 		})
 	}
 	g.Wait()
+
+	// 全部并行查询失败
+	if successCount == 0 {
+		return nil, errcode.ErrAIService.WithMsg("向量检索失败，请稍后重试")
+	}
 
 	// RRF 融合
 	var embedded []model.Policy
