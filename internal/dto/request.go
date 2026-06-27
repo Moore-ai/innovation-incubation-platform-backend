@@ -103,3 +103,14 @@ type ScoreReq struct {
 type PerformanceSubmitReq struct {
 	FormData model.JSONMap `json:"form_data"`
 }
+
+type SubmitAppealReq struct {
+	Identifier  string `json:"identifier" binding:"required"`
+	ProblemType string `json:"problem_type" binding:"required"`
+	Department  string `json:"department"`
+	Content     string `json:"content" binding:"required"`
+}
+
+type UpdateAppealStatusReq struct {
+	Status string `json:"status" binding:"required,oneof=pending processed"`
+}

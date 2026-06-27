@@ -18,6 +18,10 @@ export class ApiClient {
     this.token = token;
   }
 
+  clearToken() {
+    this.token = "";
+  }
+
   get tokenStr() {
     return this.token;
   }

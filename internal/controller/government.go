@@ -13,11 +13,12 @@ import (
 )
 
 type GovernmentController struct {
-	svc *service.GovernmentService
+	svc       *service.GovernmentService
+	appealSvc *service.AppealService
 }
 
-func NewGovernmentController(svc *service.GovernmentService) *GovernmentController {
-	return &GovernmentController{svc: svc}
+func NewGovernmentController(svc *service.GovernmentService, appealSvc *service.AppealService) *GovernmentController {
+	return &GovernmentController{svc: svc, appealSvc: appealSvc}
 }
 
 func (ctl *GovernmentController) PublishPolicy(c *gin.Context) {
@@ -256,6 +257,37 @@ func (ctl *GovernmentController) ReviewDeletionRequest(c *gin.Context) {
 		return
 	}
 	if err := ctl.svc.ReviewDeletionRequest(middleware.GetUserID(c), uint(id), req.Action, req.Comment); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+func (ctl *GovernmentController) ListAllAppeals(c *gin.Context) {
+	status := c.Query("status")
+	problemType := c.Query("problem_type")
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	appeals, total, err := ctl.appealSvc.ListAll(c.Request.Context(), status, problemType, page, pageSize)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.SuccessPage(c, appeals, total, page, pageSize)
+}
+
+func (ctl *GovernmentController) UpdateAppealStatus(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("无效的诉求 ID"))
+		return
+	}
+	var req dto.UpdateAppealStatusReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
+		return
+	}
+	if err := ctl.appealSvc.UpdateStatus(c.Request.Context(), uint(id), &req); err != nil {
 		response.Error(c, err)
 		return
 	}

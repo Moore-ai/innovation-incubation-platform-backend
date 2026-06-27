@@ -31,6 +31,11 @@ func MustInit(cfg *config.Config) *gorm.DB {
 		END IF;
 	END $$;`)
 
+	// 迁移：回填旧版 appeals.applicant_type（基于提交者角色）
+	db.Exec(`UPDATE appeals SET applicant_type = u.role
+		FROM users u WHERE appeals.submitted_by = u.id
+		AND (appeals.applicant_type IS NULL OR appeals.applicant_type = '');`)
+
 	// 迁移：policies 表结构调整 — conditions→requirements，删除 subsidy_amount 和 file_id
 	db.Exec(`DO $$ BEGIN
 		IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='policies' AND column_name='conditions')
