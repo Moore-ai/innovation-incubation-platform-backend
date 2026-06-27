@@ -182,4 +182,5 @@ func registerTestRoutes(r *gin.Engine, deps *Deps) {
 	t := r.Group("/api/v1/test")
 	t.POST("/llm", deps.TestController.TestLLM)
 	t.POST("/embedding", deps.TestController.TestEmbedding)
+	t.POST("/convert", deps.TestController.TestConvertFile)
 }

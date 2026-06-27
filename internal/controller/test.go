@@ -1,8 +1,11 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"path/filepath"
 	"time"
 
 	"innovation-incubation-platform-backend/internal/service"
@@ -63,5 +66,40 @@ func (ctrl *TestController) TestEmbedding(c *gin.Context) {
 		"status":    "ok",
 		"message":   "Embedding 连接正常",
 		"dimension": dimension,
+	})
+}
+
+// TestConvertFile 上传文件，调用 markitdown 转换为 markdown 并返回
+func (ctrl *TestController) TestConvertFile(c *gin.Context) {
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("请上传文件（form-data, field: file）"))
+		return
+	}
+	defer file.Close()
+
+	ext := filepath.Ext(header.Filename)
+	if ext == "" {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("文件缺少扩展名"))
+		return
+	}
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("读取文件失败: %v", err)))
+		return
+	}
+
+	markdown, err := ctrl.svc.TestConvertFile(bytes.NewReader(data), int64(len(data)), ext)
+	if err != nil {
+		response.Error(c, errcode.ErrAIService.WithMsg(fmt.Sprintf("文件转换失败: %v", err)))
+		return
+	}
+
+	response.Success(c, gin.H{
+		"status":   "ok",
+		"filename": header.Filename,
+		"ext":      ext,
+		"markdown": markdown,
 	})
 }

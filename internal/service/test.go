@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"io"
 
 	"innovation-incubation-platform-backend/pkg/aiclient"
+	"innovation-incubation-platform-backend/pkg/fileparser"
 )
 
 type TestService struct {
@@ -37,4 +39,9 @@ func (s *TestService) IsLLMAvailable() bool {
 // IsEmbeddingAvailable 检查 Embedding client 是否已初始化
 func (s *TestService) IsEmbeddingAvailable() bool {
 	return s.embedding != nil
+}
+
+// TestConvertFile 调用 fileparser 将文件转为 markdown
+func (s *TestService) TestConvertFile(r io.Reader, size int64, ext string) (string, error) {
+	return fileparser.Parse(r, size, ext)
 }
