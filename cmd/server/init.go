@@ -86,7 +86,8 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 			slog.Error("vector search requires embed client, falling back to structured")
 			searchSvc = service.NewStructuredSearch(aiSvc, db, cfg.Search)
 		} else {
-			searchSvc = service.NewVectorSearch(embedClient, aiSvc, db, cfg.Search)
+			expander := service.NewQueryExpander(aiClient, cfg.Search.Vector.MQE.NQueries)
+			searchSvc = service.NewVectorSearch(embedClient, aiSvc, expander, db, cfg.Search)
 		}
 	case "structured":
 		searchSvc = service.NewStructuredSearch(aiSvc, db, cfg.Search)
