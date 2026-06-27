@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"sync"
 
+	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 
 	"innovation-incubation-platform-backend/config"
@@ -18,12 +20,13 @@ import (
 type VectorSearch struct {
 	embedClient *aiclient.EmbeddingClient
 	aiSvc       *AIService
+	expander    *QueryExpander
 	db          *gorm.DB
 	cfg         config.SearchConfig
 }
 
-func NewVectorSearch(embedClient *aiclient.EmbeddingClient, aiSvc *AIService, db *gorm.DB, cfg config.SearchConfig) *VectorSearch {
-	return &VectorSearch{embedClient: embedClient, aiSvc: aiSvc, db: db, cfg: cfg}
+func NewVectorSearch(embedClient *aiclient.EmbeddingClient, aiSvc *AIService, expander *QueryExpander, db *gorm.DB, cfg config.SearchConfig) *VectorSearch {
+	return &VectorSearch{embedClient: embedClient, aiSvc: aiSvc, expander: expander, db: db, cfg: cfg}
 }
 
 func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*SearchResult, error) {
@@ -32,32 +35,57 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 		return nil, errcode.ErrForbidden.WithMsg("无权访问")
 	}
 
-	// 用户画像 + query -> embedding
-	searchText := fmt.Sprintf("企业：行业=%s，规模=%s，地址=%s。%s", ent.Industry, ent.Scale, ent.Address, query)
-	queryEmb, err := s.embedClient.Embed(ctx, searchText)
-	if err != nil {
-		return nil, errcode.ErrAIService.WithMsg("向量化失败")
+	// MQE: 扩展查询
+	queries := []string{query}
+	if s.cfg.Vector.MQE.Enabled && s.expander != nil {
+		queries, _ = s.expander.Expand(ctx, query)
 	}
 
-	vecStr := model.PGVector(queryEmb).String()
 	vcfg := s.cfg.Vector
-
-	// 有 embedding 的政策：向量距离排序
 	topK := vcfg.TopK
 	if topK <= 0 {
 		topK = s.cfg.MaxResults
 	}
 
-	var embedded []model.Policy
-	tx := s.db.WithContext(ctx).
-		Where("status = ? AND embedding IS NOT NULL", model.PolicyPublished).
-		Order(fmt.Sprintf("embedding <=> '%s'", vecStr)).
-		Limit(topK)
-	if vcfg.MinScore > 0 {
-		tx = tx.Where(fmt.Sprintf("embedding <=> '%s' < %f", vecStr, 1.0-vcfg.MinScore))
+	// 并行向量检索
+	var mu sync.Mutex
+	var allResults [][]model.Policy
+
+	g, gctx := errgroup.WithContext(ctx)
+	for _, q := range queries {
+		g.Go(func() error {
+			searchText := fmt.Sprintf("企业：行业=%s，规模=%s，地址=%s。%s", ent.Industry, ent.Scale, ent.Address, q)
+			emb, err := s.embedClient.Embed(gctx, searchText)
+			if err != nil {
+				slog.Warn("embed query failed", "query", q, "error", err)
+				return nil // 容错：忽略失败
+			}
+			vecStr := model.PGVector(emb).String()
+
+			var policies []model.Policy
+			tx := s.db.WithContext(gctx).
+				Where("status = ? AND embedding IS NOT NULL", model.PolicyPublished).
+				Order(fmt.Sprintf("embedding <=> '%s'", vecStr)).
+				Limit(topK)
+			if vcfg.MinScore > 0 {
+				tx = tx.Where(fmt.Sprintf("embedding <=> '%s' < %f", vecStr, 1.0-vcfg.MinScore))
+			}
+			if err := tx.Find(&policies).Error; err != nil {
+				slog.Warn("vector query failed", "query", q, "error", err)
+				return nil // 容错
+			}
+			mu.Lock()
+			allResults = append(allResults, policies)
+			mu.Unlock()
+			return nil
+		})
 	}
-	if err := tx.Find(&embedded).Error; err != nil {
-		slog.Error("embedding query failed", "error", err)
+	g.Wait()
+
+	// RRF 融合
+	var embedded []model.Policy
+	if len(allResults) > 0 {
+		embedded = rrfFusion(allResults, vcfg.MQE.RRFK, topK)
 	}
 
 	// 无 embedding 的政策补充
@@ -71,7 +99,7 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 		embedded = append(embedded, noEmb...)
 	}
 
-	// AI 分析（不做重排）
+	// AI 分析
 	analysisResult, err := s.aiSvc.AnalyzeResults(ctx, query, ent, embedded)
 	if err != nil {
 		return nil, err
@@ -81,7 +109,8 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 		Policies: embedded,
 		Analysis: analysisResult.Text,
 		Found:    analysisResult.Found,
-		Effect:   analysisResult.Effect}, nil
+		Effect:   analysisResult.Effect,
+	}, nil
 }
 
 // rrfFusion performs Reciprocal Rank Fusion on multiple ranked lists.
