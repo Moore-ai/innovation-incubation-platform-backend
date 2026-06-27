@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 
 	"gorm.io/gorm"
 
@@ -81,4 +82,42 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 		Analysis: analysisResult.Text,
 		Found:    analysisResult.Found,
 		Effect:   analysisResult.Effect}, nil
+}
+
+// rrfFusion performs Reciprocal Rank Fusion on multiple ranked lists.
+// k is the RRF constant (typically 60), topK limits the final output.
+func rrfFusion(results [][]model.Policy, k float64, topK int) []model.Policy {
+	scores := make(map[uint]float64)
+	firstSeen := make(map[uint]model.Policy)
+
+	for _, list := range results {
+		for rank, p := range list {
+			scores[p.ID] += 1.0 / (k + float64(rank+1))
+			if _, exists := firstSeen[p.ID]; !exists {
+				firstSeen[p.ID] = p
+			}
+		}
+	}
+
+	type scored struct {
+		id    uint
+		score float64
+	}
+	var ranked []scored
+	for id, s := range scores {
+		ranked = append(ranked, scored{id: id, score: s})
+	}
+	sort.Slice(ranked, func(i, j int) bool {
+		return ranked[i].score > ranked[j].score
+	})
+
+	if topK > 0 && len(ranked) > topK {
+		ranked = ranked[:topK]
+	}
+
+	result := make([]model.Policy, 0, len(ranked))
+	for _, r := range ranked {
+		result = append(result, firstSeen[r.id])
+	}
+	return result
 }
