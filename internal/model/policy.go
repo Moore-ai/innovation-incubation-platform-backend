@@ -69,6 +69,7 @@ type Policy struct {
 	BaseModel
 	TargetRole      TargetRole         `gorm:"size:32;not null" json:"target_role"`
 	Title           string             `gorm:"size:255;not null" json:"title"`
+	Department      string             `gorm:"size:64" json:"department"`
 	Requirements    *PolicyRequirement `gorm:"type:jsonb" json:"requirements"`
 	StartDate       string             `gorm:"size:32" json:"start_date"`
 	EndDate         string             `gorm:"size:32" json:"end_date"`

@@ -64,6 +64,7 @@ type CarrierInfoReq struct {
 type PublishPolicyReq struct {
 	TargetRole   string                   `json:"target_role" binding:"required,oneof=enterprise carrier both"`
 	Title        string                   `json:"title"`
+	Department   string                   `json:"department"`
 	Requirements *model.PolicyRequirement `json:"requirements" binding:"required"`
 	StartDate    string                   `json:"start_date"`
 	EndDate      string                   `json:"end_date"`

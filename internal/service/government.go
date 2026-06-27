@@ -38,6 +38,7 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 	p := &model.Policy{
 		TargetRole:   model.TargetRole(req.TargetRole),
 		Title:        req.Title,
+		Department:   req.Department,
 		Requirements: req.Requirements,
 		StartDate:    req.StartDate,
 		EndDate:      req.EndDate,
@@ -137,6 +138,7 @@ func (s *GovernmentService) UpdatePolicy(ctx context.Context, policyID uint, req
 		return errcode.ErrNotFound
 	}
 	p.Title = req.Title
+	p.Department = req.Department
 	p.Requirements = req.Requirements
 	p.StartDate = req.StartDate
 	p.EndDate = req.EndDate
