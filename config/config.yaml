@@ -48,13 +48,16 @@ search:
   max_results: 10
   vector:
     dimensions: 1024
-    top_k: 20
+    top_k: 8
     min_score: 0.7
     max_analysis: 5
     mqe:
-      enabled: true
+      enabled: false
       n_queries: 3
       rrf_k: 60
+    hyde:
+      enabled: false
+      max_tokens: 512
 
 redis:
   addr: ${REDIS_ADDR}

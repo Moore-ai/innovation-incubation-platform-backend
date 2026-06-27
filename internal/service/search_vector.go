@@ -21,12 +21,13 @@ type VectorSearch struct {
 	embedClient *aiclient.EmbeddingClient
 	aiSvc       *AIService
 	expander    *QueryExpander
+	hydeGen     *HyDEGenerator
 	db          *gorm.DB
 	cfg         config.SearchConfig
 }
 
-func NewVectorSearch(embedClient *aiclient.EmbeddingClient, aiSvc *AIService, expander *QueryExpander, db *gorm.DB, cfg config.SearchConfig) *VectorSearch {
-	return &VectorSearch{embedClient: embedClient, aiSvc: aiSvc, expander: expander, db: db, cfg: cfg}
+func NewVectorSearch(embedClient *aiclient.EmbeddingClient, aiSvc *AIService, expander *QueryExpander, hydeGen *HyDEGenerator, db *gorm.DB, cfg config.SearchConfig) *VectorSearch {
+	return &VectorSearch{embedClient: embedClient, aiSvc: aiSvc, expander: expander, hydeGen: hydeGen, db: db, cfg: cfg}
 }
 
 func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*SearchResult, error) {
@@ -42,6 +43,36 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 			slog.Warn("MQE expand failed, using original query", "error", expandErr)
 		} else {
 			queries = expanded
+		}
+	}
+
+	// HyDE: 并行生成假设文档，追加到查询列表
+	if s.cfg.Vector.HyDE.Enabled && s.hydeGen != nil {
+		hydeDocs := make([]string, len(queries))
+		g, hydeCtx := errgroup.WithContext(ctx)
+		for i, q := range queries {
+			g.Go(func() error {
+				doc, err := s.hydeGen.Generate(hydeCtx, q)
+				if err != nil {
+					slog.Warn("HyDE generate failed", "query", q, "error", err)
+					return nil
+				}
+				hydeDocs[i] = doc
+				return nil
+			})
+		}
+		if err := g.Wait(); err != nil {
+			slog.Warn("HyDE generation aborted", "error", err)
+		}
+		appended := 0
+		for _, doc := range hydeDocs {
+			if doc != "" {
+				queries = append(queries, doc)
+				appended++
+			}
+		}
+		if appended == 0 {
+			slog.Warn("HyDE generated zero documents, using original queries only", "expected", len(hydeDocs))
 		}
 	}
 

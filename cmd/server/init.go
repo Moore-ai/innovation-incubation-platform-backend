@@ -90,7 +90,11 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 			searchSvc = service.NewStructuredSearch(aiSvc, db, cfg.Search)
 		} else {
 			expander := service.NewQueryExpander(aiClient, cfg.Search.Vector.MQE.NQueries)
-			searchSvc = service.NewVectorSearch(embedClient, aiSvc, expander, db, cfg.Search)
+			var hydeGen *service.HyDEGenerator
+			if cfg.Search.Vector.HyDE.Enabled && aiClient != nil {
+				hydeGen = service.NewHyDEGenerator(aiClient, cfg.Search.Vector.HyDE)
+			}
+			searchSvc = service.NewVectorSearch(embedClient, aiSvc, expander, hydeGen, db, cfg.Search)
 		}
 	case "structured":
 		searchSvc = service.NewStructuredSearch(aiSvc, db, cfg.Search)
