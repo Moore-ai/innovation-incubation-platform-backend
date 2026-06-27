@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/pkg/aiclient"
 )
 
@@ -12,10 +13,11 @@ import (
 // which is then used for vector search retrieval.
 type HyDEGenerator struct {
 	client *aiclient.Client
+	cfg    config.HyDEConfig
 }
 
-func NewHyDEGenerator(client *aiclient.Client) *HyDEGenerator {
-	return &HyDEGenerator{client: client}
+func NewHyDEGenerator(client *aiclient.Client, cfg config.HyDEConfig) *HyDEGenerator {
+	return &HyDEGenerator{client: client, cfg: cfg}
 }
 
 func (g *HyDEGenerator) Generate(ctx context.Context, query string) (string, error) {
@@ -23,7 +25,7 @@ func (g *HyDEGenerator) Generate(ctx context.Context, query string) (string, err
 		"要求包含政策名称、适用条件、支持措施。" +
 		"语言科学严谨，符合基本的认知规律"
 	userMsg := fmt.Sprintf("问题：%s\n请直接写一段中等长度、客观、包含关键术语的政策条文。不要采用Markdown格式", query)
-	text, err := g.client.ChatWithMaxTokens(ctx, systemPrompt, userMsg, 512)
+	text, err := g.client.ChatWithMaxTokens(ctx, systemPrompt, userMsg, g.cfg.MaxTokens)
 	if err != nil {
 		return "", err
 	}

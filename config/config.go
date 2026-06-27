@@ -68,7 +68,8 @@ type MQEConfig struct {
 }
 
 type HyDEConfig struct {
-	Enabled bool `mapstructure:"enabled"`
+	Enabled   bool `mapstructure:"enabled"`
+	MaxTokens int  `mapstructure:"max_tokens"`
 }
 
 type LogConfig struct {
@@ -220,6 +221,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("search.vector.mqe.n_queries", 3)
 	v.SetDefault("search.vector.mqe.rrf_k", 60.0)
 	v.SetDefault("search.vector.hyde.enabled", false)
+	v.SetDefault("search.vector.hyde.max_tokens", 512)
 
 	v.SetDefault("file_parser.enabled", true)
 	v.SetDefault("file_parser.venv_path", "sidecar/file-parser/venv")
