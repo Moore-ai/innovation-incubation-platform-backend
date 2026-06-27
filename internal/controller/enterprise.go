@@ -17,10 +17,11 @@ type EnterpriseController struct {
 	svc       *service.EnterpriseService
 	aiSvc     *service.AIService
 	searchSvc service.PolicySearch
+	appealSvc *service.AppealService
 }
 
-func NewEnterpriseController(svc *service.EnterpriseService, aiSvc *service.AIService, searchSvc service.PolicySearch) *EnterpriseController {
-	return &EnterpriseController{svc: svc, aiSvc: aiSvc, searchSvc: searchSvc}
+func NewEnterpriseController(svc *service.EnterpriseService, aiSvc *service.AIService, searchSvc service.PolicySearch, appealSvc *service.AppealService) *EnterpriseController {
+	return &EnterpriseController{svc: svc, aiSvc: aiSvc, searchSvc: searchSvc, appealSvc: appealSvc}
 }
 
 func (ctl *EnterpriseController) ApplyIncubation(c *gin.Context) {
@@ -277,4 +278,31 @@ func (ctl *EnterpriseController) SearchPolicies(c *gin.Context) {
 		return
 	}
 	response.Success(c, result)
+}
+
+func (ctl *EnterpriseController) SubmitAppeal(c *gin.Context) {
+	var req dto.SubmitAppealReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
+		return
+	}
+	userID := middleware.GetUserID(c)
+	appeal, err := ctl.appealSvc.Submit(c.Request.Context(), &req, userID)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, appeal)
+}
+
+func (ctl *EnterpriseController) ListMyAppeals(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	appeals, total, err := ctl.appealSvc.ListBySubmitter(c.Request.Context(), userID, page, pageSize)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.SuccessPage(c, appeals, total, page, pageSize)
 }

@@ -12,11 +12,12 @@ import (
 )
 
 type CarrierController struct {
-	svc *service.CarrierService
+	svc       *service.CarrierService
+	appealSvc *service.AppealService
 }
 
-func NewCarrierController(svc *service.CarrierService) *CarrierController {
-	return &CarrierController{svc: svc}
+func NewCarrierController(svc *service.CarrierService, appealSvc *service.AppealService) *CarrierController {
+	return &CarrierController{svc: svc, appealSvc: appealSvc}
 }
 
 func (ctl *CarrierController) ReviewIncubation(c *gin.Context) {
@@ -195,4 +196,31 @@ func (ctl *CarrierController) SubmitPerformance(c *gin.Context) {
 		return
 	}
 	response.Success(c, sub)
+}
+
+func (ctl *CarrierController) SubmitAppeal(c *gin.Context) {
+	var req dto.SubmitAppealReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
+		return
+	}
+	userID := middleware.GetUserID(c)
+	appeal, err := ctl.appealSvc.Submit(c.Request.Context(), &req, userID)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, appeal)
+}
+
+func (ctl *CarrierController) ListMyAppeals(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	appeals, total, err := ctl.appealSvc.ListBySubmitter(c.Request.Context(), userID, page, pageSize)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.SuccessPage(c, appeals, total, page, pageSize)
 }

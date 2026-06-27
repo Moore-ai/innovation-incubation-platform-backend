@@ -23,6 +23,7 @@ type repositories struct {
 	notif        *repository.NotificationRepo
 	deletion     *repository.DeletionRepo
 	policyFollow *repository.PolicyFollowRepo
+	appeal       *repository.AppealRepo
 }
 
 type services struct {
@@ -35,6 +36,7 @@ type services struct {
 	file    *service.FileService
 	search  service.PolicySearch
 	test    *service.TestService
+	appeal  *service.AppealService
 }
 
 type controllers struct {
@@ -58,6 +60,7 @@ func initRepositories(db *gorm.DB) *repositories {
 		notif:        repository.NewNotificationRepo(db),
 		deletion:     repository.NewDeletionRepo(db),
 		policyFollow: repository.NewPolicyFollowRepo(db),
+		appeal:       repository.NewAppealRepo(db),
 	}
 }
 
@@ -95,6 +98,8 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 		searchSvc = service.NewStructuredSearch(aiSvc, db, cfg.Search)
 	}
 
+	appealSvc := service.NewAppealService(r.appeal)
+
 	return &services{
 		auth:    service.NewAuthService(r.auth, cfg.JWT),
 		ent:     service.NewEnterpriseService(r.ent, r.carrier, r.common, db, notifSvc, assigner, r.policyFollow),
@@ -105,15 +110,16 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 		file:    fileSvc,
 		search:  searchSvc,
 		test:    service.NewTestService(aiClient, embedClient),
+		appeal:  appealSvc,
 	}
 }
 
 func initControllers(r *repositories, s *services, cfg *config.Config, hub *service.SSEHub) *controllers {
 	return &controllers{
 		auth:    controller.NewAuthController(s.auth),
-		ent:     controller.NewEnterpriseController(s.ent, s.ai, s.search),
-		carrier: controller.NewCarrierController(s.carrier),
-		gov:     controller.NewGovernmentController(s.gov),
+		ent:     controller.NewEnterpriseController(s.ent, s.ai, s.search, s.appeal),
+		carrier: controller.NewCarrierController(s.carrier, s.appeal),
+		gov:     controller.NewGovernmentController(s.gov, s.appeal),
 		file:    controller.NewFileController(s.file, cfg),
 		notif:   controller.NewNotificationController(r.notif, hub, cfg),
 		test:    controller.NewTestController(s.test),
