@@ -55,6 +55,8 @@ search:
       enabled: true
       n_queries: 3
       rrf_k: 60
+    hyde:
+      enabled: false
 
 redis:
   addr: ${REDIS_ADDR}
