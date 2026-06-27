@@ -183,6 +183,7 @@ func (r *PolicyRequirement) Value() (driver.Value, error) {
 type ApplicationMaterial struct {
 	Name             string          `json:"name"`
 	Necessity        NecessityType   `json:"necessity"`                   // "necessary" / "unnecessary"
+	Remark           string          `json:"remark,omitempty"`            // 备注
 	MaterialFormats  []string        `json:"material_formats,omitempty"`  // 支持的文件拓展名，如 ["PDF","XLSX"]；为空表示无限制
 	MaterialTemplate *PolicyTemplate `json:"material_template,omitempty"` // 申材料的填报模板，为空表示不额外需要模板
 }
