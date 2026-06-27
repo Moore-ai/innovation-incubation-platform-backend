@@ -61,6 +61,7 @@ func main() {
 		GovernmentController:   ctl.gov,
 		FileController:         ctl.file,
 		NotificationController: ctl.notif,
+		TestController:         ctl.test,
 	})
 
 	slog.Info("server starting", "port", cfg.Server.Port)
