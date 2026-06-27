@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"gorm.io/gorm"
 
@@ -45,6 +46,7 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 	if topK <= 0 {
 		topK = s.cfg.MaxResults
 	}
+
 	var embedded []model.Policy
 	tx := s.db.WithContext(ctx).
 		Where("status = ? AND embedding IS NOT NULL", model.PolicyPublished).
@@ -53,49 +55,30 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 	if vcfg.MinScore > 0 {
 		tx = tx.Where(fmt.Sprintf("embedding <=> '%s' < %f", vecStr, 1.0-vcfg.MinScore))
 	}
-	tx.Find(&embedded)
+	if err := tx.Find(&embedded).Error; err != nil {
+		slog.Error("embedding query failed", "error", err)
+	}
 
 	// 无 embedding 的政策补充
 	need := s.cfg.MaxResults - len(embedded)
 	if need > 0 {
 		var noEmb []model.Policy
-		s.db.WithContext(ctx).Where("status = ? AND embedding IS NULL", model.PolicyPublished).
-			Order("published_at DESC").Limit(need).Find(&noEmb)
+		if err := s.db.WithContext(ctx).Where("status = ? AND embedding IS NULL", model.PolicyPublished).
+			Order("published_at DESC").Limit(need).Find(&noEmb).Error; err != nil {
+			slog.Warn("no-embedding query failed", "error", err)
+		}
 		embedded = append(embedded, noEmb...)
 	}
 
-	// AI 精排
-	analysisResult, err := s.aiSvc.AnalyzeSearchResults(ctx, query, ent, embedded)
+	// AI 分析（不做重排）
+	analysisResult, err := s.aiSvc.AnalyzeResults(ctx, query, ent, embedded)
 	if err != nil {
 		return nil, err
 	}
-	rankedIDs := analysisResult.RankedIDs
-
-	// 按 rankedIDs 重排
-	if len(rankedIDs) > 0 {
-		ranked := make([]model.Policy, 0, len(embedded))
-		seen := make(map[uint]bool, len(rankedIDs))
-		for _, id := range rankedIDs {
-			for _, p := range embedded {
-				if p.ID == id && !seen[id] {
-					ranked = append(ranked, p)
-					seen[id] = true
-					break
-				}
-			}
-		}
-		for _, p := range embedded {
-			if !seen[p.ID] {
-				ranked = append(ranked, p)
-			}
-		}
-		embedded = ranked
-	}
 
 	return &SearchResult{
-		Policies:  embedded,
-		Analysis:  analysisResult.Text,
-		RankedIDs: rankedIDs,
-		Found:     analysisResult.Found,
-		Effect:    analysisResult.Effect}, nil
+		Policies: embedded,
+		Analysis: analysisResult.Text,
+		Found:    analysisResult.Found,
+		Effect:   analysisResult.Effect}, nil
 }

@@ -6,13 +6,12 @@ import (
 	"innovation-incubation-platform-backend/internal/model"
 )
 
-// SearchResult 搜索结果，包含政策列表和 AI 分析
+// SearchResult 搜索结果，包含政策列表和 AI 分析（Policies 按推荐度降序排列）
 type SearchResult struct {
-	Policies  []model.Policy `json:"policies"`
-	Analysis  string         `json:"analysis"`
-	RankedIDs []uint         `json:"ranked_ids,omitempty"`
-	Found     bool           `json:"found"`
-	Effect    string         `json:"effect"`
+	Policies []model.Policy `json:"policies"`
+	Analysis string         `json:"analysis"`
+	Found    bool           `json:"found"`
+	Effect   string         `json:"effect"`
 }
 
 // PolicySearch 政策搜索器 — 可插拔，通过配置切换实现
