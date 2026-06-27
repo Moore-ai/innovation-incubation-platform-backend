@@ -51,6 +51,10 @@ search:
     top_k: 20
     min_score: 0.7
     max_analysis: 5
+    mqe:
+      enabled: true
+      n_queries: 3
+      rrf_k: 60
 
 redis:
   addr: ${REDIS_ADDR}

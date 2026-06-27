@@ -54,9 +54,16 @@ type SearchConfig struct {
 }
 
 type VectorSearchConfig struct {
-	TopK        int     `mapstructure:"top_k"`
-	MinScore    float64 `mapstructure:"min_score"`
-	MaxAnalysis int     `mapstructure:"max_analysis"`
+	TopK        int       `mapstructure:"top_k"`
+	MinScore    float64   `mapstructure:"min_score"`
+	MaxAnalysis int       `mapstructure:"max_analysis"`
+	MQE         MQEConfig `mapstructure:"mqe"`
+}
+
+type MQEConfig struct {
+	Enabled  bool    `mapstructure:"enabled"`
+	NQueries int     `mapstructure:"n_queries"`
+	RRFK     float64 `mapstructure:"rrf_k"`
 }
 
 type LogConfig struct {
@@ -204,6 +211,9 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("search.vector.top_k", 20)
 	v.SetDefault("search.vector.min_score", 0.7)
 	v.SetDefault("search.vector.max_analysis", 5)
+	v.SetDefault("search.vector.mqe.enabled", true)
+	v.SetDefault("search.vector.mqe.n_queries", 3)
+	v.SetDefault("search.vector.mqe.rrf_k", 60.0)
 
 	v.SetDefault("file_parser.enabled", true)
 	v.SetDefault("file_parser.venv_path", "sidecar/file-parser/venv")
