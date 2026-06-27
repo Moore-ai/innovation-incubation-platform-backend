@@ -5,6 +5,7 @@ import (
 
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/middleware"
+	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/response"
 	"innovation-incubation-platform-backend/internal/service"
@@ -205,7 +206,7 @@ func (ctl *CarrierController) SubmitAppeal(c *gin.Context) {
 		return
 	}
 	userID := middleware.GetUserID(c)
-	appeal, err := ctl.appealSvc.Submit(c.Request.Context(), &req, userID)
+	appeal, err := ctl.appealSvc.Submit(c.Request.Context(), &req, userID, model.ApplicantCarrier)
 	if err != nil {
 		response.Error(c, err)
 		return

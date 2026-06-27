@@ -17,18 +17,19 @@ func NewAppealService(repo *repository.AppealRepo) *AppealService {
 	return &AppealService{repo: repo}
 }
 
-func (s *AppealService) Submit(ctx context.Context, req *dto.SubmitAppealReq, submitterID uint) (*model.Appeal, error) {
+func (s *AppealService) Submit(ctx context.Context, req *dto.SubmitAppealReq, submitterID uint, applicantType model.ApplicantType) (*model.Appeal, error) {
 	pt := model.ProblemType(req.ProblemType)
 	if !pt.IsValid() {
 		return nil, errcode.ErrInvalidParams.WithMsg("无效的问题类型")
 	}
 	appeal := &model.Appeal{
-		Identifier:  req.Identifier,
-		ProblemType: pt,
-		Department:  req.Department,
-		Content:     req.Content,
-		Status:      model.AppealPending,
-		SubmittedBy: submitterID,
+		Identifier:    req.Identifier,
+		ProblemType:   pt,
+		Department:    req.Department,
+		Content:       req.Content,
+		Status:        model.AppealPending,
+		ApplicantType: applicantType,
+		SubmittedBy:   submitterID,
 	}
 	if err := s.repo.Create(appeal); err != nil {
 		return nil, err

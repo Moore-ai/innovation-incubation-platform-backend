@@ -287,7 +287,7 @@ func (ctl *EnterpriseController) SubmitAppeal(c *gin.Context) {
 		return
 	}
 	userID := middleware.GetUserID(c)
-	appeal, err := ctl.appealSvc.Submit(c.Request.Context(), &req, userID)
+	appeal, err := ctl.appealSvc.Submit(c.Request.Context(), &req, userID, model.ApplicantEnterprise)
 	if err != nil {
 		response.Error(c, err)
 		return
