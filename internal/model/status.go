@@ -147,6 +147,42 @@ func (t ApplicantType) IsValid() bool {
 	}
 }
 
+// CarrierScale — 载体规模
+type CarrierScale string
+
+const (
+	CarrierScaleSmall  CarrierScale = "small"
+	CarrierScaleMedium CarrierScale = "medium"
+	CarrierScaleLarge  CarrierScale = "large"
+)
+
+func (s CarrierScale) IsValid() bool {
+	switch s {
+	case CarrierScaleSmall, CarrierScaleMedium, CarrierScaleLarge:
+		return true
+	default:
+		return false
+	}
+}
+
+// UserRole — 用户角色（企业/载体）
+type UserRole string
+
+const (
+	UserRoleEnterprise UserRole = "enterprise"
+	UserRoleCarrier    UserRole = "carrier"
+)
+
+func (r UserRole) IsValid() bool {
+	switch r {
+	case UserRoleEnterprise, UserRoleCarrier:
+		return true
+	default:
+		return false
+	}
+}
+
+
 // NecessityType — ApplicationMaterial.Necessity
 type NecessityType string
 

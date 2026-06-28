@@ -2,11 +2,9 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
-	"strings"
 	"sync"
 
 	"golang.org/x/sync/errgroup"
@@ -14,6 +12,7 @@ import (
 
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/model"
+	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/pkg/aiclient"
 	"innovation-incubation-platform-backend/pkg/errcode"
 )
@@ -24,39 +23,20 @@ type VectorSearch struct {
 	aiSvc       *AIService
 	expander    *QueryExpander
 	hydeGen     *HyDEGenerator
+	carrierRepo *repository.CarrierRepo
 	db          *gorm.DB
 	cfg         config.SearchConfig
 }
 
-func NewVectorSearch(embedClient *aiclient.EmbeddingClient, aiSvc *AIService, expander *QueryExpander, hydeGen *HyDEGenerator, db *gorm.DB, cfg config.SearchConfig) *VectorSearch {
-	return &VectorSearch{embedClient: embedClient, aiSvc: aiSvc, expander: expander, hydeGen: hydeGen, db: db, cfg: cfg}
+func NewVectorSearch(embedClient *aiclient.EmbeddingClient, aiSvc *AIService, expander *QueryExpander, hydeGen *HyDEGenerator, carrierRepo *repository.CarrierRepo, db *gorm.DB, cfg config.SearchConfig) *VectorSearch {
+	return &VectorSearch{embedClient: embedClient, aiSvc: aiSvc, expander: expander, hydeGen: hydeGen, carrierRepo: carrierRepo, db: db, cfg: cfg}
 }
 
-func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*SearchResult, error) {
-	ent, err := s.aiSvc.entRepo.FindEnterpriseByUserID(userID)
+func (s *VectorSearch) Search(ctx context.Context, userID uint, query string, userType model.UserRole) (*SearchResult, error) {
+	// 获取用户画像
+	profile, err := buildSearchProfile(userID, userType, s.carrierRepo, s.aiSvc.entRepo)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			ent = &model.Enterprise{}
-		} else {
-			return nil, errcode.ErrInternal.WithMsg("查询企业信息失败")
-		}
-	}
-
-	hasProfile := ent.ID > 0
-
-	// 载体用户：查询载体画像
-	var carrierProfile string
-	if !hasProfile {
-		var carrier model.Carrier
-		if err := s.db.Where("user_id = ?", userID).First(&carrier).Error; err == nil {
-			specialty := strings.Join(carrier.SpecialtyFields, "、")
-			carrierProfile = fmt.Sprintf("载体：类型=%s，规模=%s，区域=%s，专业方向=%s", carrier.Type, carrier.Scale, carrier.Area, specialty)
-			// 填充 ent 用于后续 AI 分析
-			ent.Industry = carrier.Type
-			ent.Scale = carrier.Scale
-			ent.Address = carrier.Area
-			ent.ID = 1
-		}
+		return nil, err
 	}
 
 	// MQE: 扩展查询
@@ -113,18 +93,11 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 	g, gctx := errgroup.WithContext(ctx)
 	for _, q := range queries {
 		g.Go(func() error {
-			var searchText string
-			if hasProfile {
-				searchText = fmt.Sprintf("企业：行业=%s，规模=%s，地址=%s。%s", ent.Industry, ent.Scale, ent.Address, q)
-			} else if carrierProfile != "" {
-				searchText = fmt.Sprintf("%s。%s", carrierProfile, q)
-			} else {
-				searchText = q
-			}
+			searchText := fmt.Sprintf("%s。%s", profile, q)
 			emb, err := s.embedClient.Embed(gctx, searchText)
 			if err != nil {
 				slog.Warn("embed query failed", "query", q, "error", err)
-				return nil // 容错：忽略失败
+				return nil
 			}
 			vecStr := model.PGVector(emb).String()
 
@@ -138,7 +111,7 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 			}
 			if err := tx.Find(&policies).Error; err != nil {
 				slog.Warn("vector query failed", "query", q, "error", err)
-				return nil // 容错
+				return nil
 			}
 			mu.Lock()
 			allResults = append(allResults, policies)
@@ -147,9 +120,10 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 			return nil
 		})
 	}
-	g.Wait()
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
 
-	// 全部并行查询失败
 	if successCount == 0 {
 		return nil, errcode.ErrAIService.WithMsg("向量检索失败，请稍后重试")
 	}
@@ -172,7 +146,7 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 	}
 
 	// AI 分析
-	analysisResult, err := s.aiSvc.AnalyzeResults(ctx, query, ent, embedded)
+	analysisResult, err := s.aiSvc.AnalyzeResults(ctx, query, profile, embedded)
 	if err != nil {
 		return nil, err
 	}

@@ -14,11 +14,11 @@ type RegisterRequest struct {
 	Phone    string `json:"phone"`
 	Email    string `json:"email"`
 
-	EnterpriseName         string `json:"enterprise_name"`
-	EnterpriseCreditCode   string `json:"enterprise_credit_code"`
-	EnterpriseIndustry     string `json:"enterprise_industry"`
-	EnterpriseScale        string `json:"enterprise_scale"`
-	EnterpriseAddress      string `json:"enterprise_address"`
+	EnterpriseName       string `json:"enterprise_name"`
+	EnterpriseCreditCode string `json:"enterprise_credit_code"`
+	EnterpriseIndustry   string `json:"enterprise_industry"`
+	EnterpriseScale      string `json:"enterprise_scale"`
+	EnterpriseAddress    string `json:"enterprise_address"`
 
 	CarrierName string `json:"carrier_name"`
 	CarrierType string `json:"carrier_type"`
@@ -26,10 +26,10 @@ type RegisterRequest struct {
 }
 
 type IncubationApplyReq struct {
-	CarrierID      uint   `json:"carrier_id"`
-	IncubateStart  string `json:"incubate_start"`
-	IncubateEnd    string `json:"incubate_end"`
-	AgreementFileID *uint `json:"agreement_file_id"`
+	CarrierID       uint   `json:"carrier_id"`
+	IncubateStart   string `json:"incubate_start"`
+	IncubateEnd     string `json:"incubate_end"`
+	AgreementFileID *uint  `json:"agreement_file_id"`
 }
 
 type ChangeApplyReq struct {
@@ -52,15 +52,15 @@ type MarkReadReq struct {
 }
 
 type CarrierInfoReq struct {
-	Name            string   `json:"name"`
-	Type            string   `json:"type"`
-	Address         string   `json:"address"`
-	Area            string   `json:"area"`
-	ManagerName     string   `json:"manager_name"`
-	ContactPhone    string   `json:"contact_phone"`
-	Description     string   `json:"description"`
-	Scale           string   `json:"scale"`
-	SpecialtyFields []string `json:"specialty_fields"`
+	Name            string             `json:"name"`
+	Type            string             `json:"type"`
+	Address         string             `json:"address"`
+	Area            string             `json:"area"`
+	ManagerName     string             `json:"manager_name"`
+	ContactPhone    string             `json:"contact_phone"`
+	Description     string             `json:"description"`
+	Scale           model.CarrierScale `json:"scale"`
+	SpecialtyFields []string           `json:"specialty_fields"`
 }
 
 type PublishPolicyReq struct {

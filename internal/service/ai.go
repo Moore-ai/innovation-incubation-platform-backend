@@ -133,16 +133,24 @@ func buildPolicyBriefs(policies []model.Policy) []string {
 
 // enterpriseProfileStr 生成企业信息的提示词前缀，无企业画像时返回空字符串。
 func enterpriseProfileStr(ent *model.Enterprise) string {
-	if ent.ID > 0 {
+	if ent != nil && ent.ID > 0 {
 		return fmt.Sprintf("企业信息：行业=%s、规模=%s、地址=%s\n该企业就是你面向的用户\n", ent.Industry, ent.Scale, ent.Address)
+	}
+	return ""
+}
+
+// carrierProfileStr 生成载体信息的提示词前缀，用于载体用户搜索时的 AI 分析。
+func carrierProfileStr(carrier *model.Carrier) string {
+	if carrier != nil && carrier.ID > 0 {
+		specialty := strings.Join(carrier.SpecialtyFields, "、")
+		return fmt.Sprintf("载体信息：类型=%s、规模=%s、区域=%s、专业方向=%s\n该载体就是你面向的用户\n", carrier.Type, carrier.Scale, carrier.Area, specialty)
 	}
 	return ""
 }
 
 // AnalyzeAndRankResults uses AI to analyze and rank search results.
 // Returns re-ordered policies, analysis text, ranked IDs, and effect evaluation.
-func (s *AIService) AnalyzeAndRankResults(ctx context.Context, query string, ent *model.Enterprise, policies []model.Policy) ([]model.Policy, *analysisResult, error) {
-	profile := enterpriseProfileStr(ent)
+func (s *AIService) AnalyzeAndRankResults(ctx context.Context, query string, profile string, policies []model.Policy) ([]model.Policy, *analysisResult, error) {
 
 	if len(policies) == 0 {
 		userMsg := fmt.Sprintf("%s用户搜索：%s\n\n"+
@@ -197,8 +205,7 @@ func (s *AIService) AnalyzeAndRankResults(ctx context.Context, query string, ent
 
 // AnalyzeResults uses AI to analyze search results without re-ranking.
 // Returns analysis text and effect evaluation only (no ranked_ids).
-func (s *AIService) AnalyzeResults(ctx context.Context, query string, ent *model.Enterprise, policies []model.Policy) (*analyzeText, error) {
-	profile := enterpriseProfileStr(ent)
+func (s *AIService) AnalyzeResults(ctx context.Context, query string, profile string, policies []model.Policy) (*analyzeText, error) {
 
 	if len(policies) == 0 {
 		userMsg := fmt.Sprintf("%s用户搜索：%s\n\n"+

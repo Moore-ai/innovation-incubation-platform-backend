@@ -272,7 +272,7 @@ func (ctl *EnterpriseController) SearchPolicies(c *gin.Context) {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg("请输入搜索内容"))
 		return
 	}
-	result, err := ctl.searchSvc.Search(c.Request.Context(), middleware.GetUserID(c), req.Query)
+	result, err := ctl.searchSvc.Search(c.Request.Context(), middleware.GetUserID(c), req.Query, model.UserRoleEnterprise)
 	if err != nil {
 		response.Error(c, err)
 		return

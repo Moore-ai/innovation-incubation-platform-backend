@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -11,6 +10,7 @@ import (
 
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/model"
+	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/pkg/errcode"
 )
 
@@ -20,36 +20,25 @@ const extractedFieldsSubsidiesPath = "subsidies"
 
 // StructuredSearch implements PolicySearch via AI structured query extraction + JSONB fuzzy matching.
 type StructuredSearch struct {
-	aiSvc *AIService
-	db    *gorm.DB
-	cfg   config.SearchConfig
+	aiSvc       *AIService
+	carrierRepo *repository.CarrierRepo
+	db          *gorm.DB
+	cfg         config.SearchConfig
 }
 
-func NewStructuredSearch(aiSvc *AIService, db *gorm.DB, cfg config.SearchConfig) *StructuredSearch {
-	return &StructuredSearch{aiSvc: aiSvc, db: db, cfg: cfg}
+func NewStructuredSearch(aiSvc *AIService, carrierRepo *repository.CarrierRepo, db *gorm.DB, cfg config.SearchConfig) *StructuredSearch {
+	return &StructuredSearch{aiSvc: aiSvc, carrierRepo: carrierRepo, db: db, cfg: cfg}
 }
 
-func (s *StructuredSearch) Search(ctx context.Context, userID uint, query string) (*SearchResult, error) {
+func (s *StructuredSearch) Search(ctx context.Context, userID uint, query string, userType model.UserRole) (*SearchResult, error) {
 	// 1. 获取用户画像
-	ent, err := s.aiSvc.entRepo.FindEnterpriseByUserID(userID)
+	profile, err := buildSearchProfile(userID, userType, s.carrierRepo, s.aiSvc.entRepo)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			ent = &model.Enterprise{}
-			// 载体用户：查询载体画像并填充 ent 用于 AI 分析
-			var carrier model.Carrier
-			if err := s.db.Where("user_id = ?", userID).First(&carrier).Error; err == nil {
-				ent.Industry = carrier.Type
-				ent.Scale = carrier.Scale
-				ent.Address = carrier.Area
-				ent.ID = 1
-			}
-		} else {
-			return nil, errcode.ErrInternal.WithMsg("查询企业信息失败")
-		}
+		return nil, err
 	}
 
 	// 2. AI 转为结构化查询条件
-	criteria, err := s.analyzeQuery(ctx, query, ent)
+	criteria, err := s.analyzeQuery(ctx, query, profile)
 	if err != nil {
 		slog.Warn("ai analyze query failed", "error", err)
 		return nil, errcode.ErrAIService.WithMsg("搜索分析失败")
@@ -62,7 +51,7 @@ func (s *StructuredSearch) Search(ctx context.Context, userID uint, query string
 	}
 
 	// 4. AI 精排 + 分析
-	policies, analysisResult, err := s.aiSvc.AnalyzeAndRankResults(ctx, query, ent, policies)
+	policies, analysisResult, err := s.aiSvc.AnalyzeAndRankResults(ctx, query, profile, policies)
 	if err != nil {
 		return nil, err
 	}
@@ -74,8 +63,7 @@ func (s *StructuredSearch) Search(ctx context.Context, userID uint, query string
 		Effect:   analysisResult.Effect}, nil
 }
 
-func (s *StructuredSearch) analyzeQuery(ctx context.Context, query string, ent *model.Enterprise) (*SearchCriteria, error) {
-	profileStr := enterpriseProfileStr(ent)
+func (s *StructuredSearch) analyzeQuery(ctx context.Context, query string, profileStr string) (*SearchCriteria, error) {
 	userMsg := fmt.Sprintf("%s用户搜索：%s\n\n"+
 		"请从用户的描述中提取关键条件，严格按照以下 JSON 格式返回：\n"+
 		`{"applicable_industries":["匹配的行业关键词"],"applicable_scales":["匹配的企业规模关键词"],"applicable_status":"适用状态","subsidy_types":["补贴类型"],"applicable_region":"区域关键词","subsidy_amount_keywords":["金额关键词，如 10万、20万、30万 等"]}`+"\n"+
