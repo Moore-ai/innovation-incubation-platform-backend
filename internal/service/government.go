@@ -44,6 +44,7 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 		EndDate:      req.EndDate,
 		Status:       model.PolicyPublished,
 		PublishedAt:  &now,
+		ChangeLog:    []string{now.Format("2006-01-02 15:04:05")},
 	}
 	// 验证政策目标角色
 	if !model.TargetRole(req.TargetRole).IsValid() {
@@ -137,12 +138,6 @@ func (s *GovernmentService) UpdatePolicy(ctx context.Context, policyID uint, req
 	if err != nil {
 		return errcode.ErrNotFound
 	}
-	p.Title = req.Title
-	p.Department = req.Department
-	p.Requirements = req.Requirements
-	p.StartDate = req.StartDate
-	p.EndDate = req.EndDate
-	p.TargetRole = model.TargetRole(req.TargetRole)
 	// 验证申报材料必要性
 	if req.Requirements != nil {
 		for _, m := range req.Requirements.ApplicationMaterials {
@@ -166,6 +161,12 @@ func (s *GovernmentService) UpdatePolicy(ctx context.Context, policyID uint, req
 			}
 		}
 	}
+	p.Title = req.Title
+	p.Department = req.Department
+	p.Requirements = req.Requirements
+	p.StartDate = req.StartDate
+	p.EndDate = req.EndDate
+	p.TargetRole = model.TargetRole(req.TargetRole)
 	// Re-extract AI fields after policy update
 	if err := s.aiSvc.ExtractPolicy(ctx, p); err != nil {
 		slog.Error("AI extract policy failed after update", "policy_id", policyID, "error", err)
@@ -189,6 +190,7 @@ func (s *GovernmentService) UpdatePolicy(ctx context.Context, policyID uint, req
 			p.Embedding = emb
 		}
 	}
+	p.ChangeLog = append(p.ChangeLog, time.Now().Format("2006-01-02 15:04:05"))
 	if err := s.repo.UpdatePolicy(p); err != nil {
 		return errcode.ErrInternal
 	}

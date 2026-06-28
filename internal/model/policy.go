@@ -77,6 +77,7 @@ type Policy struct {
 	PublishedAt     *time.Time         `json:"published_at"`
 	Embedding       PGVector           `gorm:"type:vector(1024)" json:"-"`
 	ExtractedFields *ExtractedPolicy   `gorm:"type:jsonb" json:"extracted_fields"`
+	ChangeLog       []string           `gorm:"type:jsonb;default:'[]'" json:"change_log"`
 }
 
 type SubsidyDetail struct {
