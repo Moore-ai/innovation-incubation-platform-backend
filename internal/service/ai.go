@@ -14,6 +14,15 @@ import (
 	"innovation-incubation-platform-backend/pkg/errcode"
 )
 
+type PromptSet struct {
+	extract        string
+	match          string
+	prefill        string
+	summarize      string
+	search         string
+	searchAnalysis string
+}
+
 // chatAndParse sends a Chat request and unmarshals the response into the target type T.
 // Returns typed pointer on success, or an errcode.ErrAIService error on failure.
 func chatAndParse[T any](s *AIService, ctx context.Context, opName, systemPrompt, userMsg, parseErrMsg string) (*T, error) {
@@ -36,14 +45,7 @@ type AIService struct {
 	govRepo      *repository.GovernmentRepo
 	fileRepo     *repository.FileRepo
 	fileMatchCfg config.FileMatchConfig
-	prompts      struct {
-		extract        string
-		match          string
-		prefill        string
-		summarize      string
-		search         string
-		searchAnalysis string
-	}
+	prompts      PromptSet
 	maxFileChars int
 }
 
@@ -54,14 +56,7 @@ func NewAIService(client *aiclient.Client, entRepo *repository.EnterpriseRepo, g
 		govRepo:      govRepo,
 		fileRepo:     fileRepo,
 		fileMatchCfg: cfg.FileMatch,
-		prompts: struct {
-			extract        string
-			match          string
-			prefill        string
-			summarize      string
-			search         string
-			searchAnalysis string
-		}{
+		prompts: PromptSet{
 			extract:        cfg.AI.Prompts.Extract,
 			match:          cfg.AI.Prompts.Match,
 			prefill:        cfg.AI.Prompts.Prefill,
@@ -112,24 +107,9 @@ func (s *AIService) SummarizeFile(ctx context.Context, file *model.File) error {
 	return nil
 }
 
-// AnalyzeAndRankResults uses AI to analyze and rank search results.
-// Returns re-ordered policies, analysis text, ranked IDs, and effect evaluation.
-func (s *AIService) AnalyzeAndRankResults(ctx context.Context, query string, ent *model.Enterprise, policies []model.Policy) ([]model.Policy, *analysisResult, error) {
-	if len(policies) == 0 {
-		userMsg := fmt.Sprintf("企业信息：行业=%s、规模=%s、地址=%s\n"+
-			"用户搜索：%s\n\n"+
-			"本次检索未找到匹配的政策。请分析可能的原因并给出建议。\n"+
-			"严格按照以下 JSON 格式返回，不要附带其他内容：(注意，ranked_ids必须是一个空数组，即[])\n"+
-			`{"text":"你的分析内容，200字以内","ranked_ids":[],"found":false,"effect":"low"}`,
-			ent.Industry, ent.Scale, ent.Address, query)
-		r, err := chatAndParse[analysisResult](s, ctx, "search_analysis", s.prompts.searchAnalysis, userMsg, "AI分析失败")
-		if err != nil {
-			return nil, nil, err
-		}
-		return policies, r, nil
-	}
-
-	var briefs []string
+// buildPolicyBriefs formats policies into a human-readable brief list for AI prompts.
+func buildPolicyBriefs(policies []model.Policy) []string {
+	briefs := make([]string, 0, len(policies))
 	for _, p := range policies {
 		title, amount, deadline, summary := p.Title, "", "", ""
 		if ef := p.ExtractedFields; ef != nil {
@@ -148,7 +128,27 @@ func (s *AIService) AnalyzeAndRankResults(ctx context.Context, query string, ent
 		brief := fmt.Sprintf("[%d]「%s」补贴%s，截止%s，摘要：%s", p.ID, title, amount, deadline, summary)
 		briefs = append(briefs, brief)
 	}
+	return briefs
+}
 
+// AnalyzeAndRankResults uses AI to analyze and rank search results.
+// Returns re-ordered policies, analysis text, ranked IDs, and effect evaluation.
+func (s *AIService) AnalyzeAndRankResults(ctx context.Context, query string, ent *model.Enterprise, policies []model.Policy) ([]model.Policy, *analysisResult, error) {
+	if len(policies) == 0 {
+		userMsg := fmt.Sprintf("企业信息：行业=%s、规模=%s、地址=%s\n"+
+			"用户搜索：%s\n\n"+
+			"本次检索未找到匹配的政策。请分析可能的原因并给出建议。\n"+
+			"严格按照以下 JSON 格式返回，不要附带其他内容：(注意，ranked_ids必须是一个空数组，即[])\n"+
+			`{"text":"你的分析内容，200字以内","ranked_ids":[],"found":false,"effect":"low"}`,
+			ent.Industry, ent.Scale, ent.Address, query)
+		r, err := chatAndParse[analysisResult](s, ctx, "search_analysis", s.prompts.searchAnalysis, userMsg, "AI分析失败")
+		if err != nil {
+			return nil, nil, err
+		}
+		return policies, r, nil
+	}
+
+	briefs := buildPolicyBriefs(policies)
 	userMsg := fmt.Sprintf(
 		"企业信息：行业=%s、规模=%s、地址=%s\n用户搜索：%s\n\n以下是数据库中关键词匹配到的相关政策：\n%s\n\n"+
 			"请分析这些政策是否真正满足用户需求（尤其是金额、时间等精确条件）。\n"+
@@ -204,26 +204,7 @@ func (s *AIService) AnalyzeResults(ctx context.Context, query string, ent *model
 		return r, nil
 	}
 
-	var briefs []string
-	for _, p := range policies {
-		title, amount, deadline, summary := p.Title, "", "", ""
-		if ef := p.ExtractedFields; ef != nil {
-			var amts []string
-			for _, s := range ef.Subsidies {
-				if s.Amount != "" {
-					amts = append(amts, s.Amount)
-				}
-			}
-			amount = strings.Join(amts, ",")
-			summary = ef.PolicySummary
-		}
-		if p.EndDate != "" {
-			deadline = p.EndDate
-		}
-		brief := fmt.Sprintf("[%d]「%s」补贴%s，截止%s，摘要：%s", p.ID, title, amount, deadline, summary)
-		briefs = append(briefs, brief)
-	}
-
+	briefs := buildPolicyBriefs(policies)
 	userMsg := fmt.Sprintf(
 		"企业信息：行业=%s、规模=%s、地址=%s\n用户搜索：%s\n\n以下是数据库中关键词匹配到的相关政策：\n%s\n\n"+
 			"请分析这些政策是否真正满足用户需求（尤其是金额、时间等精确条件）。\n"+
