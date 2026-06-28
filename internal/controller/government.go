@@ -5,6 +5,7 @@ import (
 
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/middleware"
+	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/service"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/response"
@@ -266,6 +267,12 @@ func (ctl *GovernmentController) ReviewDeletionRequest(c *gin.Context) {
 func (ctl *GovernmentController) ListAllAppeals(c *gin.Context) {
 	status := c.Query("status")
 	problemType := c.Query("problem_type")
+	if status != "" && !model.AppealStatus(status).IsValid() {
+		status = ""
+	}
+	if problemType != "" && !model.ProblemType(problemType).IsValid() {
+		problemType = ""
+	}
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 	appeals, total, err := ctl.appealSvc.ListAll(c.Request.Context(), status, problemType, page, pageSize)

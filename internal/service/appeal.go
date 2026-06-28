@@ -2,6 +2,9 @@ package service
 
 import (
 	"context"
+	"errors"
+
+	"gorm.io/gorm"
 
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/model"
@@ -32,7 +35,7 @@ func (s *AppealService) Submit(ctx context.Context, req *dto.SubmitAppealReq, su
 		SubmittedBy:   submitterID,
 	}
 	if err := s.repo.Create(appeal); err != nil {
-		return nil, err
+		return nil, errcode.ErrInternal.WithMsg("提交诉求失败")
 	}
 	return appeal, nil
 }
@@ -58,9 +61,19 @@ func (s *AppealService) ListAll(ctx context.Context, status, problemType string,
 }
 
 func (s *AppealService) UpdateStatus(ctx context.Context, appealID uint, req *dto.UpdateAppealStatusReq) error {
-	_, err := s.repo.FindByID(appealID)
+	appeal, err := s.repo.FindByID(appealID)
 	if err != nil {
-		return errcode.ErrNotFound
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errcode.ErrNotFound
+		}
+		return errcode.ErrInternal.WithMsg("查询诉求失败")
 	}
-	return s.repo.UpdateStatus(appealID, model.AppealStatus(req.Status))
+	newStatus := model.AppealStatus(req.Status)
+	if !newStatus.IsValid() {
+		return errcode.ErrInvalidParams.WithMsg("无效的诉求状态")
+	}
+	if appeal.Status == model.AppealProcessed && newStatus == model.AppealPending {
+		return errcode.ErrStatusInvalid.WithMsg("已处理的诉求无法回退为待处理")
+	}
+	return s.repo.UpdateStatus(appealID, newStatus)
 }

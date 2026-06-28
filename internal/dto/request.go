@@ -106,7 +106,7 @@ type PerformanceSubmitReq struct {
 
 type SubmitAppealReq struct {
 	Identifier  string `json:"identifier" binding:"required"`
-	ProblemType string `json:"problem_type" binding:"required"`
+	ProblemType string `json:"problem_type" binding:"required,oneof=tax financing property utility registration labor construction supervision reward other"`
 	Department  string `json:"department"`
 	Content     string `json:"content" binding:"required"`
 }

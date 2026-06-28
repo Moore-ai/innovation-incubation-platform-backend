@@ -30,7 +30,9 @@ func (r *AppealRepo) ListBySubmitter(submitterID uint, page, pageSize int) ([]mo
 	var appeals []model.Appeal
 	var total int64
 	q := r.db.Model(&model.Appeal{}).Where("submitted_by = ?", submitterID)
-	q.Count(&total)
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 	err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&appeals).Error
 	return appeals, total, err
 }
@@ -45,7 +47,9 @@ func (r *AppealRepo) ListAll(status string, problemType string, page, pageSize i
 	if problemType != "" {
 		q = q.Where("problem_type = ?", problemType)
 	}
-	q.Count(&total)
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 	err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&appeals).Error
 	return appeals, total, err
 }
