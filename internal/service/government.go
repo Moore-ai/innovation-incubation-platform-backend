@@ -391,7 +391,7 @@ func (s *GovernmentService) CompleteIncubation(userID, incubationID uint) error 
 		return errcode.ErrStatusInvalid.WithMsg("入驻申请尚未通过审核，无法标记为孵化完成")
 	}
 	now := time.Now().Format("2006-01-02")
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		res := tx.Model(&model.IncubationRecord{}).
 			Where("id = ? AND incubate_status = ?", incubationID, model.IncubateInIncubation).
 			Updates(map[string]any{
@@ -433,8 +433,16 @@ func (s *GovernmentService) CompleteIncubation(userID, incubationID uint) error 
 				return err
 			}
 		}
+		// 孵化完成后减少在孵企业数
+		if err := tx.Model(&model.Carrier{}).Where("id = ?", record.CarrierID).
+			UpdateColumn("incubation_count", gorm.Expr("incubation_count - ?", 1)).Error; err != nil {
+			return err
+		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *GovernmentService) ListDeletionRequests(page, pageSize int, status string) ([]model.AccountDeletionRequest, int64, error) {

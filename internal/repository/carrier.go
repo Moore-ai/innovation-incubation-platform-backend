@@ -145,3 +145,8 @@ func (r *CarrierRepo) FindGovernmentUserIDs() ([]uint, error) {
 	err := r.db.Model(&model.User{}).Where("role = ?", "government").Pluck("id", &ids).Error
 	return ids, err
 }
+
+func (r *CarrierRepo) IncrIncubationCount(carrierID uint, delta int) error {
+	return r.db.Model(&model.Carrier{}).Where("id = ?", carrierID).
+		UpdateColumn("incubation_count", gorm.Expr("incubation_count + ?", delta)).Error
+}

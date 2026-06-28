@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 	"sync"
 
 	"golang.org/x/sync/errgroup"
@@ -35,13 +36,28 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 	ent, err := s.aiSvc.entRepo.FindEnterpriseByUserID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			ent = &model.Enterprise{} // 载体用户无企业画像，使用空对象继续
+			ent = &model.Enterprise{}
 		} else {
 			return nil, errcode.ErrInternal.WithMsg("查询企业信息失败")
 		}
 	}
 
 	hasProfile := ent.ID > 0
+
+	// 载体用户：查询载体画像
+	var carrierProfile string
+	if !hasProfile {
+		var carrier model.Carrier
+		if err := s.db.Where("user_id = ?", userID).First(&carrier).Error; err == nil {
+			specialty := strings.Join(carrier.SpecialtyFields, "、")
+			carrierProfile = fmt.Sprintf("载体：类型=%s，规模=%s，区域=%s，专业方向=%s", carrier.Type, carrier.Scale, carrier.Area, specialty)
+			// 填充 ent 用于后续 AI 分析
+			ent.Industry = carrier.Type
+			ent.Scale = carrier.Scale
+			ent.Address = carrier.Area
+			ent.ID = 1
+		}
+	}
 
 	// MQE: 扩展查询
 	queries := []string{query}
@@ -100,6 +116,8 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 			var searchText string
 			if hasProfile {
 				searchText = fmt.Sprintf("企业：行业=%s，规模=%s，地址=%s。%s", ent.Industry, ent.Scale, ent.Address, q)
+			} else if carrierProfile != "" {
+				searchText = fmt.Sprintf("%s。%s", carrierProfile, q)
 			} else {
 				searchText = q
 			}

@@ -52,13 +52,15 @@ type MarkReadReq struct {
 }
 
 type CarrierInfoReq struct {
-	Name         string `json:"name"`
-	Type         string `json:"type"`
-	Address      string `json:"address"`
-	Area         string `json:"area"`
-	ManagerName  string `json:"manager_name"`
-	ContactPhone string `json:"contact_phone"`
-	Description  string `json:"description"`
+	Name            string   `json:"name"`
+	Type            string   `json:"type"`
+	Address         string   `json:"address"`
+	Area            string   `json:"area"`
+	ManagerName     string   `json:"manager_name"`
+	ContactPhone    string   `json:"contact_phone"`
+	Description     string   `json:"description"`
+	Scale           string   `json:"scale"`
+	SpecialtyFields []string `json:"specialty_fields"`
 }
 
 type PublishPolicyReq struct {

@@ -63,15 +63,26 @@ func (s *CarrierService) ReviewIncubation(carrierUserID uint, incubationID uint,
 		return errcode.ErrStatusInvalid.WithMsg(err.Error())
 	}
 	s.db.Transaction(func(tx *gorm.DB) error {
-		tx.Model(&model.IncubationRecord{}).Where("id = ?", incubationID).Update("status", newStatus)
-		tx.Create(&model.Approval{
+		if err := tx.Model(&model.IncubationRecord{}).Where("id = ?", incubationID).Update("status", newStatus).Error; err != nil {
+			return err
+		}
+		if err := tx.Create(&model.Approval{
 			TargetType: model.TargetIncubation,
 			TargetID:   incubationID,
 			Step:       model.StepCarrierReview,
 			Action:     model.ApprovalAction(req.Action),
 			Comment:    req.Comment,
 			ReviewerID: carrierUserID,
-		})
+		}).Error; err != nil {
+			return err
+		}
+		// 审核通过时增加在孵企业数
+		if req.Action == string(model.ActionApprove) {
+			if err := tx.Model(&model.Carrier{}).Where("id = ?", carrier.ID).
+				UpdateColumn("incubation_count", gorm.Expr("incubation_count + ?", 1)).Error; err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 
@@ -132,13 +143,15 @@ func (s *CarrierService) CompleteIncubation(carrierUserID uint, incubationID uin
 			return errcode.ErrStatusInvalid.WithMsg("该入驻记录当前状态不可标记为孵化完成")
 		}
 
-		tx.Create(&model.Approval{
+		if err := tx.Create(&model.Approval{
 			TargetType: model.TargetIncubation,
 			TargetID:   incubationID,
 			Step:       model.StepCarrierReview,
 			Action:     model.ActionApprove,
 			ReviewerID: carrierUserID,
-		})
+		}).Error; err != nil {
+			return err
+		}
 
 		// 通知企业
 		var entUserID uint
@@ -150,6 +163,12 @@ func (s *CarrierService) CompleteIncubation(carrierUserID uint, incubationID uin
 				model.TargetIncubation, incubationID); err != nil {
 				return err
 			}
+		}
+
+		// 孵化完成后减少在孵企业数
+		if err := tx.Model(&model.Carrier{}).Where("id = ?", carrier.ID).
+			UpdateColumn("incubation_count", gorm.Expr("incubation_count - ?", 1)).Error; err != nil {
+			return err
 		}
 		return nil
 	})
@@ -267,6 +286,8 @@ func (s *CarrierService) UpdateInfo(userID uint, req *dto.CarrierInfoReq) (*mode
 	carrier.ManagerName = req.ManagerName
 	carrier.ContactPhone = req.ContactPhone
 	carrier.Description = req.Description
+	carrier.Scale = req.Scale
+	carrier.SpecialtyFields = req.SpecialtyFields
 	if err := s.repo.UpdateCarrier(carrier); err != nil {
 		return nil, errcode.ErrInternal
 	}

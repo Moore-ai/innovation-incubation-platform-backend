@@ -34,7 +34,15 @@ func (s *StructuredSearch) Search(ctx context.Context, userID uint, query string
 	ent, err := s.aiSvc.entRepo.FindEnterpriseByUserID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			ent = &model.Enterprise{} // 载体用户无企业画像，使用空对象继续
+			ent = &model.Enterprise{}
+			// 载体用户：查询载体画像并填充 ent 用于 AI 分析
+			var carrier model.Carrier
+			if err := s.db.Where("user_id = ?", userID).First(&carrier).Error; err == nil {
+				ent.Industry = carrier.Type
+				ent.Scale = carrier.Scale
+				ent.Address = carrier.Area
+				ent.ID = 1
+			}
 		} else {
 			return nil, errcode.ErrInternal.WithMsg("查询企业信息失败")
 		}
@@ -67,10 +75,7 @@ func (s *StructuredSearch) Search(ctx context.Context, userID uint, query string
 }
 
 func (s *StructuredSearch) analyzeQuery(ctx context.Context, query string, ent *model.Enterprise) (*SearchCriteria, error) {
-	var profileStr string
-	if ent.ID > 0 {
-		profileStr = fmt.Sprintf("企业信息：行业=%s、规模=%s、地址=%s\n该企业就是你面向的用户\n", ent.Industry, ent.Scale, ent.Address)
-	}
+	profileStr := enterpriseProfileStr(ent)
 	userMsg := fmt.Sprintf("%s用户搜索：%s\n\n"+
 		"请从用户的描述中提取关键条件，严格按照以下 JSON 格式返回：\n"+
 		`{"applicable_industries":["匹配的行业关键词"],"applicable_scales":["匹配的企业规模关键词"],"applicable_status":"适用状态","subsidy_types":["补贴类型"],"applicable_region":"区域关键词","subsidy_amount_keywords":["金额关键词，如 10万、20万、30万 等"]}`+"\n"+

@@ -134,7 +134,7 @@ func buildPolicyBriefs(policies []model.Policy) []string {
 // enterpriseProfileStr 生成企业信息的提示词前缀，无企业画像时返回空字符串。
 func enterpriseProfileStr(ent *model.Enterprise) string {
 	if ent.ID > 0 {
-		return fmt.Sprintf("企业信息：行业=%s、规模=%s、地址=%s\n", ent.Industry, ent.Scale, ent.Address)
+		return fmt.Sprintf("企业信息：行业=%s、规模=%s、地址=%s\n该企业就是你面向的用户\n", ent.Industry, ent.Scale, ent.Address)
 	}
 	return ""
 }
