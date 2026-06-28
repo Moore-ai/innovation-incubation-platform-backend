@@ -22,6 +22,26 @@ func (r *CarrierRepo) FindCarrierByUserID(userID uint) (*model.Carrier, error) {
 	return &carrier, nil
 }
 
+func (r *CarrierRepo) ListAll(page, pageSize int) ([]model.Carrier, int64, error) {
+	var list []model.Carrier
+	var total int64
+	q := r.db.Model(&model.Carrier{})
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
+	return list, total, err
+}
+
+func (r *CarrierRepo) FindByID(id uint) (*model.Carrier, error) {
+	var c model.Carrier
+	err := r.db.First(&c, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
 func (r *CarrierRepo) UpdateCarrier(carrier *model.Carrier) error {
 	return r.db.Save(carrier).Error
 }
@@ -29,7 +49,8 @@ func (r *CarrierRepo) UpdateCarrier(carrier *model.Carrier) error {
 func (r *CarrierRepo) ListPendingIncubations(carrierID uint, page, pageSize int) ([]model.IncubationRecord, int64, error) {
 	var records []model.IncubationRecord
 	var total int64
-	q := r.db.Model(&model.IncubationRecord{}).Where("carrier_id = ? AND status = 'pending'", carrierID)
+	excludeSub := "AND NOT EXISTS (SELECT 1 FROM major_changes WHERE enterprise_id = incubation_records.enterprise_id AND change_type = '入孵协议文件' AND status = 'pending')"
+	q := r.db.Model(&model.IncubationRecord{}).Where("carrier_id = ? AND status = 'pending' "+excludeSub, carrierID)
 	q.Count(&total)
 	err := q.Preload("Enterprise").Order("created_at DESC").
 		Offset((page-1)*pageSize).Limit(pageSize).Find(&records).Error
@@ -111,4 +132,21 @@ func (r *CarrierRepo) ListActiveCampaigns(page, pageSize int) ([]model.Performan
 
 func (r *CarrierRepo) CreatePerformanceSubmission(sub *model.PerformanceSubmission) error {
 	return r.db.Create(sub).Error
+}
+
+func (r *CarrierRepo) FindUserIDByCarrierID(carrierID uint) (uint, error) {
+	var c model.Carrier
+	err := r.db.Select("user_id").First(&c, carrierID).Error
+	return c.UserID, err
+}
+
+func (r *CarrierRepo) FindGovernmentUserIDs() ([]uint, error) {
+	var ids []uint
+	err := r.db.Model(&model.User{}).Where("role = ?", "government").Pluck("id", &ids).Error
+	return ids, err
+}
+
+func (r *CarrierRepo) IncrIncubationCount(carrierID uint, delta int) error {
+	return r.db.Model(&model.Carrier{}).Where("id = ?", carrierID).
+		UpdateColumn("incubation_count", gorm.Expr("incubation_count + ?", delta)).Error
 }

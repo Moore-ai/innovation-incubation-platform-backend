@@ -1,18 +1,24 @@
 package service
 
 import (
+	"time"
+	"fmt"
+
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/pkg/errcode"
+
 	"innovation-incubation-platform-backend/pkg/statemachine"
+
 	"gorm.io/gorm"
+	"log/slog"
 )
 
 var validReviewActions = map[string]bool{
-	"approve": true,
-	"reject":  true,
-	"return":  true,
+	string(model.ActionApprove): true,
+	string(model.ActionReject):  true,
+	string(model.ActionReturn):  true,
 }
 
 func validateReviewAction(action string) error {
@@ -27,10 +33,13 @@ type CarrierService struct {
 	commonRepo *repository.CommonRepo
 	db         *gorm.DB
 	sm         *statemachine.StateMachine
+	policySM   *statemachine.StateMachine
+	notifSvc   *NotificationService
+	assigner   *Assigner
 }
 
-func NewCarrierService(repo *repository.CarrierRepo, commonRepo *repository.CommonRepo, db *gorm.DB) *CarrierService {
-	return &CarrierService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM()}
+func NewCarrierService(repo *repository.CarrierRepo, commonRepo *repository.CommonRepo, db *gorm.DB, notifSvc *NotificationService, assigner *Assigner) *CarrierService {
+	return &CarrierService{repo: repo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM(), policySM: statemachine.PolicyApprovalSM(), notifSvc: notifSvc, assigner: assigner}
 }
 
 func (s *CarrierService) ReviewIncubation(carrierUserID uint, incubationID uint, req *dto.ReviewReq) error {
@@ -45,28 +54,124 @@ func (s *CarrierService) ReviewIncubation(carrierUserID uint, incubationID uint,
 	if record.CarrierID != carrier.ID {
 		return errcode.ErrForbidden
 	}
-	newStatus, err := s.sm.Transition(record.Status, req.Action)
+	// 协议文件检查
+	if record.AgreementFileID == nil {
+		return errcode.ErrInvalidParams.WithMsg("审核失败，该企业尚未上传入孵协议文件")
+	}
+	newStatus, err := s.sm.Transition(string(record.Status), req.Action)
 	if err != nil {
 		return errcode.ErrStatusInvalid.WithMsg(err.Error())
 	}
 	s.db.Transaction(func(tx *gorm.DB) error {
-		tx.Model(&model.IncubationRecord{}).Where("id = ?", incubationID).Update("status", newStatus)
-		tx.Create(&model.Approval{
-			TargetType: "incubation",
+		if err := tx.Model(&model.IncubationRecord{}).Where("id = ?", incubationID).Update("status", newStatus).Error; err != nil {
+			return err
+		}
+		if err := tx.Create(&model.Approval{
+			TargetType: model.TargetIncubation,
 			TargetID:   incubationID,
-			Step:       "carrier_review",
-			Action:     req.Action,
+			Step:       model.StepCarrierReview,
+			Action:     model.ApprovalAction(req.Action),
 			Comment:    req.Comment,
 			ReviewerID: carrierUserID,
-		})
+		}).Error; err != nil {
+			return err
+		}
+		// 审核通过时增加在孵企业数
+		if req.Action == string(model.ActionApprove) {
+			if err := tx.Model(&model.Carrier{}).Where("id = ?", carrier.ID).
+				UpdateColumn("incubation_count", gorm.Expr("incubation_count + ?", 1)).Error; err != nil {
+				return err
+			}
+		}
 		return nil
 	})
+
+	// 通知企业
+	var entUserID uint
+	s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", record.EnterpriseID).Take(&entUserID)
+	if entUserID > 0 {
+		actionMsg := map[string]string{
+			string(model.ActionApprove): "通过",
+			string(model.ActionReject):  "拒绝",
+			string(model.ActionReturn):  "退回",
+		}[req.Action]
+		s.notifSvc.Send(entUserID, model.NotifIncubationReviewed,
+			fmt.Sprintf("入驻申请已被%s", actionMsg),
+			fmt.Sprintf("您的入驻申请已被载体%s", actionMsg),
+			model.TargetIncubation, incubationID)
+	}
+
 	return nil
 }
 
 func (s *CarrierService) ListPendingIncubations(userID uint, page, pageSize int) ([]model.IncubationRecord, int64, error) {
 	carrier, _ := s.repo.FindCarrierByUserID(userID)
 	return s.repo.ListPendingIncubations(carrier.ID, page, pageSize)
+}
+
+func (s *CarrierService) CompleteIncubation(carrierUserID uint, incubationID uint) error {
+	carrier, err := s.repo.FindCarrierByUserID(carrierUserID)
+	if err != nil {
+		return errcode.ErrForbidden
+	}
+	record, err := s.repo.FindIncubationByID(incubationID)
+	if err != nil {
+		return errcode.ErrNotFound
+	}
+	if record.CarrierID != carrier.ID {
+		return errcode.ErrForbidden
+	}
+	if record.IncubateStatus != model.IncubateInIncubation {
+		return errcode.ErrStatusInvalid.WithMsg("该入驻记录当前状态不可标记为孵化完成")
+	}
+	if record.Status != model.ApprovalApproved {
+		return errcode.ErrStatusInvalid.WithMsg("入驻申请尚未通过审核，无法标记为孵化完成")
+	}
+
+	now := time.Now().Format("2006-01-02")
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&model.IncubationRecord{}).
+			Where("id = ? AND incubate_status = ?", incubationID, model.IncubateInIncubation).
+			Updates(map[string]any{
+				"incubate_status": model.IncubateGraduated,
+				"incubate_end":    now,
+			})
+		if res.Error != nil {
+			return errcode.ErrInternal
+		}
+		if res.RowsAffected == 0 {
+			return errcode.ErrStatusInvalid.WithMsg("该入驻记录当前状态不可标记为孵化完成")
+		}
+
+		if err := tx.Create(&model.Approval{
+			TargetType: model.TargetIncubation,
+			TargetID:   incubationID,
+			Step:       model.StepCarrierReview,
+			Action:     model.ActionApprove,
+			ReviewerID: carrierUserID,
+		}).Error; err != nil {
+			return err
+		}
+
+		// 通知企业
+		var entUserID uint
+		tx.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", record.EnterpriseID).Take(&entUserID)
+		if entUserID > 0 {
+			if err := s.notifSvc.Send(entUserID, model.NotifIncubationGraduated,
+				"孵化已完成",
+				"贵企业已完成孵化，恭喜！",
+				model.TargetIncubation, incubationID); err != nil {
+				return err
+			}
+		}
+
+		// 孵化完成后减少在孵企业数
+		if err := tx.Model(&model.Carrier{}).Where("id = ?", carrier.ID).
+			UpdateColumn("incubation_count", gorm.Expr("incubation_count - ?", 1)).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (s *CarrierService) ReviewChange(carrierUserID uint, changeID uint, req *dto.ReviewReq) error {
@@ -78,23 +183,90 @@ func (s *CarrierService) ReviewChange(carrierUserID uint, changeID uint, req *dt
 	if err != nil {
 		return errcode.ErrNotFound
 	}
-	newStatus, err := s.sm.Transition(change.Status, req.Action)
+	newStatus, err := s.sm.Transition(string(change.Status), req.Action)
 	if err != nil {
 		return errcode.ErrStatusInvalid.WithMsg(err.Error())
 	}
 	s.db.Transaction(func(tx *gorm.DB) error {
 		tx.Model(&model.MajorChange{}).Where("id = ?", changeID).Update("status", newStatus)
 		tx.Create(&model.Approval{
-			TargetType: "major_change",
+			TargetType: model.TargetMajorChange,
 			TargetID:   changeID,
-			Step:       "carrier_review",
-			Action:     req.Action,
+			Step:       model.StepCarrierReview,
+			Action:     model.ApprovalAction(req.Action),
 			Comment:    req.Comment,
 			ReviewerID: carrierUserID,
 		})
+		if req.Action == string(model.ActionApprove) {
+			ent := &model.Enterprise{}
+			if err := tx.First(ent, change.EnterpriseID).Error; err != nil {
+				return err
+			}
+			applyChange(ent, change, tx)
+			if err := tx.Save(ent).Error; err != nil {
+				return err
+			}
+		}
 		return nil
 	})
+	// 通知企业
+	var entUserID uint
+	s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", change.EnterpriseID).Take(&entUserID)
+	if entUserID > 0 {
+		if change.ChangeType == "入孵协议文件" && req.Action == string(model.ActionApprove) {
+			s.notifSvc.Send(entUserID, model.NotifChangeReviewed,
+				"协议文件变更已被批准",
+				"您的协议文件变更已被批准，请重新提交入驻申请并上传新协议",
+				model.TargetMajorChange, changeID)
+		} else {
+			actionMsg := map[string]string{
+				string(model.ActionApprove): "通过",
+				string(model.ActionReject):  "拒绝",
+				string(model.ActionReturn):  "退回",
+			}[req.Action]
+			s.notifSvc.Send(entUserID, model.NotifChangeReviewed,
+				fmt.Sprintf("变更申请已被%s", actionMsg),
+				fmt.Sprintf("您的「%s」变更申请已被载体%s", change.ChangeType, actionMsg),
+				model.TargetMajorChange, changeID)
+		}
+	}
+
 	return nil
+}
+
+// applyChange maps ChangeType to Enterprise struct fields and applies the new value.
+func applyChange(ent *model.Enterprise, change *model.MajorChange, db *gorm.DB) {
+	v, ok := change.NewValue[change.ChangeType].(string)
+	if !ok {
+		return
+	}
+	switch change.ChangeType {
+	case "企业名称":
+		ent.Name = v
+	case "统一社会信用代码":
+		ent.CreditCode = v
+	case "所属行业":
+		ent.Industry = v
+	case "企业规模":
+		ent.Scale = v
+	case "企业地址":
+		ent.Address = v
+	case "法定代表人":
+		ent.LegalPerson = v
+	case "入孵协议文件":
+		recordID, _ := change.NewValue["incubation_record_id"].(float64)
+		if recordID == 0 {
+			return
+		}
+		var record model.IncubationRecord
+		if err := db.First(&record, uint(recordID)).Error; err != nil {
+			return
+		}
+		if record.AgreementFileID != nil {
+			db.Delete(&model.File{}, *record.AgreementFileID)
+		}
+		db.Delete(&record)
+	}
 }
 
 func (s *CarrierService) ListPendingChanges(userID uint, page, pageSize int) ([]model.MajorChange, int64, error) {
@@ -114,6 +286,8 @@ func (s *CarrierService) UpdateInfo(userID uint, req *dto.CarrierInfoReq) (*mode
 	carrier.ManagerName = req.ManagerName
 	carrier.ContactPhone = req.ContactPhone
 	carrier.Description = req.Description
+	carrier.Scale = req.Scale
+	carrier.SpecialtyFields = req.SpecialtyFields
 	if err := s.repo.UpdateCarrier(carrier); err != nil {
 		return nil, errcode.ErrInternal
 	}
@@ -125,7 +299,7 @@ func (s *CarrierService) GetMyInfo(userID uint) (*model.Carrier, error) {
 }
 
 func (s *CarrierService) ListAvailableCarrierPolicies(page, pageSize int) ([]model.Policy, int64, error) {
-	return s.commonRepo.ListPoliciesByTarget("carrier", page, pageSize)
+	return s.commonRepo.ListPoliciesByTarget(string(model.RoleCarrier), page, pageSize)
 }
 
 func (s *CarrierService) ApplyCarrierPolicy(userID uint, policyID uint, req *dto.PolicyApplyReq) (*model.PolicyApplication, error) {
@@ -137,16 +311,16 @@ func (s *CarrierService) ApplyCarrierPolicy(userID uint, policyID uint, req *dto
 	app := &model.PolicyApplication{
 		PolicyID:      policyID,
 		ApplicantID:   carrier.ID,
-		ApplicantType: "carrier",
-		FormData:      req.FormData,
-		Status:        "pending",
+		ApplicantType: model.ApplicantCarrier,
+		Materials: req.Materials,
+		Status:        model.ApprovalPending,
 	}
 	s.commonRepo.CreatePolicyApplication(app)
 	s.db.Create(&model.Approval{
-		TargetType: "policy",
+		TargetType: model.TargetPolicy,
 		TargetID:   app.ID,
-		Step:       "gov_review",
-		Action:     "submit",
+		Step:       model.StepGovReview,
+		Action:     model.ActionSubmit,
 	})
 	return app, nil
 }
@@ -160,27 +334,106 @@ func (s *CarrierService) ReviewEnterprisePolicyApplication(carrierUserID uint, a
 	if err := validateReviewAction(req.Action); err != nil {
 		return err
 	}
-	_, _ = s.repo.FindCarrierByUserID(carrierUserID)
+	carrier, err := s.repo.FindCarrierByUserID(carrierUserID)
+	if err != nil {
+		return errcode.ErrNotFound.WithMsg("载体信息未找到")
+	}
 	app, err := s.repo.FindPolicyApplicationByID(appID)
 	if err != nil {
 		return errcode.ErrNotFound
 	}
-	newStatus, err := s.sm.Transition(app.Status, req.Action)
+	if app.Status != model.ApprovalPending {
+		return errcode.ErrStatusInvalid.WithMsg("该申请当前状态不可审核")
+	}
+	// 验证该企业的申报属于当前载体
+	if app.ApplicantType == model.ApplicantEnterprise {
+		var incubation model.IncubationRecord
+		if err := s.db.Where("enterprise_id = ? AND carrier_id = ?", app.ApplicantID, carrier.ID).First(&incubation).Error; err != nil {
+			return errcode.ErrForbidden.WithMsg("无权审核该企业的申报")
+		}
+	}
+	newStatus, err := s.policySM.Transition(string(app.Status), req.Action)
 	if err != nil {
 		return errcode.ErrStatusInvalid.WithMsg(err.Error())
 	}
 	s.db.Transaction(func(tx *gorm.DB) error {
-		tx.Model(&model.PolicyApplication{}).Where("id = ?", appID).Update("status", newStatus)
-		tx.Create(&model.Approval{
-			TargetType: "policy",
+		res := tx.Model(&model.PolicyApplication{}).Where("id = ? AND status = ?", appID, model.ApprovalPending).Update("status", newStatus)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return errcode.ErrStatusInvalid.WithMsg("申请状态已变更，请刷新后重试")
+		}
+		if err := tx.Create(&model.Approval{
+			TargetType: model.TargetPolicy,
 			TargetID:   appID,
-			Step:       "gov_review",
-			Action:     req.Action,
+			Step:       model.StepCarrierReview,
+			Action:     model.ApprovalAction(req.Action),
 			Comment:    req.Comment,
 			ReviewerID: carrierUserID,
-		})
+		}).Error; err != nil {
+			return err
+		}
 		return nil
 	})
+
+	if req.Action == string(model.ActionApprove) {
+		uid, err := s.assigner.Next("government")
+		if err == nil {
+			if err := s.notifSvc.Send(uid, model.NotifApplicationCarrierApproved,
+				"有一条政策申报已通过载体审核",
+				"有一条政策申报已通过载体审核，请尽快处理",
+				model.TargetPolicy, appID); err != nil {
+				slog.Error("notification failed", "error", err)
+			}
+		}
+	} else {
+		// 通知企业（拒绝/退回）
+		var ent model.Enterprise
+		s.db.Select("user_id").First(&ent, app.ApplicantID)
+		if ent.UserID > 0 {
+			actionMsg := map[string]string{string(model.ActionReject): "拒绝", string(model.ActionReturn): "退回"}[req.Action]
+			s.notifSvc.Send(ent.UserID, model.NotifApplicationReviewed,
+				fmt.Sprintf("政策申报已被%s", actionMsg),
+				fmt.Sprintf("您的政策申报已被载体%s", actionMsg),
+				model.TargetPolicy, appID)
+		}
+	}
+
+	return nil
+}
+
+func (s *CarrierService) ApplyDeletion(userID uint, reason string) error {
+	if reason == "" {
+		return errcode.ErrInvalidParams.WithMsg("请填写注销原因")
+	}
+	carrier, err := s.repo.FindCarrierByUserID(userID)
+	if err != nil {
+		return errcode.ErrNotFound.WithMsg("载体信息未找到")
+	}
+	var existing int64
+	s.db.Model(&model.AccountDeletionRequest{}).Where("user_id = ? AND status = ?", userID, model.ApprovalPending).Count(&existing)
+	if existing > 0 {
+		return errcode.ErrStatusInvalid.WithMsg("您已有一笔待处理的注销申请，请等待审核结果")
+	}
+	req := &model.AccountDeletionRequest{
+		UserID:    userID,
+		Role:      string(model.RoleCarrier),
+		CarrierID: &carrier.ID,
+		Reason:    reason,
+		Status:    model.ApprovalPending,
+	}
+	if err := s.db.Create(req).Error; err != nil {
+		return errcode.ErrInternal
+	}
+	// 通知政务
+	uid, err := s.assigner.Next("government")
+	if err == nil {
+		s.notifSvc.Send(uid, model.NotifDeletionApplied,
+			"有一条新的注销申请待审核",
+			fmt.Sprintf("载体「%s」提交了账号注销申请", carrier.Name),
+			model.TargetAccountDeletion, req.ID)
+	}
 	return nil
 }
 
@@ -194,16 +447,26 @@ func (s *CarrierService) SubmitPerformance(userID uint, campaignID uint, req *dt
 		CampaignID: campaignID,
 		CarrierID:  carrier.ID,
 		FormData:   req.FormData,
-		Status:     "pending",
+		Status:     model.ApprovalPending,
 	}
 	if err := s.repo.CreatePerformanceSubmission(sub); err != nil {
 		return nil, errcode.ErrInternal
 	}
 	s.db.Create(&model.Approval{
-		TargetType: "performance",
+		TargetType: model.TargetPerformance,
 		TargetID:   sub.ID,
-		Step:       "gov_review",
-		Action:     "submit",
+		Step:       model.StepGovReview,
+		Action:     model.ActionSubmit,
 	})
+
+	// 通知政务
+	uid, err := s.assigner.Next("government")
+	if err == nil {
+		s.notifSvc.Send(uid, model.NotifPerformanceSubmitted,
+			"有一条新的绩效考核申报待评分",
+			"有一条新的绩效考核申报待评分",
+			model.TargetPerformance, sub.ID)
+	}
+
 	return sub, nil
 }

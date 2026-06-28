@@ -14,11 +14,11 @@ type RegisterRequest struct {
 	Phone    string `json:"phone"`
 	Email    string `json:"email"`
 
-	EnterpriseName         string `json:"enterprise_name"`
-	EnterpriseCreditCode   string `json:"enterprise_credit_code"`
-	EnterpriseIndustry     string `json:"enterprise_industry"`
-	EnterpriseScale        string `json:"enterprise_scale"`
-	EnterpriseAddress      string `json:"enterprise_address"`
+	EnterpriseName       string `json:"enterprise_name"`
+	EnterpriseCreditCode string `json:"enterprise_credit_code"`
+	EnterpriseIndustry   string `json:"enterprise_industry"`
+	EnterpriseScale      string `json:"enterprise_scale"`
+	EnterpriseAddress    string `json:"enterprise_address"`
 
 	CarrierName string `json:"carrier_name"`
 	CarrierType string `json:"carrier_type"`
@@ -26,10 +26,10 @@ type RegisterRequest struct {
 }
 
 type IncubationApplyReq struct {
-	CarrierID      uint   `json:"carrier_id"`
-	IncubateStart  string `json:"incubate_start"`
-	IncubateEnd    string `json:"incubate_end"`
-	AgreementFileID *uint `json:"agreement_file_id"`
+	CarrierID       uint   `json:"carrier_id"`
+	IncubateStart   string `json:"incubate_start"`
+	IncubateEnd     string `json:"incubate_end"`
+	AgreementFileID *uint  `json:"agreement_file_id"`
 }
 
 type ChangeApplyReq struct {
@@ -39,7 +39,7 @@ type ChangeApplyReq struct {
 }
 
 type PolicyApplyReq struct {
-	FormData model.JSONMap `json:"form_data"`
+	Materials []model.MaterialFileItem `json:"materials"`
 }
 
 type ReviewReq struct {
@@ -47,30 +47,29 @@ type ReviewReq struct {
 	Comment string `json:"comment"`
 }
 
-type CarrierInfoReq struct {
-	Name         string `json:"name"`
-	Type         string `json:"type"`
-	Address      string `json:"address"`
-	Area         string `json:"area"`
-	ManagerName  string `json:"manager_name"`
-	ContactPhone string `json:"contact_phone"`
-	Description  string `json:"description"`
+type MarkReadReq struct {
+	IDs []uint `json:"ids" binding:"required,min=1"`
 }
 
-type PolicyTemplateReq struct {
-	Name        string        `json:"name"`
-	Description string        `json:"description"`
-	FormSchema  model.JSONMap `json:"form_schema"`
-	TargetRole  string        `json:"target_role"`
+type CarrierInfoReq struct {
+	Name            string             `json:"name"`
+	Type            string             `json:"type"`
+	Address         string             `json:"address"`
+	Area            string             `json:"area"`
+	ManagerName     string             `json:"manager_name"`
+	ContactPhone    string             `json:"contact_phone"`
+	Description     string             `json:"description"`
+	Scale           model.CarrierScale `json:"scale"`
+	SpecialtyFields []string           `json:"specialty_fields"`
 }
 
 type PublishPolicyReq struct {
-	TemplateID    uint          `json:"template_id"`
-	Title         string        `json:"title"`
-	Conditions    model.JSONMap `json:"conditions"`
-	SubsidyAmount string        `json:"subsidy_amount"`
-	StartDate     string        `json:"start_date"`
-	EndDate       string        `json:"end_date"`
+	TargetRole   string                   `json:"target_role" binding:"required,oneof=enterprise carrier both"`
+	Title        string                   `json:"title"`
+	Department   string                   `json:"department"`
+	Requirements *model.PolicyRequirement `json:"requirements" binding:"required"`
+	StartDate    string                   `json:"start_date"`
+	EndDate      string                   `json:"end_date"`
 }
 
 type EnterpriseEditReq struct {
@@ -105,4 +104,15 @@ type ScoreReq struct {
 
 type PerformanceSubmitReq struct {
 	FormData model.JSONMap `json:"form_data"`
+}
+
+type SubmitAppealReq struct {
+	Identifier  string `json:"identifier" binding:"required"`
+	ProblemType string `json:"problem_type" binding:"required,oneof=tax financing property utility registration labor construction supervision reward other"`
+	Department  string `json:"department"`
+	Content     string `json:"content" binding:"required"`
+}
+
+type UpdateAppealStatusReq struct {
+	Status string `json:"status" binding:"required,oneof=pending processed"`
 }

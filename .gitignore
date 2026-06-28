@@ -1,6 +1,14 @@
 bin/
+log/
 *.md
 *.exe
+*.exe~
 .DS_Store
 config/config.yaml
 .env
+
+uploads/
+
+# test
+test/node_modules/
+test/src/*.js

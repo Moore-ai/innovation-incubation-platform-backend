@@ -19,7 +19,7 @@ func (r *AuthRepo) CreateUser(user *model.User) error {
 
 func (r *AuthRepo) FindByCredential(credential, role string) (*model.User, error) {
 	var user model.User
-	if role == "enterprise" {
+	if role == string(model.RoleEnterprise) {
 		err := r.db.Joins("JOIN enterprises ON enterprises.user_id = users.id").
 			Where("enterprises.credit_code = ?", credential).First(&user).Error
 		if err != nil {
@@ -41,6 +41,15 @@ func (r *AuthRepo) FindByUserID(id uint) (*model.User, error) {
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (r *AuthRepo) FindEnterpriseByUserID(userID uint) (*model.Enterprise, error) {
+	var ent model.Enterprise
+	err := r.db.Where("user_id = ?", userID).First(&ent).Error
+	if err != nil {
+		return nil, err
+	}
+	return &ent, nil
 }
 
 func (r *AuthRepo) CreateEnterprise(ent *model.Enterprise) error {

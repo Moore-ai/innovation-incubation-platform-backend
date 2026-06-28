@@ -14,16 +14,49 @@ jwt:
   secret: ${JWT_SECRET}
   expire_hours: 24
 
-casbin:
-  model_path: config/casbin_model.conf
-
 ai:
-  provider: anthropic
-  anthropic:
+  openai:
     api_key: ${AI_API_KEY}
     base_url: ${AI_BASE_URL}
-    model: claude-sonnet-4-6
+    model: ${AI_MODEL}
     timeout_seconds: 30
+  embedding:
+    api_key: ${EMBEDDING_API_KEY}
+    base_url: ${EMBEDDING_BASE_URL}
+    model: ${EMBEDDING_MODEL}
+    dimensions: 1024
+    timeout_seconds: 30
+
+filematch:
+  weight_jaro: 0.4
+  weight_keyword: 0.4
+  weight_prefix: 0.2
+  threshold: 0.6
+  stop_words:
+    - 复印件
+    - 原件
+    - 扫描件
+    - 照片
+    - 图片
+    - 副本
+    - 电子版
+    - 扫描
+
+search:
+  method: vector
+  max_results: 10
+  vector:
+    dimensions: 1024
+    top_k: 8
+    min_score: 0.7
+    max_analysis: 5
+    mqe:
+      enabled: false
+      n_queries: 3
+      rrf_k: 60
+    hyde:
+      enabled: false
+      max_tokens: 512
 
 redis:
   addr: ${REDIS_ADDR}
@@ -32,9 +65,25 @@ redis:
 
 upload:
   max_size_mb: 2
+  dir: uploads
+  allowed_extensions: []
 
 rate_limit:
   enabled: true
   algorithm: token_bucket
   default_rpm: 60
   whitelist: []
+
+log:
+  enabled: false
+
+notification:
+  heartbeat_seconds: 30
+  recent_count: 20
+  max_conns_per_user: 10
+
+file_parser:
+  enabled: true
+  venv_path: "sidecar/file-parser/venv"
+  script_path: "sidecar/file-parser/server.py"
+  timeout_sec: 30

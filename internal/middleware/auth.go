@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"innovation-incubation-platform-backend/config"
+
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -30,7 +31,7 @@ func GenerateToken(cfg config.JWTConfig, userID uint, role string) (string, erro
 }
 
 func ParseToken(cfg config.JWTConfig, tokenStr string) (*Claims, error) {
-	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (any, error) {
 		return []byte(cfg.Secret), nil
 	})
 	if err != nil {

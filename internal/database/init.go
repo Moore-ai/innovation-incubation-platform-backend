@@ -17,6 +17,8 @@ func MustInit(cfg *config.Config) *gorm.DB {
 		os.Exit(1)
 	}
 
+	db.Exec("CREATE EXTENSION IF NOT EXISTS vector")
+
 	if err := db.AutoMigrate(model.AllModels()...); err != nil {
 		slog.Error("failed to auto migrate", "error", err)
 		os.Exit(1)

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"innovation-incubation-platform-backend/internal/model"
+
 	"gorm.io/gorm"
 )
 
@@ -13,12 +14,25 @@ func NewGovernmentRepo(db *gorm.DB) *GovernmentRepo {
 	return &GovernmentRepo{db: db}
 }
 
-func (r *GovernmentRepo) CreatePolicyTemplate(t *model.PolicyTemplate) error {
-	return r.db.Create(t).Error
-}
-
 func (r *GovernmentRepo) CreatePolicy(p *model.Policy) error {
 	return r.db.Create(p).Error
+}
+
+func (r *GovernmentRepo) FindPolicyByID(id uint) (*model.Policy, error) {
+	var p model.Policy
+	err := r.db.First(&p, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+func (r *GovernmentRepo) UpdatePolicy(p *model.Policy) error {
+	return r.db.Save(p).Error
+}
+
+func (r *GovernmentRepo) DeletePolicy(id uint) error {
+	return r.db.Delete(&model.Policy{}, id).Error
 }
 
 func (r *GovernmentRepo) ListPolicies(page, pageSize int) ([]model.Policy, int64, error) {
@@ -26,8 +40,8 @@ func (r *GovernmentRepo) ListPolicies(page, pageSize int) ([]model.Policy, int64
 	var total int64
 	q := r.db.Model(&model.Policy{})
 	q.Count(&total)
-	err := q.Preload("Template").Order("created_at DESC").
-		Offset((page-1)*pageSize).Limit(pageSize).Find(&policies).Error
+	err := q.Order("created_at DESC").
+		Offset((page - 1) * pageSize).Limit(pageSize).Find(&policies).Error
 	return policies, total, err
 }
 
@@ -38,7 +52,7 @@ func (r *GovernmentRepo) SearchEnterprises(keyword string, page, pageSize int) (
 	q := r.db.Model(&model.Enterprise{}).
 		Where("name LIKE ? OR credit_code LIKE ? OR industry LIKE ?", like, like, like)
 	q.Count(&total)
-	err := q.Order("created_at DESC").Offset((page-1)*pageSize).Limit(pageSize).Find(&ents).Error
+	err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&ents).Error
 	return ents, total, err
 }
 
@@ -61,7 +75,7 @@ func (r *GovernmentRepo) SearchCarriers(keyword string, page, pageSize int) ([]m
 	like := "%" + keyword + "%"
 	q := r.db.Model(&model.Carrier{}).Where("name LIKE ? OR address LIKE ?", like, like)
 	q.Count(&total)
-	err := q.Order("created_at DESC").Offset((page-1)*pageSize).Limit(pageSize).Find(&carriers).Error
+	err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&carriers).Error
 	return carriers, total, err
 }
 
@@ -80,7 +94,7 @@ func (r *GovernmentRepo) ListPolicyApplicationsForReview(page, pageSize int) ([]
 	q := r.db.Model(&model.PolicyApplication{}).Where("status = 'pending' OR status = 'gov_review'")
 	q.Count(&total)
 	err := q.Preload("Policy").Order("created_at DESC").
-		Offset((page-1)*pageSize).Limit(pageSize).Find(&apps).Error
+		Offset((page - 1) * pageSize).Limit(pageSize).Find(&apps).Error
 	return apps, total, err
 }
 
@@ -102,7 +116,7 @@ func (r *GovernmentRepo) ListPerformanceSubmissions(page, pageSize int) ([]model
 	q := r.db.Model(&model.PerformanceSubmission{})
 	q.Count(&total)
 	err := q.Preload("Campaign").Preload("Carrier").Order("created_at DESC").
-		Offset((page-1)*pageSize).Limit(pageSize).Find(&subs).Error
+		Offset((page - 1) * pageSize).Limit(pageSize).Find(&subs).Error
 	return subs, total, err
 }
 
@@ -115,7 +129,13 @@ func (r *GovernmentRepo) FindPerformanceSubmission(id uint) (*model.PerformanceS
 	return &sub, nil
 }
 
+func (r *GovernmentRepo) FindUserIDsByRole(role string) ([]uint, error) {
+	var ids []uint
+	err := r.db.Model(&model.User{}).Where("role = ?", role).Pluck("id", &ids).Error
+	return ids, err
+}
+
 func (r *GovernmentRepo) UpdateSubmissionScore(id uint, status string, score float64) error {
 	return r.db.Model(&model.PerformanceSubmission{}).Where("id = ?", id).
-		Updates(map[string]interface{}{"status": status, "score": score}).Error
+		Updates(map[string]any{"status": status, "score": score}).Error
 }
