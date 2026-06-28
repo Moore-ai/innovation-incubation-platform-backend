@@ -15,7 +15,6 @@ jwt:
   expire_hours: 24
 
 ai:
-  provider: anthropic
   openai:
     api_key: ${AI_API_KEY}
     base_url: ${AI_BASE_URL}

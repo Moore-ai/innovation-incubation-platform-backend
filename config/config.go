@@ -96,7 +96,6 @@ type JWTConfig struct {
 }
 
 type AIConfig struct {
-	Provider     string                 `mapstructure:"provider"`
 	OpenAI       OpenAICompatibleConfig `mapstructure:"openai"`
 	Prompts      PromptsConfig          `mapstructure:"prompts"`
 	MaxFileChars int                    `mapstructure:"max_file_chars"`
