@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -33,7 +34,10 @@ func NewVectorSearch(embedClient *aiclient.EmbeddingClient, aiSvc *AIService, ex
 func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*SearchResult, error) {
 	ent, err := s.aiSvc.entRepo.FindEnterpriseByUserID(userID)
 	if err != nil {
-		return nil, errcode.ErrForbidden.WithMsg("无权访问")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errcode.ErrForbidden.WithMsg("无权访问")
+		}
+		return nil, errcode.ErrInternal.WithMsg("查询企业信息失败")
 	}
 
 	// MQE: 扩展查询

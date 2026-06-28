@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -12,6 +13,10 @@ import (
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/pkg/errcode"
 )
+
+// extractedFieldsSubsidiesPath 是 extracted_fields JSONB 中补贴列表的路径。
+// 与 model.ExtractedPolicy.Subsidies 的 JSON tag "subsidies" 保持一致。
+const extractedFieldsSubsidiesPath = "subsidies"
 
 // StructuredSearch implements PolicySearch via AI structured query extraction + JSONB fuzzy matching.
 type StructuredSearch struct {
@@ -28,7 +33,10 @@ func (s *StructuredSearch) Search(ctx context.Context, userID uint, query string
 	// 1. 获取用户画像
 	ent, err := s.aiSvc.entRepo.FindEnterpriseByUserID(userID)
 	if err != nil {
-		return nil, errcode.ErrForbidden.WithMsg("无权访问")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errcode.ErrForbidden.WithMsg("无权访问")
+		}
+		return nil, errcode.ErrInternal.WithMsg("查询企业信息失败")
 	}
 
 	// 2. AI 转为结构化查询条件
@@ -69,36 +77,36 @@ func (s *StructuredSearch) analyzeQuery(ctx context.Context, query string, ent *
 }
 
 func (s *StructuredSearch) searchPolicies(ctx context.Context, criteria *SearchCriteria) ([]model.Policy, error) {
-	type scoreCase struct {
+	type fieldMatch struct {
 		field   string
 		keyword string
 	}
-	var scores []scoreCase
+	var matches []fieldMatch
 
 	for _, kw := range criteria.ApplicableIndustries {
 		if kw != "" {
-			scores = append(scores, scoreCase{"applicable_industries", kw})
+			matches = append(matches, fieldMatch{"applicable_industries", kw})
 		}
 	}
 	for _, kw := range criteria.ApplicableScales {
 		if kw != "" {
-			scores = append(scores, scoreCase{"applicable_scales", kw})
+			matches = append(matches, fieldMatch{"applicable_scales", kw})
 		}
 	}
 	if criteria.ApplicableStatus != "" {
-		scores = append(scores, scoreCase{"applicable_status", criteria.ApplicableStatus})
+		matches = append(matches, fieldMatch{"applicable_status", criteria.ApplicableStatus})
 	}
 	for _, kw := range criteria.SubsidyTypes {
 		if kw != "" {
-			scores = append(scores, scoreCase{"subsidy_type", kw})
+			matches = append(matches, fieldMatch{"subsidy_type", kw})
 		}
 	}
 	if criteria.ApplicableRegion != "" {
-		scores = append(scores, scoreCase{"applicable_region", criteria.ApplicableRegion})
+		matches = append(matches, fieldMatch{"applicable_region", criteria.ApplicableRegion})
 	}
 	for _, kw := range criteria.SubsidyAmountKeywords {
 		if kw != "" {
-			scores = append(scores, scoreCase{"subsidy_amount", kw})
+			matches = append(matches, fieldMatch{"subsidy_amount", kw})
 		}
 	}
 
@@ -107,7 +115,7 @@ func (s *StructuredSearch) searchPolicies(ctx context.Context, criteria *SearchC
 		maxResults = 10
 	}
 
-	if len(scores) == 0 {
+	if len(matches) == 0 {
 		var policies []model.Policy
 		if err := s.db.WithContext(ctx).Where("status = ?", model.PolicyPublished).
 			Order("published_at DESC").Limit(maxResults).Find(&policies).Error; err != nil {
@@ -120,13 +128,15 @@ func (s *StructuredSearch) searchPolicies(ctx context.Context, criteria *SearchC
 	// 参数化关键词，避免 SQL 注入
 	var args []any
 	var orParts []string
-	for _, sc := range scores {
-		if sc.field == "subsidy_amount" {
-			orParts = append(orParts, `EXISTS (SELECT 1 FROM jsonb_array_elements(extracted_fields->'subsidies') AS s WHERE s->>'amount' ILIKE ?)`)
+	for _, m := range matches {
+		if m.field == "subsidy_amount" {
+			orParts = append(orParts, fmt.Sprintf(
+				`EXISTS (SELECT 1 FROM jsonb_array_elements(extracted_fields->'%s') AS s WHERE s->>'amount' ILIKE ?)`,
+				extractedFieldsSubsidiesPath))
 		} else {
-			orParts = append(orParts, fmt.Sprintf("extracted_fields->>'%s' ILIKE ?", sc.field))
+			orParts = append(orParts, fmt.Sprintf("extracted_fields->>'%s' ILIKE ?", m.field))
 		}
-		args = append(args, "%"+sc.keyword+"%")
+		args = append(args, "%"+m.keyword+"%")
 	}
 	args = append(args, string(model.PolicyPublished))
 	whereClause := "(" + strings.Join(orParts, " OR ") + ") AND status = ?"
