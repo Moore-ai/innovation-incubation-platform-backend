@@ -122,7 +122,7 @@ func initControllers(r *repositories, s *services, cfg *config.Config, hub *serv
 	return &controllers{
 		auth:    controller.NewAuthController(s.auth),
 		ent:     controller.NewEnterpriseController(s.ent, s.ai, s.search, s.appeal),
-		carrier: controller.NewCarrierController(s.carrier, s.appeal),
+		carrier: controller.NewCarrierController(s.carrier, s.appeal, s.search),
 		gov:     controller.NewGovernmentController(s.gov, s.appeal),
 		file:    controller.NewFileController(s.file, cfg),
 		notif:   controller.NewNotificationController(r.notif, hub, cfg),

@@ -35,10 +35,13 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 	ent, err := s.aiSvc.entRepo.FindEnterpriseByUserID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errcode.ErrForbidden.WithMsg("无权访问")
+			ent = &model.Enterprise{} // 载体用户无企业画像，使用空对象继续
+		} else {
+			return nil, errcode.ErrInternal.WithMsg("查询企业信息失败")
 		}
-		return nil, errcode.ErrInternal.WithMsg("查询企业信息失败")
 	}
+
+	hasProfile := ent.ID > 0
 
 	// MQE: 扩展查询
 	queries := []string{query}
@@ -68,7 +71,7 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 		if err := g.Wait(); err != nil {
 			slog.Warn("HyDE generation aborted", "error", err)
 		}
-		appended := 0
+		var appended int
 		for _, doc := range hydeDocs {
 			if doc != "" {
 				queries = append(queries, doc)
@@ -94,7 +97,12 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string) (*
 	g, gctx := errgroup.WithContext(ctx)
 	for _, q := range queries {
 		g.Go(func() error {
-			searchText := fmt.Sprintf("企业：行业=%s，规模=%s，地址=%s。%s", ent.Industry, ent.Scale, ent.Address, q)
+			var searchText string
+			if hasProfile {
+				searchText = fmt.Sprintf("企业：行业=%s，规模=%s，地址=%s。%s", ent.Industry, ent.Scale, ent.Address, q)
+			} else {
+				searchText = q
+			}
 			emb, err := s.embedClient.Embed(gctx, searchText)
 			if err != nil {
 				slog.Warn("embed query failed", "query", q, "error", err)

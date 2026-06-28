@@ -34,9 +34,10 @@ func (s *StructuredSearch) Search(ctx context.Context, userID uint, query string
 	ent, err := s.aiSvc.entRepo.FindEnterpriseByUserID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errcode.ErrForbidden.WithMsg("无权访问")
+			ent = &model.Enterprise{} // 载体用户无企业画像，使用空对象继续
+		} else {
+			return nil, errcode.ErrInternal.WithMsg("查询企业信息失败")
 		}
-		return nil, errcode.ErrInternal.WithMsg("查询企业信息失败")
 	}
 
 	// 2. AI 转为结构化查询条件
@@ -66,12 +67,15 @@ func (s *StructuredSearch) Search(ctx context.Context, userID uint, query string
 }
 
 func (s *StructuredSearch) analyzeQuery(ctx context.Context, query string, ent *model.Enterprise) (*SearchCriteria, error) {
-	userMsg := fmt.Sprintf(
-		"企业信息：行业=%s、规模=%s、地址=%s\n用户搜索：%s\n\n"+
-			"请从用户的描述中提取关键条件，严格按照以下 JSON 格式返回：\n"+
-			`{"applicable_industries":["匹配的行业关键词"],"applicable_scales":["匹配的企业规模关键词"],"applicable_status":"适用状态","subsidy_types":["补贴类型"],"applicable_region":"区域关键词","subsidy_amount_keywords":["金额关键词，如 10万、20万、30万 等"]}`+"\n"+
-			"如果未提及某个字段，用空值表示（字符串用空字符串，数组用空数组）。",
-		ent.Industry, ent.Scale, ent.Address, query,
+	var profileStr string
+	if ent.ID > 0 {
+		profileStr = fmt.Sprintf("企业信息：行业=%s、规模=%s、地址=%s\n该企业就是你面向的用户\n", ent.Industry, ent.Scale, ent.Address)
+	}
+	userMsg := fmt.Sprintf("%s用户搜索：%s\n\n"+
+		"请从用户的描述中提取关键条件，严格按照以下 JSON 格式返回：\n"+
+		`{"applicable_industries":["匹配的行业关键词"],"applicable_scales":["匹配的企业规模关键词"],"applicable_status":"适用状态","subsidy_types":["补贴类型"],"applicable_region":"区域关键词","subsidy_amount_keywords":["金额关键词，如 10万、20万、30万 等"]}`+"\n"+
+		"如果未提及某个字段，用空值表示（字符串用空字符串，数组用空数组）。",
+		profileStr, query,
 	)
 	return chatAndParse[SearchCriteria](s.aiSvc, ctx, "search", s.aiSvc.prompts.search, userMsg, "AI搜索分析失败")
 }

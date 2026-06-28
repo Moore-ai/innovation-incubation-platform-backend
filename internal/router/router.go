@@ -127,6 +127,14 @@ func registerCarrierRoutes(r *gin.Engine, deps *Deps) {
 	c.POST("/performances/:id/submit", deps.CarrierController.SubmitPerformance)
 	c.POST("/appeals", deps.CarrierController.SubmitAppeal)
 	c.GET("/appeals", deps.CarrierController.ListMyAppeals)
+
+	ai := r.Group("/api/v1/carrier")
+	ai.Use(middleware.AuthMiddleware(deps.Config.JWT))
+	if deps.Enforcer != nil {
+		ai.Use(middleware.RbacMiddleware(deps.Enforcer))
+	}
+	ai.Use(middleware.RouteRateLimit(5))
+	ai.POST("/policies/search", deps.CarrierController.SearchPolicies)
 }
 
 func registerGovernmentRoutes(r *gin.Engine, deps *Deps) {

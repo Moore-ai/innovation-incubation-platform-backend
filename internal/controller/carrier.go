@@ -1,4 +1,4 @@
-﻿package controller
+package controller
 
 import (
 	"strconv"
@@ -15,10 +15,11 @@ import (
 type CarrierController struct {
 	svc       *service.CarrierService
 	appealSvc *service.AppealService
+	searchSvc service.PolicySearch
 }
 
-func NewCarrierController(svc *service.CarrierService, appealSvc *service.AppealService) *CarrierController {
-	return &CarrierController{svc: svc, appealSvc: appealSvc}
+func NewCarrierController(svc *service.CarrierService, appealSvc *service.AppealService, searchSvc service.PolicySearch) *CarrierController {
+	return &CarrierController{svc: svc, appealSvc: appealSvc, searchSvc: searchSvc}
 }
 
 func (ctl *CarrierController) ReviewIncubation(c *gin.Context) {
@@ -224,4 +225,20 @@ func (ctl *CarrierController) ListMyAppeals(c *gin.Context) {
 		return
 	}
 	response.SuccessPage(c, appeals, total, page, pageSize)
+}
+
+func (ctl *CarrierController) SearchPolicies(c *gin.Context) {
+	var req struct {
+		Query string `json:"query" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("请输入搜索内容"))
+		return
+	}
+	result, err := ctl.searchSvc.Search(c.Request.Context(), middleware.GetUserID(c), req.Query)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, result)
 }
