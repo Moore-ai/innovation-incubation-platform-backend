@@ -36,11 +36,16 @@ func (s *AIService) collectFileSummaries(ctx context.Context, policy *model.Poli
 					return nil
 				}
 			}
-			if file.Summary != "" {
-				mu.Lock()
-				summaries = append(summaries, fmt.Sprintf("- %s：%s", basis.Title, file.Summary))
-				mu.Unlock()
+			line := "- " + basis.Title
+			if basis.SpecificClause != "" {
+				line += "\n  依据条款：" + basis.SpecificClause
 			}
+			if file.Summary != "" {
+				line += "\n  文件摘要：" + file.Summary
+			}
+			mu.Lock()
+			summaries = append(summaries, line)
+			mu.Unlock()
 			return nil
 		})
 	}
@@ -116,10 +121,18 @@ func buildEmbeddingText(p *model.Policy, legalFiles []model.File) string {
 		if p.Requirements.Process != nil {
 			parts = append(parts, *p.Requirements.Process)
 		}
-	}
-	for _, f := range legalFiles {
-		if f.Summary != "" {
-			parts = append(parts, f.Summary)
+		for _, basis := range p.Requirements.LegalBasis {
+			text := basis.Title
+			if basis.SpecificClause != "" {
+				text += "：" + basis.SpecificClause
+			}
+			for _, f := range legalFiles {
+				if f.ID == basis.FileID && f.Summary != "" {
+					text += "。" + f.Summary
+					break
+				}
+			}
+			parts = append(parts, text)
 		}
 	}
 	return strings.Join(parts, "。")
