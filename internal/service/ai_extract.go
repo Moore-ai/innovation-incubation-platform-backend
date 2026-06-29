@@ -24,15 +24,13 @@ func (s *AIService) collectFileSummaries(ctx context.Context, policy *model.Poli
 		g.Go(func() error {
 			file, err := s.fileRepo.FindByID(basis.FileID)
 			if err != nil {
-				return nil // 文件不存在，跳过
+				return nil
 			}
-			// 如果没有摘要但有原始文字，先并发生成
 			if file.Summary == "" && file.RawText != "" {
 				if err := s.SummarizeFile(ctx, file); err != nil {
 					slog.Warn("summarize file failed", "file_id", basis.FileID, "error", err)
-					return nil // 摘要失败不阻断
+					return nil
 				}
-				// 重新从 DB 获取最新的 summary
 				file, err = s.fileRepo.FindByID(basis.FileID)
 				if err != nil {
 					return nil
@@ -51,7 +49,6 @@ func (s *AIService) collectFileSummaries(ctx context.Context, policy *model.Poli
 }
 
 func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) error {
-	// 构建 userMsg（并发生成缺失的摘要 + 收集已有摘要）
 	var msg string
 	msg += fmt.Sprintf("政策标题：%s\n", policy.Title)
 	msg += fmt.Sprintf("政策内容：%s\n", toJSONString(policy.Requirements))
@@ -73,7 +70,6 @@ func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) err
 	return nil
 }
 
-// cleanLLMOutput extracts JSON content from markdown code block wrapping.
 func cleanLLMOutput(s string) string {
 	s = strings.TrimSpace(s)
 	for _, prefix := range []string{"```json", "```"} {
@@ -99,7 +95,6 @@ func toJSONString(v any) string {
 	return string(b)
 }
 
-// buildEmbeddingText 从政策结构和法律依据文件摘要拼接 embedding 文本。
 func buildEmbeddingText(p *model.Policy, legalFiles []model.File) string {
 	var parts []string
 	parts = append(parts, p.Title)

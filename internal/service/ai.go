@@ -23,8 +23,6 @@ type PromptSet struct {
 	searchAnalysis string
 }
 
-// chatAndParse sends a Chat request and unmarshals the response into the target type T.
-// Returns typed pointer on success, or an errcode.ErrAIService error on failure.
 func chatAndParse[T any](s *AIService, ctx context.Context, opName, systemPrompt, userMsg, parseErrMsg string) (*T, error) {
 	text, err := s.client.Chat(ctx, systemPrompt, userMsg)
 	if err != nil {
@@ -107,7 +105,6 @@ func (s *AIService) SummarizeFile(ctx context.Context, file *model.File) error {
 	return nil
 }
 
-// buildPolicyBriefs formats policies into a human-readable brief list for AI prompts.
 func buildPolicyBriefs(policies []model.Policy) []string {
 	briefs := make([]string, 0, len(policies))
 	for _, p := range policies {
@@ -131,7 +128,6 @@ func buildPolicyBriefs(policies []model.Policy) []string {
 	return briefs
 }
 
-// enterpriseProfileStr 生成企业信息的提示词前缀，无企业画像时返回空字符串。
 func enterpriseProfileStr(ent *model.Enterprise) string {
 	if ent != nil && ent.ID > 0 {
 		return fmt.Sprintf("企业信息：行业=%s、规模=%s、地址=%s\n该企业就是你面向的用户\n", ent.Industry, ent.Scale, ent.Address)
@@ -139,7 +135,6 @@ func enterpriseProfileStr(ent *model.Enterprise) string {
 	return ""
 }
 
-// carrierProfileStr 生成载体信息的提示词前缀，用于载体用户搜索时的 AI 分析。
 func carrierProfileStr(carrier *model.Carrier) string {
 	if carrier != nil && carrier.ID > 0 {
 		specialty := strings.Join(carrier.SpecialtyFields, "、")
@@ -148,10 +143,7 @@ func carrierProfileStr(carrier *model.Carrier) string {
 	return ""
 }
 
-// AnalyzeAndRankResults uses AI to analyze and rank search results.
-// Returns re-ordered policies, analysis text, ranked IDs, and effect evaluation.
 func (s *AIService) AnalyzeAndRankResults(ctx context.Context, query string, profile string, policies []model.Policy) ([]model.Policy, *analysisResult, error) {
-
 	if len(policies) == 0 {
 		userMsg := fmt.Sprintf("%s用户搜索：%s\n\n"+
 			"本次检索未找到匹配的政策。请分析可能的原因并给出建议。\n"+
@@ -179,7 +171,6 @@ func (s *AIService) AnalyzeAndRankResults(ctx context.Context, query string, pro
 		return nil, nil, err
 	}
 
-	// 按 ranked_ids 重排
 	rankedIDs := r.RankedIDs
 	if len(rankedIDs) > 0 {
 		ranked := make([]model.Policy, 0, len(policies))
@@ -203,10 +194,7 @@ func (s *AIService) AnalyzeAndRankResults(ctx context.Context, query string, pro
 	return policies, r, nil
 }
 
-// AnalyzeResults uses AI to analyze search results without re-ranking.
-// Returns analysis text and effect evaluation only (no ranked_ids).
 func (s *AIService) AnalyzeResults(ctx context.Context, query string, profile string, policies []model.Policy) (*analyzeText, error) {
-
 	if len(policies) == 0 {
 		userMsg := fmt.Sprintf("%s用户搜索：%s\n\n"+
 			"本次检索未找到匹配的政策。请分析可能的原因并给出建议。\n"+

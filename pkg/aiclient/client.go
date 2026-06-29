@@ -11,6 +11,8 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
+const defaultRetries = 2
+
 type Client struct {
 	inner *openai.Client
 	model string
@@ -33,45 +35,65 @@ func New(baseURL, apiKey, model string, timeout int) *Client {
 	}
 }
 
+func (c *Client) Chat(ctx context.Context, system, user string) (string, error) {
+	req := openai.ChatCompletionRequest{
+		Model: c.model,
+		Messages: []openai.ChatCompletionMessage{
+			{Role: openai.ChatMessageRoleSystem, Content: system},
+			{Role: openai.ChatMessageRoleUser, Content: user},
+		},
+	}
+	return retry(ctx, "Chat", func() (string, error) {
+		resp, err := c.inner.CreateChatCompletion(ctx, req)
+		if err != nil {
+			return "", err
+		}
+		if len(resp.Choices) == 0 {
+			return "", fmt.Errorf("AI返回为空")
+		}
+		return resp.Choices[0].Message.Content, nil
+	})
+}
+
 func (c *Client) ChatWithMaxTokens(ctx context.Context, system, user string, maxTokens int) (string, error) {
-	resp, err := c.inner.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+	req := openai.ChatCompletionRequest{
 		Model: c.model,
 		Messages: []openai.ChatCompletionMessage{
 			{Role: openai.ChatMessageRoleSystem, Content: system},
 			{Role: openai.ChatMessageRoleUser, Content: user},
 		},
 		MaxTokens: maxTokens,
-	})
-	if err != nil {
-		slog.Error("ai chat completion failed", "error", err)
-		if ctx.Err() == context.DeadlineExceeded {
-			return "", fmt.Errorf("AI服务超时")
+	}
+	return retry(ctx, "ChatWithMaxTokens", func() (string, error) {
+		resp, err := c.inner.CreateChatCompletion(ctx, req)
+		if err != nil {
+			return "", err
 		}
-		return "", fmt.Errorf("AI服务暂不可用")
-	}
-	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("AI返回为空")
-	}
-	return resp.Choices[0].Message.Content, nil
+		if len(resp.Choices) == 0 {
+			return "", fmt.Errorf("AI返回为空")
+		}
+		return resp.Choices[0].Message.Content, nil
+	})
 }
 
-func (c *Client) Chat(ctx context.Context, system, user string) (string, error) {
-	resp, err := c.inner.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: c.model,
-		Messages: []openai.ChatCompletionMessage{
-			{Role: openai.ChatMessageRoleSystem, Content: system},
-			{Role: openai.ChatMessageRoleUser, Content: user},
-		},
-	})
-	if err != nil {
-		slog.Error("ai chat completion failed", "error", err)
-		if ctx.Err() == context.DeadlineExceeded {
-			return "", fmt.Errorf("AI服务超时")
+func retry(ctx context.Context, op string, fn func() (string, error)) (string, error) {
+	var lastErr error
+	for attempt := 0; attempt <= defaultRetries; attempt++ {
+		if attempt > 0 {
+			slog.Warn("AI 调用重试", "op", op, "attempt", attempt, "max", defaultRetries)
 		}
-		return "", fmt.Errorf("AI服务暂不可用")
+		result, err := fn()
+		if err == nil {
+			return result, nil
+		}
+		lastErr = err
+		if ctx.Err() != nil {
+			break
+		}
 	}
-	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("AI返回为空")
+	if ctx.Err() == context.DeadlineExceeded {
+		return "", fmt.Errorf("AI服务超时")
 	}
-	return resp.Choices[0].Message.Content, nil
+	slog.Error("AI 调用失败", "op", op, "error", lastErr)
+	return "", fmt.Errorf("AI服务暂不可用")
 }

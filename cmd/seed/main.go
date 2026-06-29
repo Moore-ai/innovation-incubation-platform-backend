@@ -123,7 +123,7 @@ func main() {
 		}
 		slog.Info("基础入库成功", "ID", policy.ID, "标题", title)
 
-		// 第二步：AI 提取结构化字段
+		// 第二步：AI 提取（ExtractPolicy 内部已内置重试，无需外部包装）
 		slog.Info("AI 提取结构化字段", "标题", title)
 		if err := aiSvc.ExtractPolicy(ctx, policy); err != nil {
 			slog.Error("AI 提取失败，跳过", "标题", title, "error", err)
