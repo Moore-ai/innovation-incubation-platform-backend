@@ -14,8 +14,9 @@ import (
 // PGVector 表示 PostgreSQL pgvector 扩展的向量类型
 type PGVector []float32
 
-// Scan implements sql.Scanner for pgvector binary format.
+// Scan implements sql.Scanner for pgvector (binary or text format).
 // pgvector binary: [2B flags][2B reserved][N x 4B float32 BE]
+// pgvector text:   "[0.1,0.2,…]"
 func (v *PGVector) Scan(src any) error {
 	if src == nil {
 		*v = nil
@@ -30,6 +31,24 @@ func (v *PGVector) Scan(src any) error {
 			bits := binary.BigEndian.Uint32(data[i*4 : (i+1)*4])
 			(*v)[i] = math.Float32frombits(bits)
 		}
+		return nil
+	case string:
+		// format: [0.1,0.2,…]
+		trimmed := strings.Trim(s, "[]")
+		if trimmed == "" {
+			*v = PGVector{}
+			return nil
+		}
+		parts := strings.Split(trimmed, ",")
+		vec := make(PGVector, len(parts))
+		for i, p := range parts {
+			f, err := strconv.ParseFloat(strings.TrimSpace(p), 32)
+			if err != nil {
+				return fmt.Errorf("parse pgvector element: %w", err)
+			}
+			vec[i] = float32(f)
+		}
+		*v = vec
 		return nil
 	default:
 		return fmt.Errorf("unsupported pgvector type: %T", src)

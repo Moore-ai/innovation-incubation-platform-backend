@@ -57,6 +57,7 @@ type VectorSearchConfig struct {
 	TopK        int        `mapstructure:"top_k"`
 	MinScore    float64    `mapstructure:"min_score"`
 	MaxAnalysis int        `mapstructure:"max_analysis"`
+	Rerank      bool       `mapstructure:"rerank"`
 	MQE         MQEConfig  `mapstructure:"mqe"`
 	HyDE        HyDEConfig `mapstructure:"hyde"`
 }
@@ -216,6 +217,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("search.vector.top_k", 20)
 	v.SetDefault("search.vector.min_score", 0.7)
 	v.SetDefault("search.vector.max_analysis", 5)
+	v.SetDefault("search.vector.rerank", true)
 	v.SetDefault("search.vector.mqe.enabled", true)
 	v.SetDefault("search.vector.mqe.n_queries", 3)
 	v.SetDefault("search.vector.mqe.rrf_k", 60.0)

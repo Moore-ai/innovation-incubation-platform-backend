@@ -48,8 +48,9 @@ search:
   vector:
     dimensions: 1024
     top_k: 8
-    min_score: 0.7
+    min_score: 0.3
     max_analysis: 5
+    rerank: true
     mqe:
       enabled: false
       n_queries: 3
