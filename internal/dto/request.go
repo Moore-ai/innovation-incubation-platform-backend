@@ -3,9 +3,10 @@ package dto
 import "innovation-incubation-platform-backend/internal/model"
 
 type LoginRequest struct {
-	Credential string `json:"credential" binding:"required"`
 	Password   string `json:"password" binding:"required"`
 	Role       string `json:"role" binding:"required"`
+	Phone      string `json:"phone"`
+	CreditCode string `json:"credit_code"`
 }
 
 type RegisterRequest struct {

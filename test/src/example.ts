@@ -1,4 +1,4 @@
-// 示例：注册企业 → 登录 → 查看政策
+// 示例：注册企业 -> 登录 -> 查看政策
 // 运行: npx tsx src/example.ts
 
 import { ApiClient } from "./api.js";
@@ -20,7 +20,7 @@ async function main() {
 
   // 2. 登录
   const login = await api.post("/auth/login", {
-    credential: "TEST" + Date.now(), // 上面注册时用的 credit_code
+    credit_code: "TEST" + Date.now(),
     password: "test123456",
     role: "enterprise",
   });

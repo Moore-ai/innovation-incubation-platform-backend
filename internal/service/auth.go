@@ -77,7 +77,26 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*dto.LoginResponse, er
 }
 
 func (s *AuthService) Login(req *dto.LoginRequest) (*dto.LoginResponse, error) {
-	user, err := s.repo.FindByCredential(req.Credential, req.Role)
+	var user *model.User
+	var err error
+
+	switch req.Role {
+	case string(model.RoleEnterprise):
+		if req.CreditCode == "" {
+			return nil, errcode.ErrInvalidParams.WithMsg("企业登录需提供信用代码")
+		}
+		user, err = s.repo.FindByCreditCode(req.CreditCode)
+	case string(model.RoleCarrier):
+		if req.Phone == "" {
+			return nil, errcode.ErrInvalidParams.WithMsg("载体登录需提供手机号")
+		}
+		user, err = s.repo.FindByPhone(req.Phone, req.Role)
+	default:
+		if req.Phone == "" {
+			return nil, errcode.ErrInvalidParams.WithMsg("手机号不能为空")
+		}
+		user, err = s.repo.FindByPhone(req.Phone, req.Role)
+	}
 	if err != nil {
 		return nil, errcode.ErrUnauthorized.WithMsg("账号或密码错误")
 	}

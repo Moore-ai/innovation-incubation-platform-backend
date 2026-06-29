@@ -1,8 +1,3 @@
-// 数据集搜索测试 — 支持批量测试和单次查询两种模式
-// 批量模式: npx tsx src/test-search-dataset.ts
-// 单次模式: npx tsx src/test-search-dataset.ts --query "数字化转型补贴"
-//         npx tsx src/test-search-dataset.ts --query "..." --credential "信用代码" --pass "密码"
-
 import { ApiClient } from "./api.js";
 
 const api = new ApiClient();
@@ -66,15 +61,14 @@ async function main() {
   const args = process.argv.slice(2);
   const queryIdx = args.indexOf("--query");
   const singleQuery = queryIdx >= 0 ? args[queryIdx + 1] : null;
-  const credIdx = args.indexOf("--credential");
-  const credential = credIdx >= 0 ? args[credIdx + 1] : (process.env.ENT_USER || "13800138001");
+  const ccIdx = args.indexOf("--credit-code");
+  const creditCode = ccIdx >= 0 ? args[ccIdx + 1] : (process.env.ENT_CREDIT_CODE || "");
   const passIdx = args.indexOf("--pass");
   const password = passIdx >= 0 ? args[passIdx + 1] : (process.env.ENT_PASS || "admin123");
 
-  // 企业登录
   console.log("=== 企业登录 ===");
   const login = await api.post("/auth/login", {
-    credential,
+    credit_code: creditCode,
     password,
     role: "enterprise",
   });
