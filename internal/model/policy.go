@@ -36,15 +36,12 @@ func (v *PGVector) Scan(src any) error {
 	}
 }
 
-// Value implements driver.Valuer for pgvector binary format.
+// Value implements driver.Valuer for pgvector text format like "[0.1,0.2,…]".
 func (v PGVector) Value() (driver.Value, error) {
-	buf := make([]byte, 4+4*len(v))
-	binary.BigEndian.PutUint16(buf[0:2], 1) // flags
-	// buf[2:4] reserved
-	for i, f := range v {
-		binary.BigEndian.PutUint32(buf[4+i*4:4+(i+1)*4], math.Float32bits(f))
+	if v == nil {
+		return nil, nil
 	}
-	return buf, nil
+	return v.String(), nil
 }
 
 // String implements fmt.Stringer, returns "[f1,f2,...]" format.
@@ -77,7 +74,7 @@ type Policy struct {
 	PublishedAt     *time.Time         `json:"published_at"`
 	Embedding       PGVector           `gorm:"type:vector(1024)" json:"-"`
 	ExtractedFields *ExtractedPolicy   `gorm:"type:jsonb" json:"extracted_fields"`
-	ChangeLog       []string           `gorm:"type:jsonb;default:'[]'" json:"change_log"`
+	ChangeLog       []string           `gorm:"type:jsonb;default:'[]';serializer:json" json:"change_log"`
 }
 
 type SubsidyDetail struct {
