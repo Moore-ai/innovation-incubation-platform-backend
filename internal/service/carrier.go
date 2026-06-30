@@ -1,8 +1,8 @@
 package service
 
 import (
-	"time"
 	"fmt"
+	"time"
 
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/model"
@@ -11,8 +11,9 @@ import (
 
 	"innovation-incubation-platform-backend/pkg/statemachine"
 
-	"gorm.io/gorm"
 	"log/slog"
+
+	"gorm.io/gorm"
 )
 
 var validReviewActions = map[string]bool{
@@ -299,7 +300,7 @@ func (s *CarrierService) GetMyInfo(userID uint) (*model.Carrier, error) {
 }
 
 func (s *CarrierService) ListAvailableCarrierPolicies(page, pageSize int) ([]model.Policy, int64, error) {
-	return s.commonRepo.ListPoliciesByTarget(string(model.RoleCarrier), page, pageSize)
+	return s.commonRepo.ListPoliciesByTarget(string(model.UserRoleCarrier), page, pageSize)
 }
 
 func (s *CarrierService) ApplyCarrierPolicy(userID uint, policyID uint, req *dto.PolicyApplyReq) (*model.PolicyApplication, error) {
@@ -312,7 +313,7 @@ func (s *CarrierService) ApplyCarrierPolicy(userID uint, policyID uint, req *dto
 		PolicyID:      policyID,
 		ApplicantID:   carrier.ID,
 		ApplicantType: model.ApplicantCarrier,
-		Materials: req.Materials,
+		Materials:     req.Materials,
 		Status:        model.ApprovalPending,
 	}
 	s.commonRepo.CreatePolicyApplication(app)
@@ -418,7 +419,7 @@ func (s *CarrierService) ApplyDeletion(userID uint, reason string) error {
 	}
 	req := &model.AccountDeletionRequest{
 		UserID:    userID,
-		Role:      string(model.RoleCarrier),
+		Role:      string(model.UserRoleCarrier),
 		CarrierID: &carrier.ID,
 		Reason:    reason,
 		Status:    model.ApprovalPending,

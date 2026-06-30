@@ -1,4 +1,4 @@
-﻿package service
+package service
 
 import (
 	"context"
@@ -33,7 +33,58 @@ func NewGovernmentService(repo *repository.GovernmentRepo, deletionRepo *reposit
 	return &GovernmentService{repo: repo, deletionRepo: deletionRepo, followRepo: followRepo, fileRepo: fileRepo, db: db, sm: statemachine.DefaultApprovalSM(), policySM: statemachine.PolicyApprovalSM(), aiSvc: aiSvc, notifSvc: notifSvc, embedClient: embedClient}
 }
 
+func (s *GovernmentService) validatePolicyReq(req *dto.PublishPolicyReq) error {
+	if !model.TargetRole(req.TargetRole).IsValid() {
+		return errcode.ErrInvalidParams.WithMsg("target_role 必须为 enterprise、carrier 或 both")
+	}
+	if req.Requirements == nil {
+		return nil
+	}
+	for _, m := range req.Requirements.ApplicationMaterials {
+		if !m.Necessity.IsValid() {
+			return errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("材料必要性无效: %s, 必须为「必要」或「非必要」", m.Necessity))
+		}
+	}
+	for _, basis := range req.Requirements.LegalBasis {
+		var f model.File
+		if err := s.db.First(&f, basis.FileID).Error; err != nil {
+			return errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("法律依据文件不存在: file_id=%d", basis.FileID))
+		}
+	}
+	for _, cm := range req.Requirements.ContactMethods {
+		if !cm.Type.IsValid() {
+			return errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("咨询方式类型无效: %s，必须为 phone/email/qq/address/wechat/website/other", cm.Type))
+		}
+	}
+	return nil
+}
+
+func (s *GovernmentService) generateEmbedding(ctx context.Context, p *model.Policy) {
+	if s.embedClient == nil {
+		return
+	}
+	var legalFiles []model.File
+	if p.Requirements != nil {
+		for _, basis := range p.Requirements.LegalBasis {
+			f, _ := s.fileRepo.FindByID(basis.FileID)
+			if f != nil {
+				legalFiles = append(legalFiles, *f)
+			}
+		}
+	}
+	emb, err := s.embedClient.Embed(ctx, s.aiSvc.buildEmbeddingText(p, legalFiles))
+	if err != nil {
+		slog.Warn("embedding failed", "policy_id", p.ID, "error", err)
+	} else {
+		p.Embedding = emb
+	}
+}
+
 func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishPolicyReq) (*model.Policy, error) {
+	if err := s.validatePolicyReq(req); err != nil {
+		return nil, err
+	}
+
 	now := time.Now()
 	p := &model.Policy{
 		TargetRole:   model.TargetRole(req.TargetRole),
@@ -46,55 +97,12 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 		PublishedAt:  &now,
 		ChangeLog:    []string{now.Format("2006-01-02 15:04:05")},
 	}
-	// 验证政策目标角色
-	if !model.TargetRole(req.TargetRole).IsValid() {
-		return nil, errcode.ErrInvalidParams.WithMsg("target_role 必须为 enterprise、carrier 或 both")
-	}
-	// 验证申报材料必要性
-	if req.Requirements != nil {
-		for _, m := range req.Requirements.ApplicationMaterials {
-			if !m.Necessity.IsValid() {
-				return nil, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("材料必要性无效: %s, 必须为「必要」或「非必要」", m.Necessity))
-			}
-		}
-	}
-	// 验证法律依据文件存在
-	if req.Requirements != nil {
-		for _, basis := range req.Requirements.LegalBasis {
-			var f model.File
-			if err := s.db.First(&f, basis.FileID).Error; err != nil {
-				return nil, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("法律依据文件不存在: file_id=%d", basis.FileID))
-			}
-		}
-		// 验证咨询方式类型
-		for _, cm := range req.Requirements.ContactMethods {
-			if !cm.Type.IsValid() {
-				return nil, errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("咨询方式类型无效: %s，必须为 phone/email/qq/address/wechat/website/other", cm.Type))
-			}
-		}
-	}
 
 	if err := s.aiSvc.ExtractPolicy(ctx, p); err != nil {
 		return nil, errcode.ErrAIService.WithMsg("AI提取政策字段失败，请重试")
 	}
-	// 同步生成 embedding
-	if s.embedClient != nil {
-		var legalFiles []model.File
-		if p.Requirements != nil {
-			for _, basis := range p.Requirements.LegalBasis {
-				f, _ := s.fileRepo.FindByID(basis.FileID)
-				if f != nil {
-					legalFiles = append(legalFiles, *f)
-				}
-			}
-		}
-		emb, err := s.embedClient.Embed(ctx, s.aiSvc.buildEmbeddingText(p, legalFiles))
-		if err != nil {
-			slog.Warn("embedding failed", "policy_id", p.ID, "error", err)
-		} else {
-			p.Embedding = emb
-		}
-	}
+	s.generateEmbedding(ctx, p)
+
 	if err := s.repo.CreatePolicy(p); err != nil {
 		return nil, errcode.ErrInternal
 	}
@@ -102,8 +110,8 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 	// 通知目标用户群
 	targetRole := string(p.TargetRole)
 	if targetRole != "" {
-		if targetRole == string(model.RoleBoth) || targetRole == string(model.RoleEnterprise) {
-			entIDs, _ := s.repo.FindUserIDsByRole(string(model.RoleEnterprise))
+		if targetRole == string(model.TargetRoleBoth) || targetRole == string(model.TargetRoleEnterprise) {
+			entIDs, _ := s.repo.FindUserIDsByRole(string(model.TargetRoleEnterprise))
 			for _, uid := range entIDs {
 				if err := s.notifSvc.Send(uid, model.NotifPolicyPublished,
 					"有一项新政策可供申报",
@@ -113,8 +121,8 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 				}
 			}
 		}
-		if targetRole == string(model.RoleBoth) || targetRole == string(model.RoleCarrier) {
-			carrierIDs, _ := s.repo.FindUserIDsByRole(string(model.RoleCarrier))
+		if targetRole == string(model.TargetRoleBoth) || targetRole == string(model.TargetRoleCarrier) {
+			carrierIDs, _ := s.repo.FindUserIDsByRole(string(model.TargetRoleCarrier))
 			for _, uid := range carrierIDs {
 				if err := s.notifSvc.Send(uid, model.NotifPolicyPublished,
 					"有一项新政策可供申报",
@@ -138,58 +146,22 @@ func (s *GovernmentService) UpdatePolicy(ctx context.Context, policyID uint, req
 	if err != nil {
 		return errcode.ErrNotFound
 	}
-	// 验证申报材料必要性
-	if req.Requirements != nil {
-		for _, m := range req.Requirements.ApplicationMaterials {
-			if !m.Necessity.IsValid() {
-				return errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("材料必要性无效: %s，必须为「必要」或「非必要」", m.Necessity))
-			}
-		}
+	if err := s.validatePolicyReq(req); err != nil {
+		return err
 	}
-	// 验证法律依据文件存在
-	if req.Requirements != nil {
-		for _, basis := range req.Requirements.LegalBasis {
-			var f model.File
-			if err := s.db.First(&f, basis.FileID).Error; err != nil {
-				return errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("法律依据文件不存在: file_id=%d", basis.FileID))
-			}
-		}
-		// 验证咨询方式类型
-		for _, cm := range req.Requirements.ContactMethods {
-			if !cm.Type.IsValid() {
-				return errcode.ErrInvalidParams.WithMsg(fmt.Sprintf("咨询方式类型无效: %s，必须为 phone/email/qq/address/wechat/website/other", cm.Type))
-			}
-		}
-	}
+
 	p.Title = req.Title
 	p.Department = req.Department
 	p.Requirements = req.Requirements
 	p.StartDate = req.StartDate
 	p.EndDate = req.EndDate
 	p.TargetRole = model.TargetRole(req.TargetRole)
-	// Re-extract AI fields after policy update
+
 	if err := s.aiSvc.ExtractPolicy(ctx, p); err != nil {
 		slog.Error("AI extract policy failed after update", "policy_id", policyID, "error", err)
-		// Don't fail the update — the policy fields are saved even if AI extraction fails
 	}
-	// 同步生成 embedding
-	if s.embedClient != nil {
-		var legalFiles []model.File
-		if p.Requirements != nil {
-			for _, basis := range p.Requirements.LegalBasis {
-				f, _ := s.fileRepo.FindByID(basis.FileID)
-				if f != nil {
-					legalFiles = append(legalFiles, *f)
-				}
-			}
-		}
-		emb, err := s.embedClient.Embed(ctx, s.aiSvc.buildEmbeddingText(p, legalFiles))
-		if err != nil {
-			slog.Warn("embedding failed", "policy_id", p.ID, "error", err)
-		} else {
-			p.Embedding = emb
-		}
-	}
+	s.generateEmbedding(ctx, p)
+
 	p.ChangeLog = append(p.ChangeLog, time.Now().Format("2006-01-02 15:04:05"))
 	if err := s.repo.UpdatePolicy(p); err != nil {
 		return errcode.ErrInternal
@@ -470,7 +442,6 @@ func (s *GovernmentService) ReviewDeletionRequest(govUserID uint, reqID uint, ac
 
 	switch action {
 	case "approve":
-		// 删除前捕获企业/载体名称（用于通知）
 		var entName string
 		var carrierName string
 		if r.EnterpriseID != nil {
@@ -480,9 +451,7 @@ func (s *GovernmentService) ReviewDeletionRequest(govUserID uint, reqID uint, ac
 			s.db.Model(&model.Carrier{}).Select("name").Where("id = ?", *r.CarrierID).Take(&carrierName)
 		}
 
-		// 单事务：通知 → 更新状态 → 执行删除
 		return s.db.Transaction(func(tx *gorm.DB) error {
-			// 先发送通知（用户删除前）
 			if err := s.notifSvc.Send(r.UserID, model.NotifDeletionApproved,
 				"账号注销申请已通过",
 				"您的账号注销申请已通过，账号将被注销",
@@ -490,7 +459,6 @@ func (s *GovernmentService) ReviewDeletionRequest(govUserID uint, reqID uint, ac
 				slog.Error("notification failed", "error", err)
 			}
 
-			// 更新申请状态
 			if err := tx.Model(&r).Updates(map[string]any{
 				"status":         model.ApprovalApproved,
 				"reviewer_id":    govUserID,
@@ -499,7 +467,6 @@ func (s *GovernmentService) ReviewDeletionRequest(govUserID uint, reqID uint, ac
 				return err
 			}
 
-			// 执行删除
 			return s.executeDeletionTx(tx, &r)
 		})
 	case "reject":
@@ -619,7 +586,6 @@ func (s *GovernmentService) DeleteCarrier(carrierID, govUserID uint) error {
 	return nil
 }
 
-// executeDeletionTx 在已有事务中执行数据删除，由 ReviewDeletionRequest 的事务调用。
 func (s *GovernmentService) executeDeletionTx(tx *gorm.DB, r *model.AccountDeletionRequest) error {
 	if err := tx.Delete(&model.User{}, r.UserID).Error; err != nil {
 		return err
@@ -646,7 +612,6 @@ func (s *GovernmentService) executeDeletionTx(tx *gorm.DB, r *model.AccountDelet
 			return err
 		}
 	}
-	// 清理关联的注销申请记录
 	if err := tx.Where("user_id = ?", r.UserID).Delete(&model.AccountDeletionRequest{}).Error; err != nil {
 		return err
 	}

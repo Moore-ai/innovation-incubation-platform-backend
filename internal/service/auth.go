@@ -86,26 +86,24 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*dto.LoginResponse, er
 }
 
 func (s *AuthService) Login(req *dto.LoginRequest) (*dto.LoginResponse, error) {
-	var user *model.User
-	var err error
-
+	if !model.UserRole(req.Role).IsValid() {
+		return nil, errcode.ErrInvalidParams.WithMsg("角色无效")
+	}
 	switch req.Role {
 	case string(model.UserRoleEnterprise):
-		if req.CreditCode == "" {
-			return nil, errcode.ErrInvalidParams.WithMsg("企业登录需提供信用代码")
-		}
-		user, err = s.repo.FindByCreditCode(req.CreditCode)
+		return s.EnterpriseLogin(req)
 	case string(model.UserRoleCarrier):
-		if req.Phone == "" {
-			return nil, errcode.ErrInvalidParams.WithMsg("载体登录需提供手机号")
-		}
-		user, err = s.repo.FindByPhone(req.Phone, req.Role)
+		return s.CarrierLogin(req)
 	default:
-		if req.Phone == "" {
-			return nil, errcode.ErrInvalidParams.WithMsg("手机号不能为空")
-		}
-		user, err = s.repo.FindByPhone(req.Phone, req.Role)
+		return s.GovernmentLogin(req)
 	}
+}
+
+func (s *AuthService) EnterpriseLogin(req *dto.LoginRequest) (*dto.LoginResponse, error) {
+	if req.CreditCode == "" {
+		return nil, errcode.ErrInvalidParams.WithMsg("企业登录需提供信用代码")
+	}
+	user, err := s.repo.FindByCreditCode(req.CreditCode)
 	if err != nil {
 		return nil, errcode.ErrUnauthorized.WithMsg("账号或密码错误")
 	}
@@ -114,21 +112,49 @@ func (s *AuthService) Login(req *dto.LoginRequest) (*dto.LoginResponse, error) {
 	}
 	token, _ := middleware.GenerateToken(s.cfg, user.ID, user.Role)
 	info := toUserInfo(user)
-	if user.Role == string(model.UserRoleEnterprise) {
-		ent, err := s.repo.FindEnterpriseByUserID(user.ID)
-		if err != nil {
-			slog.Warn("failed to load enterprise credit_code", "user_id", user.ID, "error", err)
-		} else if ent != nil {
-			info.CreditCode = ent.CreditCode
-		}
-	} else if user.Role == string(model.UserRoleGovernment) {
-		gov, err := s.repo.FindGovernmentByUserID(user.ID)
-		if err != nil {
-			slog.Warn("failed to load government info", "user_id", user.ID, "error", err)
-		} else if gov != nil {
-			info.Name = gov.Name
-			info.Department = gov.Department
-		}
+	ent, err := s.repo.FindEnterpriseByUserID(user.ID)
+	if err != nil {
+		slog.Warn("failed to load enterprise credit_code", "user_id", user.ID, "error", err)
+	} else if ent != nil {
+		info.CreditCode = ent.CreditCode
+	}
+	return &dto.LoginResponse{Token: token, User: info}, nil
+}
+
+func (s *AuthService) CarrierLogin(req *dto.LoginRequest) (*dto.LoginResponse, error) {
+	if req.Phone == "" {
+		return nil, errcode.ErrInvalidParams.WithMsg("载体登录需提供手机号")
+	}
+	user, err := s.repo.FindByPhone(req.Phone, req.Role)
+	if err != nil {
+		return nil, errcode.ErrUnauthorized.WithMsg("账号或密码错误")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+		return nil, errcode.ErrUnauthorized.WithMsg("账号或密码错误")
+	}
+	token, _ := middleware.GenerateToken(s.cfg, user.ID, user.Role)
+	return &dto.LoginResponse{Token: token, User: toUserInfo(user)}, nil
+}
+
+func (s *AuthService) GovernmentLogin(req *dto.LoginRequest) (*dto.LoginResponse, error) {
+	if req.Phone == "" {
+		return nil, errcode.ErrInvalidParams.WithMsg("手机号不能为空")
+	}
+	user, err := s.repo.FindByPhone(req.Phone, req.Role)
+	if err != nil {
+		return nil, errcode.ErrUnauthorized.WithMsg("账号或密码错误")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+		return nil, errcode.ErrUnauthorized.WithMsg("账号或密码错误")
+	}
+	token, _ := middleware.GenerateToken(s.cfg, user.ID, user.Role)
+	info := toUserInfo(user)
+	gov, err := s.repo.FindGovernmentByUserID(user.ID)
+	if err != nil {
+		slog.Warn("failed to load government info", "user_id", user.ID, "error", err)
+	} else if gov != nil {
+		info.Name = gov.Name
+		info.Department = gov.Department
 	}
 	return &dto.LoginResponse{Token: token, User: info}, nil
 }
