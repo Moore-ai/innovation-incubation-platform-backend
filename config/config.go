@@ -88,6 +88,7 @@ type DBConfig struct {
 	Password string `mapstructure:"password"`
 	Name     string `mapstructure:"name"`
 	SSLMode  string `mapstructure:"sslmode"`
+	LogLevel string `mapstructure:"log_level"`
 }
 
 type JWTConfig struct {
@@ -213,6 +214,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("filematch.weight_prefix", 0.2)
 	v.SetDefault("filematch.threshold", 0.6)
 	v.SetDefault("filematch.stop_words", []string{"复印件", "原件", "扫描件", "照片", "图片", "副本", "电子版", "扫描"})
+	v.SetDefault("db.log_level", "warn")
 	v.SetDefault("search.method", "structured")
 	v.SetDefault("search.max_results", 10)
 	v.SetDefault("search.vector.top_k", 20)

@@ -9,6 +9,7 @@ db:
   password: ${DB_PASSWORD}
   name: ${DB_NAME}
   sslmode: disable
+  log_level: WARN
 
 jwt:
   secret: ${JWT_SECRET}
