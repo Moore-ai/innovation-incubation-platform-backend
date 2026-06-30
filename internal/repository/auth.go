@@ -2,6 +2,7 @@ package repository
 
 import (
 	"innovation-incubation-platform-backend/internal/model"
+
 	"gorm.io/gorm"
 )
 
@@ -20,10 +21,15 @@ func (r *AuthRepo) CreateUser(user *model.User) error {
 func (r *AuthRepo) FindByCredential(credential, role string) (*model.User, error) {
 	var user model.User
 	if role == string(model.RoleEnterprise) {
+		// 企业用户：先尝试信用代码，再尝试手机号
 		err := r.db.Joins("JOIN enterprises ON enterprises.user_id = users.id").
 			Where("enterprises.credit_code = ?", credential).First(&user).Error
 		if err != nil {
-			return nil, err
+			// 再用手机号查找
+			err = r.db.Where("phone = ? AND role = ?", credential, role).First(&user).Error
+			if err != nil {
+				return nil, err
+			}
 		}
 	} else {
 		err := r.db.Where("phone = ? AND role = ?", credential, role).First(&user).Error

@@ -138,6 +138,18 @@ type UploadConfig struct {
 	AllowedExtensions []string `mapstructure:"allowed_extensions"`
 }
 
+func (c *UploadConfig) Init() {
+	if c.MaxSizeMB == 0 {
+		c.MaxSizeMB = 20
+	}
+	if c.Dir == "" {
+		c.Dir = "./uploads"
+	}
+	if len(c.AllowedExtensions) == 0 {
+		c.AllowedExtensions = []string{".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".png"}
+	}
+}
+
 type RateLimitConfig struct {
 	Enabled    bool   `mapstructure:"enabled"`
 	Algorithm  string `mapstructure:"algorithm"`

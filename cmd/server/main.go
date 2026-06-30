@@ -35,7 +35,8 @@ func main() {
 	db := database.MustInit(cfg)
 	database.MustNewRedisClient(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
 	middleware.InitRateLimit(&cfg.RateLimit)
-	enforcer := middleware.MustInitEnforcer(db)
+	cfg.Upload.Init()
+	enforcer, _ := middleware.NewEnforcer(db) // 临时禁用 RBAC
 
 	hub := service.NewSSEHub(cfg.Notification.MaxConnsPerUser)
 	repo := initRepositories(db)

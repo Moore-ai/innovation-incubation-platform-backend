@@ -65,7 +65,7 @@ func registerUserRoutes(r *gin.Engine, deps *Deps) {
 	if deps.AuthController == nil {
 		return
 	}
-	u := protectedGroup(r, "/users", deps)
+	u := protectedGroup(r, "/auth", deps)
 	u.GET("/me", deps.AuthController.GetMe)
 }
 
