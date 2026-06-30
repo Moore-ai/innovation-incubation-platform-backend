@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +18,12 @@ import (
 	"innovation-incubation-platform-backend/internal/service"
 	"innovation-incubation-platform-backend/pkg/aiclient"
 )
+
+type legalBasisRow struct {
+	title  string
+	clause string
+	fileID uint
+}
 
 func main() {
 	from := flag.Int("from", 0, "起始行（跳过前 N 条）")
@@ -39,14 +46,16 @@ func main() {
 		slog.Warn("embedding 未配置，跳过向量生成")
 	}
 
-	f, err := os.Open("policy-samples/zcdx_details_with_policy_links.csv")
+	basisMap := readBasisMap("policy-samples/zcdx_policy_basis_links.csv")
+
+	detailsF, err := os.Open("policy-samples/zcdx_details_with_policy_links.csv")
 	if err != nil {
 		slog.Error("打开 CSV 失败", "error", err)
 		os.Exit(1)
 	}
-	defer f.Close()
+	defer detailsF.Close()
 
-	reader := csv.NewReader(f)
+	reader := csv.NewReader(detailsF)
 	reader.LazyQuotes = true
 	records, err := reader.ReadAll()
 	if err != nil {
@@ -63,7 +72,7 @@ func main() {
 	for i, h := range header {
 		col[h] = i
 	}
-	for _, c := range []string{"serviceName", "orgName", "applyCondition", "cashStandard"} {
+	for _, c := range []string{"id", "serviceName", "orgName", "applyCondition", "cashStandard"} {
 		if _, ok := col[c]; !ok {
 			slog.Error("CSV 缺少必要列", "column", c)
 			os.Exit(1)
@@ -87,6 +96,7 @@ func main() {
 	success, apiCalls := 0, 0
 
 	for i, row := range rows {
+		serviceID := row[col["id"]]
 		title := row[col["serviceName"]]
 		dept := row[col["orgName"]]
 		condition := row[col["applyCondition"]]
@@ -104,6 +114,16 @@ func main() {
 			req.FulfillmentCriteria = &standard
 		}
 
+		if bases, ok := basisMap[serviceID]; ok {
+			for _, b := range bases {
+				req.LegalBasis = append(req.LegalBasis, model.LegalBasisFile{
+					Title:          b.title,
+					SpecificClause: b.clause,
+					FileID:         b.fileID,
+				})
+			}
+		}
+
 		policy := &model.Policy{
 			TargetRole:   model.RoleEnterprise,
 			Title:        title,
@@ -116,14 +136,12 @@ func main() {
 			ChangeLog:    []string{now.Format("2006-01-02 15:04:05")},
 		}
 
-		// 第一步：保存基础字段
 		if err := db.Create(policy).Error; err != nil {
 			slog.Error("基础入库失败", "标题", title, "error", err)
 			continue
 		}
 		slog.Info("基础入库成功", "ID", policy.ID, "标题", title)
 
-		// 第二步：AI 提取（ExtractPolicy 内部已内置重试，无需外部包装）
 		slog.Info("AI 提取结构化字段", "标题", title)
 		if err := aiSvc.ExtractPolicy(ctx, policy); err != nil {
 			slog.Error("AI 提取失败，跳过", "标题", title, "error", err)
@@ -131,7 +149,6 @@ func main() {
 		}
 		apiCalls++
 
-		// 第三步：生成向量
 		if embedClient != nil {
 			slog.Info("生成向量", "标题", title)
 			text := buildEmbedText(policy, condition, standard)
@@ -144,7 +161,6 @@ func main() {
 			apiCalls++
 		}
 
-		// 第四步：更新结构化字段和向量
 		updates := map[string]any{}
 		if policy.ExtractedFields != nil {
 			updates["extracted_fields"] = policy.ExtractedFields
@@ -166,6 +182,62 @@ func main() {
 
 	slog.Info("导入完成", "成功", success, "失败", len(rows)-success, "API调用", apiCalls)
 	fmt.Printf("\n导入结果：%d/%d 成功，共 %d 次 API 调用\n", success, len(rows), apiCalls)
+}
+
+func readBasisMap(path string) map[string][]legalBasisRow {
+	result := make(map[string][]legalBasisRow)
+
+	f, err := os.Open(path)
+	if err != nil {
+		slog.Warn("打开法律依据 CSV 失败，跳过", "error", err)
+		return result
+	}
+	defer f.Close()
+
+	reader := csv.NewReader(f)
+	reader.LazyQuotes = true
+	records, err := reader.ReadAll()
+	if err != nil {
+		slog.Warn("读取法律依据 CSV 失败，跳过", "error", err)
+		return result
+	}
+	if len(records) < 2 {
+		return result
+	}
+
+	header := records[0]
+	col := make(map[string]int)
+	for i, h := range header {
+		col[h] = i
+	}
+
+	svcIdx, ok1 := col["serviceId"]
+	titleIdx, ok2 := col["policyTitle"]
+	clauseIdx, ok3 := col["clause"]
+	if !ok1 || !ok2 || !ok3 {
+		slog.Warn("法律依据 CSV 缺少必要列")
+		return result
+	}
+	fileIdx, hasFile := col["fileID"]
+
+	for _, row := range records[1:] {
+		svcID := row[svcIdx]
+		b := legalBasisRow{
+			title:  row[titleIdx],
+			clause: row[clauseIdx],
+		}
+		if hasFile && fileIdx < len(row) {
+			if v := strings.TrimSpace(row[fileIdx]); v != "" {
+				if id, err := strconv.ParseUint(v, 10, 64); err == nil {
+					b.fileID = uint(id)
+				}
+			}
+		}
+		result[svcID] = append(result[svcID], b)
+	}
+
+	slog.Info("加载法律依据", "条目数", len(records)-1)
+	return result
 }
 
 func csvField(row []string, col map[string]int, name string) string {
@@ -191,6 +263,15 @@ func buildEmbedText(p *model.Policy, condition, standard string) string {
 	}
 	if standard != "" {
 		parts = append(parts, standard)
+	}
+	if p.Requirements != nil {
+		for _, basis := range p.Requirements.LegalBasis {
+			text := basis.Title
+			if basis.SpecificClause != "" {
+				text += "：" + basis.SpecificClause
+			}
+			parts = append(parts, text)
+		}
 	}
 	return strings.Join(parts, "。")
 }

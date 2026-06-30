@@ -38,22 +38,24 @@ func chatAndParse[T any](s *AIService, ctx context.Context, opName, systemPrompt
 }
 
 type AIService struct {
-	client       *aiclient.Client
-	entRepo      *repository.EnterpriseRepo
-	govRepo      *repository.GovernmentRepo
-	fileRepo     *repository.FileRepo
-	fileMatchCfg config.FileMatchConfig
-	prompts      PromptSet
-	maxFileChars int
+	client                  *aiclient.Client
+	entRepo                 *repository.EnterpriseRepo
+	govRepo                 *repository.GovernmentRepo
+	fileRepo                *repository.FileRepo
+	fileMatchCfg            config.FileMatchConfig
+	prompts                 PromptSet
+	maxFileChars            int
+	useLegalRawForSummary   bool
+	useLegalRawForEmbedding bool
 }
 
 func NewAIService(client *aiclient.Client, entRepo *repository.EnterpriseRepo, govRepo *repository.GovernmentRepo, fileRepo *repository.FileRepo, cfg *config.Config) *AIService {
 	return &AIService{
-		client:       client,
-		entRepo:      entRepo,
-		govRepo:      govRepo,
-		fileRepo:     fileRepo,
-		fileMatchCfg: cfg.FileMatch,
+		client:                  client,
+		entRepo:                 entRepo,
+		govRepo:                 govRepo,
+		fileRepo:                fileRepo,
+		fileMatchCfg:            cfg.FileMatch,
 		prompts: PromptSet{
 			extract:        cfg.AI.Prompts.Extract,
 			match:          cfg.AI.Prompts.Match,
@@ -62,7 +64,9 @@ func NewAIService(client *aiclient.Client, entRepo *repository.EnterpriseRepo, g
 			search:         cfg.AI.Prompts.Search,
 			searchAnalysis: cfg.AI.Prompts.SearchAnalysis,
 		},
-		maxFileChars: cfg.AI.MaxFileChars,
+		maxFileChars:            cfg.AI.MaxFileChars,
+		useLegalRawForSummary:   cfg.AI.UseLegalRawForSummary,
+		useLegalRawForEmbedding: cfg.AI.UseLegalRawForEmbedding,
 	}
 }
 

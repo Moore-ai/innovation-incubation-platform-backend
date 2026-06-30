@@ -22,26 +22,26 @@ func (s *AIService) collectFileSummaries(ctx context.Context, policy *model.Poli
 	g, ctx := errgroup.WithContext(ctx)
 	for _, basis := range policy.Requirements.LegalBasis {
 		g.Go(func() error {
-			file, err := s.fileRepo.FindByID(basis.FileID)
-			if err != nil {
-				return nil
-			}
-			if file.Summary == "" && file.RawText != "" {
-				if err := s.SummarizeFile(ctx, file); err != nil {
-					slog.Warn("summarize file failed", "file_id", basis.FileID, "error", err)
-					return nil
-				}
-				file, err = s.fileRepo.FindByID(basis.FileID)
-				if err != nil {
-					return nil
-				}
-			}
+			// 文件名 + 条款始终参与
 			line := "- " + basis.Title
 			if basis.SpecificClause != "" {
 				line += "\n  依据条款：" + basis.SpecificClause
 			}
-			if file.Summary != "" {
-				line += "\n  文件摘要：" + file.Summary
+			// 文件解析后的原始文本（RawText）仅在配置开启时用于生成/获取摘要
+			if s.useLegalRawForSummary {
+				file, err := s.fileRepo.FindByID(basis.FileID)
+				if err == nil {
+					if file.Summary == "" && file.RawText != "" {
+						if err := s.SummarizeFile(ctx, file); err != nil {
+							slog.Warn("summarize file failed", "file_id", basis.FileID, "error", err)
+						} else {
+							file, _ = s.fileRepo.FindByID(basis.FileID)
+						}
+					}
+					if file.Summary != "" {
+						line += "\n  文件摘要：" + file.Summary
+					}
+				}
 			}
 			mu.Lock()
 			summaries = append(summaries, line)
@@ -107,7 +107,7 @@ func toJSONString(v any) string {
 	return string(b)
 }
 
-func buildEmbeddingText(p *model.Policy, legalFiles []model.File) string {
+func (s *AIService) buildEmbeddingText(p *model.Policy, legalFiles []model.File) string {
 	var parts []string
 	parts = append(parts, p.Title)
 	if p.ExtractedFields != nil {
@@ -128,16 +128,22 @@ func buildEmbeddingText(p *model.Policy, legalFiles []model.File) string {
 		if p.Requirements.Process != nil {
 			parts = append(parts, *p.Requirements.Process)
 		}
+		// 文件名称 + 具体条款始终参与向量化
+		summaries := make(map[uint]string, len(legalFiles))
+		if s.useLegalRawForEmbedding {
+			for _, f := range legalFiles {
+				if f.Summary != "" {
+					summaries[f.ID] = f.Summary
+				}
+			}
+		}
 		for _, basis := range p.Requirements.LegalBasis {
 			text := basis.Title
 			if basis.SpecificClause != "" {
 				text += "：" + basis.SpecificClause
 			}
-			for _, f := range legalFiles {
-				if f.ID == basis.FileID && f.Summary != "" {
-					text += "。" + f.Summary
-					break
-				}
+			if s, ok := summaries[basis.FileID]; ok {
+				text += "。" + s
 			}
 			parts = append(parts, text)
 		}

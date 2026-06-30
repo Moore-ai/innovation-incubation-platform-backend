@@ -96,10 +96,12 @@ type JWTConfig struct {
 }
 
 type AIConfig struct {
-	OpenAI       OpenAICompatibleConfig `mapstructure:"openai"`
-	Prompts      PromptsConfig          `mapstructure:"prompts"`
-	MaxFileChars int                    `mapstructure:"max_file_chars"`
-	Embedding    EmbeddingConfig        `mapstructure:"embedding"`
+	OpenAI                  OpenAICompatibleConfig `mapstructure:"openai"`
+	Prompts                 PromptsConfig          `mapstructure:"prompts"`
+	MaxFileChars            int                    `mapstructure:"max_file_chars"`
+	Embedding               EmbeddingConfig        `mapstructure:"embedding"`
+	UseLegalRawForSummary   bool                   `mapstructure:"use_legal_raw_for_summary"`
+	UseLegalRawForEmbedding bool                   `mapstructure:"use_legal_raw_for_embedding"`
 }
 
 type EmbeddingConfig struct {
@@ -215,7 +217,6 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("search.max_results", 10)
 	v.SetDefault("search.vector.top_k", 20)
 	v.SetDefault("search.vector.min_score", 0.7)
-	v.SetDefault("search.vector.max_analysis", 5)
 	v.SetDefault("search.vector.rerank", true)
 	v.SetDefault("search.vector.mqe.enabled", true)
 	v.SetDefault("search.vector.mqe.n_queries", 3)
@@ -227,6 +228,9 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("file_parser.venv_path", "sidecar/file-parser/venv")
 	v.SetDefault("file_parser.script_path", "sidecar/file-parser/server.py")
 	v.SetDefault("file_parser.timeout_sec", 30)
+
+	v.SetDefault("ai.use_legal_raw_for_summary", true)
+	v.SetDefault("ai.use_legal_raw_for_embedding", false)
 
 	if err := v.ReadConfig(bytes.NewReader([]byte(expanded))); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)

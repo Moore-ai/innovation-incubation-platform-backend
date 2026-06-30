@@ -88,7 +88,7 @@ func (s *GovernmentService) PublishPolicy(ctx context.Context, req *dto.PublishP
 				}
 			}
 		}
-		emb, err := s.embedClient.Embed(ctx, buildEmbeddingText(p, legalFiles))
+		emb, err := s.embedClient.Embed(ctx, s.aiSvc.buildEmbeddingText(p, legalFiles))
 		if err != nil {
 			slog.Warn("embedding failed", "policy_id", p.ID, "error", err)
 		} else {
@@ -183,7 +183,7 @@ func (s *GovernmentService) UpdatePolicy(ctx context.Context, policyID uint, req
 				}
 			}
 		}
-		emb, err := s.embedClient.Embed(ctx, buildEmbeddingText(p, legalFiles))
+		emb, err := s.embedClient.Embed(ctx, s.aiSvc.buildEmbeddingText(p, legalFiles))
 		if err != nil {
 			slog.Warn("embedding failed", "policy_id", p.ID, "error", err)
 		} else {

@@ -26,6 +26,8 @@ ai:
     model: ${EMBEDDING_MODEL}
     dimensions: 1024
     timeout_seconds: 30
+  use_legal_raw_for_summary: true
+  use_legal_raw_for_embedding: false
 
 filematch:
   weight_jaro: 0.4
@@ -66,7 +68,7 @@ redis:
 upload:
   max_size_mb: 2
   dir: uploads
-  allowed_extensions: []
+  allowed_extensions: [".docx", ".pdf", ".xlsx", ".txt"]
 
 rate_limit:
   enabled: true
