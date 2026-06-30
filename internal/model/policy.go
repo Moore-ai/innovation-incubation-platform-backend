@@ -14,8 +14,9 @@ import (
 // PGVector 表示 PostgreSQL pgvector 扩展的向量类型
 type PGVector []float32
 
-// Scan implements sql.Scanner for pgvector binary format.
+// Scan implements sql.Scanner for pgvector (binary or text format).
 // pgvector binary: [2B flags][2B reserved][N x 4B float32 BE]
+// pgvector text:   "[0.1,0.2,…]"
 func (v *PGVector) Scan(src any) error {
 	if src == nil {
 		*v = nil
@@ -31,20 +32,35 @@ func (v *PGVector) Scan(src any) error {
 			(*v)[i] = math.Float32frombits(bits)
 		}
 		return nil
+	case string:
+		// format: [0.1,0.2,…]
+		trimmed := strings.Trim(s, "[]")
+		if trimmed == "" {
+			*v = PGVector{}
+			return nil
+		}
+		parts := strings.Split(trimmed, ",")
+		vec := make(PGVector, len(parts))
+		for i, p := range parts {
+			f, err := strconv.ParseFloat(strings.TrimSpace(p), 32)
+			if err != nil {
+				return fmt.Errorf("parse pgvector element: %w", err)
+			}
+			vec[i] = float32(f)
+		}
+		*v = vec
+		return nil
 	default:
 		return fmt.Errorf("unsupported pgvector type: %T", src)
 	}
 }
 
-// Value implements driver.Valuer for pgvector binary format.
+// Value implements driver.Valuer for pgvector text format like "[0.1,0.2,…]".
 func (v PGVector) Value() (driver.Value, error) {
-	buf := make([]byte, 4+4*len(v))
-	binary.BigEndian.PutUint16(buf[0:2], 1) // flags
-	// buf[2:4] reserved
-	for i, f := range v {
-		binary.BigEndian.PutUint32(buf[4+i*4:4+(i+1)*4], math.Float32bits(f))
+	if v == nil {
+		return nil, nil
 	}
-	return buf, nil
+	return v.String(), nil
 }
 
 // String implements fmt.Stringer, returns "[f1,f2,...]" format.
@@ -77,7 +93,7 @@ type Policy struct {
 	PublishedAt     *time.Time         `json:"published_at"`
 	Embedding       PGVector           `gorm:"type:vector(1024)" json:"-"`
 	ExtractedFields *ExtractedPolicy   `gorm:"type:jsonb" json:"extracted_fields"`
-	ChangeLog       []string           `gorm:"type:jsonb;default:'[]'" json:"change_log"`
+	ChangeLog       []string           `gorm:"type:jsonb;default:'[]';serializer:json" json:"change_log"`
 }
 
 type SubsidyDetail struct {

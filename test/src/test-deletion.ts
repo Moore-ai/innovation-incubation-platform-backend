@@ -11,7 +11,7 @@ const ts = Date.now();
 const GOV_PHONE = `199${ts}`;
 
 async function assertOk(label: string, ok: boolean) {
-  console.log(`  ${ok ? "✅" : "❌"} ${label}`);
+  console.log(`  ${ok ? "[PASS]" : "[FAIL]"} ${label}`);
   if (!ok) process.exitCode = 1;
 }
 
@@ -111,14 +111,14 @@ async function createGovernmentUser(): Promise<string> {
   psql(`UPDATE users SET role = 'government', phone = '${GOV_PHONE}' WHERE id = ${userId}`);
 
   const govLogin = await govApi.post("/auth/login", {
-    credential: GOV_PHONE, password: "test123456", role: "government",
+    phone: GOV_PHONE, password: "test123456", role: "government",
   });
   assertOk("政务账号创建并登录成功", govLogin.code === 0);
   return govLogin.data!.token;
 }
 
 async function main() {
-  // ====================== 准备 ======================
+  // ===== 准备 =====
   console.log("=== 准备: 注册账号 ===");
   const regEnt = await api.post("/auth/register", {
     password: "test123456", role: "enterprise", phone: `192${ts}`,
@@ -147,7 +147,7 @@ async function main() {
   const govToken = await createGovernmentUser();
   govApi.setToken(govToken);
 
-  // ====================== 权限验证 ======================
+  // ===== 权限验证 =====
   console.log("\n=== 权限验证 ===");
   api.setToken("");
   const noAuth = await api.post("/enterprise/account/deletion", { reason: "test" });
@@ -158,8 +158,8 @@ async function main() {
   const crossRole = await carApi.post("/enterprise/account/deletion", { reason: "test" });
   assertOk("载体不能访问企业端点", crossRole.code !== 0);
 
-  // ====================== 企业申请注销 → 政务通知 ======================
-  console.log("\n=== 企业申请注销 → 政务通知 ===");
+  // ===== 企业申请注销 -> 政务通知 =====
+  console.log("\n=== 企业申请注销 -> 政务通知 ===");
   const govNotifsBefore = await fetchNotifications(govToken);
   api.setToken(entToken);
   const entApply = await api.post("/enterprise/account/deletion", { reason: "业务调整，申请注销" });
@@ -168,16 +168,16 @@ async function main() {
   assertOk("政务收到 deletion_applied 通知", govNotifsAfter.length > govNotifsBefore.length);
   assertOk("通知类型正确", !!govNotifsAfter.find((n: any) => n.type === "deletion_applied"));
 
-  // ====================== 政务查看申请列表 ======================
+  // ===== 政务查看申请列表 =====
   console.log("\n=== 政务查看申请列表 ===");
   const deletionList = await govApi.get("/gov/account/deletions");
   assertOk("获取申请列表", deletionList.code === 0);
   assertOk("列表有记录", Array.isArray(deletionList.data?.list) && deletionList.data.list.length > 0);
   const reqId = deletionList.data.list[0].id;
 
-  // ====================== SSE 实时推送验证 ======================
+  // ===== SSE 实时推送验证 =====
   console.log("\n=== SSE 实时推送验证 ===");
-  // 政务保持 SSE 连接 → 企业提交注销 → 政务在同一连接上收到 event:update
+  // 政务保持 SSE 连接 -> 企业提交注销 -> 政务在同一条连接上收到 event:update
   const realtimeNotif = await waitForSSEUpdate(govToken, async () => {
     api.setToken(ent2Token);
     await api.post("/enterprise/account/deletion", { reason: "实时推送测试" });
@@ -185,8 +185,8 @@ async function main() {
   assertOk("SSE 实时推送收到通知", !!realtimeNotif);
   assertOk("通知类型为 deletion_applied", realtimeNotif?.type === "deletion_applied");
 
-  // ====================== 政务审核 → 企业通知 ======================
-  console.log("\n=== 政务审核通过 → 企业通知 ===");
+  // ===== 政务审核 -> 企业通知 =====
+  console.log("\n=== 政务审核通过 -> 企业通知 ===");
   const entNotifsBefore = await fetchNotifications(entToken);
   const approve = await govApi.post(`/gov/account/deletions/${reqId}/review`, {
     action: "approve", comment: "同意注销",
@@ -196,8 +196,8 @@ async function main() {
   assertOk("企业收到 deletion_approved 通知", entNotifsAfter.length > entNotifsBefore.length);
   assertOk("通知类型正确", !!entNotifsAfter.find((n: any) => n.type === "deletion_approved"));
 
-  // ====================== 政务直接删除企业 → 载体通知 ======================
-  console.log("\n=== 政务直接删除企业 → 载体通知 ===");
+  // ===== 政务直接删除企业 -> 载体通知 =====
+  console.log("\n=== 政务直接删除企业 -> 载体通知 ===");
   api.setToken(ent2Token);
   const ent2Info = await api.get("/enterprise/profile");
   const ent2Id = ent2Info.data?.id;
@@ -217,7 +217,7 @@ async function main() {
   assertOk("载体收到 account_deleted 通知", carNotifsAfter.length > carNotifsBefore.length);
   assertOk("通知类型正确", !!carNotifsAfter.find((n: any) => n.type === "account_deleted"));
 
-  // ====================== 错误场景 ======================
+  // ===== 错误场景 =====
   console.log("\n=== 错误场景 ===");
   const badMethodResp = await fetch("http://localhost:8080/api/v1/enterprise/account/deletion", {
     method: "GET", headers: { Authorization: `Bearer ${entToken}` },
@@ -236,7 +236,7 @@ async function main() {
   const badDel = await govApi.del("/gov/enterprises/99999");
   assertOk("删除不存在企业返回错误", badDel.code !== 0);
 
-  console.log("\n" + (process.exitCode ? "❌ 有测试失败" : "✅ 全部通过"));
+  console.log("\n" + (process.exitCode ? "[FAIL] 有测试失败" : "[PASS] 全部通过"));
 }
 
 main().catch(e => { console.error(e); process.exitCode = 1; });

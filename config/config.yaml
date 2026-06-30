@@ -9,6 +9,7 @@ db:
   password: ${DB_PASSWORD}
   name: ${DB_NAME}
   sslmode: disable
+  log_level: WARN
 
 jwt:
   secret: ${JWT_SECRET}
@@ -26,6 +27,8 @@ ai:
     model: ${EMBEDDING_MODEL}
     dimensions: 1024
     timeout_seconds: 30
+  use_legal_raw_for_summary: true
+  use_legal_raw_for_embedding: false
 
 filematch:
   weight_jaro: 0.4
@@ -48,8 +51,8 @@ search:
   vector:
     dimensions: 1024
     top_k: 8
-    min_score: 0.7
-    max_analysis: 5
+    min_score: 0.3
+    rerank: true
     mqe:
       enabled: false
       n_queries: 3
@@ -64,9 +67,9 @@ redis:
   db: ${REDIS_DB}
 
 upload:
-  max_size_mb: 2
+  max_size_mb: 20
   dir: uploads
-  allowed_extensions: []
+  allowed_extensions: [".docx", ".pdf", ".xlsx", ".txt"]
 
 rate_limit:
   enabled: true

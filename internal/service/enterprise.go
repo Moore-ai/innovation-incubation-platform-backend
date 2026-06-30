@@ -242,7 +242,7 @@ func (s *EnterpriseService) ApplyDeletion(userID uint, reason string) error {
 	}
 	req := &model.AccountDeletionRequest{
 		UserID:       userID,
-		Role:         string(model.RoleEnterprise),
+		Role:         string(model.UserRoleEnterprise),
 		EnterpriseID: &ent.ID,
 		Reason:       reason,
 		Status:       model.ApprovalPending,
@@ -284,7 +284,7 @@ func (s *EnterpriseService) ApplyPolicy(userID uint, policyID uint, req *dto.Pol
 		PolicyID:      policyID,
 		ApplicantID:   ent.ID,
 		ApplicantType: model.ApplicantEnterprise,
-		Materials: req.Materials,
+		Materials:     req.Materials,
 		Status:        model.ApprovalPending,
 	}
 	if err := s.commonRepo.CreatePolicyApplication(app); err != nil {

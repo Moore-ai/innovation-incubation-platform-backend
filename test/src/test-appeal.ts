@@ -41,7 +41,7 @@ async function main() {
   // ============================================================
   console.log("\n=== 企业登录 ===");
   const entLogin = await api.post("/auth/login", {
-    credential: "91340000TEST0001",  // 使用 credit_code 登录
+    phone: "91340000TEST0001",
     password: PASSWORD,
     role: "enterprise",
   });
@@ -82,7 +82,7 @@ async function main() {
   console.log("\n=== 载体登录 ===");
   api.clearToken();
   const carrierLogin = await api.post("/auth/login", {
-    credential: CARRIER_PHONE,
+    phone: CARRIER_PHONE,
     password: PASSWORD,
     role: "carrier",
   });
@@ -115,7 +115,7 @@ async function main() {
   console.log("\n=== 政务登录 ===");
   api.clearToken();
   const govLogin = await api.post("/auth/login", {
-    credential: "13800138000",
+    phone: "13800138000",
     password: "admin123",
     role: "government",
   });
