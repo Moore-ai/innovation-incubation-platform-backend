@@ -125,7 +125,7 @@ func main() {
 		}
 
 		policy := &model.Policy{
-			TargetRole:   model.RoleEnterprise,
+			TargetRole:   model.TargetRoleEnterprise,
 			Title:        title,
 			Department:   dept,
 			Requirements: req,

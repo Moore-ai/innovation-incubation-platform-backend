@@ -2,6 +2,7 @@ package repository
 
 import (
 	"innovation-incubation-platform-backend/internal/model"
+
 	"gorm.io/gorm"
 )
 
@@ -54,8 +55,21 @@ func (r *AuthRepo) FindEnterpriseByUserID(userID uint) (*model.Enterprise, error
 	return &ent, nil
 }
 
+func (r *AuthRepo) FindGovernmentByUserID(userID uint) (*model.Government, error) {
+	var gov model.Government
+	err := r.db.Where("user_id = ?", userID).First(&gov).Error
+	if err != nil {
+		return nil, err
+	}
+	return &gov, nil
+}
+
 func (r *AuthRepo) CreateEnterprise(ent *model.Enterprise) error {
 	return r.db.Create(ent).Error
+}
+
+func (r *AuthRepo) CreateGovernment(gov *model.Government) error {
+	return r.db.Create(gov).Error
 }
 
 func (r *AuthRepo) CreateCarrier(carrier *model.Carrier) error {

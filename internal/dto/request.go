@@ -24,6 +24,9 @@ type RegisterRequest struct {
 	CarrierName string `json:"carrier_name"`
 	CarrierType string `json:"carrier_type"`
 	CarrierArea string `json:"carrier_area"`
+
+	GovName       string `json:"gov_name"`
+	GovDepartment string `json:"gov_department"`
 }
 
 type IncubationApplyReq struct {
