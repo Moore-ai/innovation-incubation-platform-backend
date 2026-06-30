@@ -111,7 +111,7 @@ func (s *AIService) SummarizeFile(ctx context.Context, file *model.File) error {
 
 func buildPolicyBriefs(policies []model.Policy) []string {
 	briefs := make([]string, 0, len(policies))
-	for _, p := range policies {
+	for i, p := range policies {
 		title, amount, deadline, summary := p.Title, "", "", ""
 		if ef := p.ExtractedFields; ef != nil {
 			var amts []string
@@ -126,7 +126,7 @@ func buildPolicyBriefs(policies []model.Policy) []string {
 		if p.EndDate != "" {
 			deadline = p.EndDate
 		}
-		brief := fmt.Sprintf("[%d]「%s」补贴%s，截止%s，摘要：%s", p.ID, title, amount, deadline, summary)
+		brief := fmt.Sprintf("[%d]「%s」补贴%s，截止%s，摘要：%s", i+1, title, amount, deadline, summary)
 		briefs = append(briefs, brief)
 	}
 	return briefs
