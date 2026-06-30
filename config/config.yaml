@@ -49,7 +49,6 @@ search:
     dimensions: 1024
     top_k: 8
     min_score: 0.3
-    max_analysis: 5
     rerank: true
     mqe:
       enabled: false

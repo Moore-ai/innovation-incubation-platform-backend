@@ -76,6 +76,7 @@ func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) err
 }
 
 func cleanLLMOutput(s string) string {
+	s = strings.TrimPrefix(s, "\ufeff")
 	s = strings.TrimSpace(s)
 	for _, prefix := range []string{"```json", "```"} {
 		if idx := strings.Index(s, prefix); idx >= 0 {
@@ -86,7 +87,13 @@ func cleanLLMOutput(s string) string {
 	if idx := strings.LastIndex(s, "```"); idx >= 0 {
 		s = s[:idx]
 	}
-	return strings.TrimSpace(s)
+	s = strings.TrimSpace(s)
+	if start := strings.IndexByte(s, '{'); start >= 0 {
+		if end := strings.LastIndexByte(s, '}'); end >= start {
+			s = s[start : end+1]
+		}
+	}
+	return s
 }
 
 func toJSONString(v any) string {

@@ -54,12 +54,11 @@ type SearchConfig struct {
 }
 
 type VectorSearchConfig struct {
-	TopK        int        `mapstructure:"top_k"`
-	MinScore    float64    `mapstructure:"min_score"`
-	MaxAnalysis int        `mapstructure:"max_analysis"`
-	Rerank      bool       `mapstructure:"rerank"`
-	MQE         MQEConfig  `mapstructure:"mqe"`
-	HyDE        HyDEConfig `mapstructure:"hyde"`
+	TopK     int        `mapstructure:"top_k"`
+	MinScore float64    `mapstructure:"min_score"`
+	Rerank   bool       `mapstructure:"rerank"`
+	MQE      MQEConfig  `mapstructure:"mqe"`
+	HyDE     HyDEConfig `mapstructure:"hyde"`
 }
 
 type MQEConfig struct {
