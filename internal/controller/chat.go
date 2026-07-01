@@ -3,6 +3,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"innovation-incubation-platform-backend/internal/dto"
@@ -145,7 +146,7 @@ func (ctl *ChatController) SendMessage(c *gin.Context) {
 	allRecords := append([]agent.ChatMessageRecord{userRecord}, result.Messages...)
 	go func(sessionID, userID uint, msgs []agent.ChatMessageRecord) {
 		if err := ctl.svc.SaveMessages(sessionID, userID, msgs); err != nil {
-			// 已记录日志，不阻塞
+			slog.Error("保存聊天消息失败", "error", err, "session_id", sessionID)
 		}
 	}(uri.ID, userID, allRecords)
 }
