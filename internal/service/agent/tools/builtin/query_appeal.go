@@ -37,7 +37,9 @@ func (t *QueryAppeal) Execute(ctx context.Context, args json.RawMessage) (json.R
 		Page     int `json:"page"`
 		PageSize int `json:"page_size"`
 	}
-	json.Unmarshal(args, &input)
+	if err := json.Unmarshal(args, &input); err != nil {
+		return nil, err
+	}
 	if input.Page <= 0 {
 		input.Page = 1
 	}
@@ -48,6 +50,9 @@ func (t *QueryAppeal) Execute(ctx context.Context, args json.RawMessage) (json.R
 	if err != nil {
 		return nil, err
 	}
-	b, _ := json.Marshal(map[string]any{"appeals": appeals, "total": total})
+	b, err := json.Marshal(map[string]any{"appeals": appeals, "total": total})
+	if err != nil {
+		return nil, err
+	}
 	return json.RawMessage(b), nil
 }

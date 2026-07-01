@@ -68,6 +68,9 @@ func (t *SearchPolicy) Execute(ctx context.Context, args json.RawMessage) (json.
 	if err != nil {
 		return nil, err
 	}
-	b, _ := json.Marshal(resp)
+	b, err := json.Marshal(resp)
+	if err != nil {
+		return nil, err
+	}
 	return json.RawMessage(b), nil
 }

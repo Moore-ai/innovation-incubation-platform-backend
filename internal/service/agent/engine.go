@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -37,7 +38,10 @@ func (e *Engine) Run(ctx context.Context, sessionID uint, userMessage string, ro
 	}
 
 	// 加载记忆上下文
-	memCtx, _ := e.memory.LoadContext(ctx, sessionID, userID, userMessage)
+	memCtx, err := e.memory.LoadContext(ctx, sessionID, userID, userMessage)
+	if err != nil {
+		slog.Warn("加载记忆上下文失败", "error", err, "session_id", sessionID)
+	}
 
 	// 过滤工具列表
 	tools := e.tools.ListForRole(role)
