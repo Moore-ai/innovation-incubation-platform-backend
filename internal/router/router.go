@@ -207,6 +207,9 @@ func registerChatRoutes(r *gin.Engine, deps *Deps) {
 	}
 	chat := r.Group("/api/v1/chat")
 	chat.Use(middleware.AuthMiddleware(deps.Config.JWT))
+	if deps.Enforcer != nil {
+		chat.Use(middleware.RbacMiddleware(deps.Enforcer))
+	}
 	chat.POST("/sessions", deps.ChatController.CreateSession)
 	chat.GET("/sessions", deps.ChatController.ListSessions)
 	chat.GET("/sessions/:id", deps.ChatController.GetSession)
