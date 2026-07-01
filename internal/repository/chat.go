@@ -41,6 +41,10 @@ func (r *ChatRepo) UpdateSessionStats(sessionID uint, lastMessageAt interface{},
 		Updates(map[string]interface{}{"last_message_at": lastMessageAt, "message_count": gorm.Expr("message_count + ?", delta)}).Error
 }
 
+func (r *ChatRepo) DeleteSession(id uint) error {
+	return r.db.Delete(&model.ChatSession{}, id).Error
+}
+
 // --- ChatMessage ---
 
 func (r *ChatRepo) CreateMessages(msgs []model.ChatMessage) error {
