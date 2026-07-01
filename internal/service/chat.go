@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"innovation-incubation-platform-backend/config"
@@ -75,7 +76,11 @@ func (s *ChatService) Run(ctx context.Context, sessionID uint, userMessage strin
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(s.cfg.RequestTimeoutSec)*time.Second)
 	defer cancel()
 
-	return s.engine.Run(ctx, sessionID, userMessage, role, onEvent)
+	result, err := s.engine.Run(ctx, sessionID, userMessage, role, onEvent)
+	if err == nil && result.ReflectTrigger {
+		_ = s.AddSemanticMemory(ctx, fmt.Sprintf("在会话%d中，工具调用出现问题需要修正", sessionID))
+	}
+	return result, err
 }
 
 // SaveMessages 持久化消息并更新会话统计
