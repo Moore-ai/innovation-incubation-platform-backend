@@ -137,10 +137,15 @@ func (ctl *ChatController) SendMessage(c *gin.Context) {
 		return
 	}
 
-	// 持久化消息
-	go func() {
-		if err := ctl.svc.SaveMessages(uri.ID, userID, result.Messages); err != nil {
+	// 持久化消息（追加用户消息）
+	userRecord := agent.ChatMessageRecord{
+		Role:    "user",
+		Content: req.Content,
+	}
+	allRecords := append([]agent.ChatMessageRecord{userRecord}, result.Messages...)
+	go func(sessionID, userID uint, msgs []agent.ChatMessageRecord) {
+		if err := ctl.svc.SaveMessages(sessionID, userID, msgs); err != nil {
 			// 已记录日志，不阻塞
 		}
-	}()
+	}(uri.ID, userID, allRecords)
 }
