@@ -152,6 +152,6 @@ func initControllers(r *repositories, s *services, cfg *config.Config, hub *serv
 		file:    controller.NewFileController(s.file, cfg),
 		notif:   controller.NewNotificationController(r.notif, hub, cfg),
 		test:    controller.NewTestController(s.test),
-		chat:    controller.NewChatController(s.chat),
+		chat:    controller.NewChatController(s.chat, cfg),
 	}
 }

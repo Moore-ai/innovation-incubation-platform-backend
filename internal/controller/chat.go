@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/middleware"
 	"innovation-incubation-platform-backend/internal/service"
@@ -18,10 +19,11 @@ import (
 
 type ChatController struct {
 	svc *service.ChatService
+	cfg *config.Config
 }
 
-func NewChatController(svc *service.ChatService) *ChatController {
-	return &ChatController{svc: svc}
+func NewChatController(svc *service.ChatService, cfg *config.Config) *ChatController {
+	return &ChatController{svc: svc, cfg: cfg}
 }
 
 func (ctl *ChatController) CreateSession(c *gin.Context) {
@@ -98,6 +100,12 @@ func (ctl *ChatController) SendMessage(c *gin.Context) {
 	var req dto.SendChatMessageReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
+		return
+	}
+
+	// 校验消息长度
+	if ctl.cfg.Agent.MessageMaxChars > 0 && len([]rune(req.Content)) > ctl.cfg.Agent.MessageMaxChars {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("消息超过最大长度限制"))
 		return
 	}
 
