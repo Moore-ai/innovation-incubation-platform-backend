@@ -13,6 +13,7 @@ import (
 	"innovation-incubation-platform-backend/internal/service"
 	"innovation-incubation-platform-backend/pkg/fileparser"
 
+	"github.com/casbin/casbin/v2"
 	"github.com/gin-gonic/gin"
 )
 
@@ -35,7 +36,10 @@ func main() {
 	db := database.MustInit(cfg)
 	database.MustNewRedisClient(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
 	middleware.InitRateLimit(&cfg.RateLimit)
-	enforcer := middleware.MustInitEnforcer(db)
+	var enforcer *casbin.Enforcer
+	if cfg.Server.RBACEnabled {
+		enforcer = middleware.MustInitEnforcer(db)
+	}
 
 	hub := service.NewSSEHub(cfg.Notification.MaxConnsPerUser)
 	repo := initRepositories(db)
