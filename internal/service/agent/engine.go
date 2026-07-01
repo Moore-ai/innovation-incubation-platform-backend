@@ -154,10 +154,14 @@ func (e *Engine) Run(ctx context.Context, sessionID uint, userMessage string, ro
 			}
 			results := make(chan toolResult, len(toolCalls))
 
+			sem := make(chan struct{}, 4)
 			g, gctx := errgroup.WithContext(ctx)
 			for _, tc := range toolCalls {
 				tc := tc
 				g.Go(func() error {
+					sem <- struct{}{}
+					defer func() { <-sem }()
+
 					// 工具执行超时
 					tctx, cancel := context.WithTimeout(gctx, time.Duration(e.cfg.ToolTimeoutSec)*time.Second)
 					defer cancel()
