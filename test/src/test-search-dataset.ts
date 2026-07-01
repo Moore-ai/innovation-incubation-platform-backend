@@ -4,7 +4,7 @@ const api = new ApiClient();
 
 function printPolicy(p: any, index: number) {
   const ef = p.extracted_fields || {};
-  const summary = ef.policy_summary ? ef.policy_summary.slice(0, 120) : "";
+  const summary = ef.policy_summary ? ef.policy_summary : "";
   const industries = (ef.applicable_industries || []).join(",");
   const scales = (ef.applicable_scales || []).join(",");
   const subsidies = (ef.subsidies || []).map((s: any) => s.amount).filter(Boolean).join("; ");
