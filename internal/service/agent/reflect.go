@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/pkg/aiclient"
@@ -29,7 +30,9 @@ func NewReflectChecker(embedClient *aiclient.EmbeddingClient, registry *agenttoo
 	for _, t := range registry.All() {
 		if embedClient != nil {
 			desc := fmt.Sprintf("工具 %s：%s。预期返回：%s", t.Name(), t.Description(), string(t.OutputSchema()))
-			vec, err := embedClient.Embed(context.Background(), desc)
+			ectx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			vec, err := embedClient.Embed(ectx, desc)
+			cancel()
 			if err == nil {
 				rc.toolDescs[t.Name()] = vec
 			}
