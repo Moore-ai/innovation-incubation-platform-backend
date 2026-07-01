@@ -1,0 +1,146 @@
+package controller
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+
+	"innovation-incubation-platform-backend/internal/dto"
+	"innovation-incubation-platform-backend/internal/middleware"
+	"innovation-incubation-platform-backend/internal/service"
+	agent "innovation-incubation-platform-backend/internal/service/agent"
+	"innovation-incubation-platform-backend/pkg/errcode"
+	"innovation-incubation-platform-backend/pkg/response"
+
+	"github.com/gin-gonic/gin"
+)
+
+type ChatController struct {
+	svc *service.ChatService
+}
+
+func NewChatController(svc *service.ChatService) *ChatController {
+	return &ChatController{svc: svc}
+}
+
+func (ctl *ChatController) CreateSession(c *gin.Context) {
+	var req dto.CreateChatSessionReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
+		return
+	}
+	userID := middleware.GetUserID(c)
+	sess, err := ctl.svc.CreateSession(userID, req.Title)
+	if err != nil {
+		response.Error(c, errcode.ErrInternal.WithMsg("创建会话失败"))
+		return
+	}
+	response.Created(c, sess, fmt.Sprintf("/api/v1/chat/sessions/%d", sess.ID))
+}
+
+func (ctl *ChatController) ListSessions(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	sessions, err := ctl.svc.ListSessions(userID)
+	if err != nil {
+		response.Error(c, errcode.ErrInternal.WithMsg("获取会话列表失败"))
+		return
+	}
+	response.Success(c, sessions)
+}
+
+func (ctl *ChatController) GetSession(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	var uri struct {
+		ID uint `uri:"id" binding:"required"`
+	}
+	if err := c.ShouldBindUri(&uri); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
+		return
+	}
+	sess, msgs, err := ctl.svc.GetSession(uri.ID, userID)
+	if err != nil {
+		response.Error(c, errcode.ErrNotFound.WithMsg("会话不存在"))
+		return
+	}
+	response.Success(c, gin.H{"session": sess, "messages": msgs})
+}
+
+func (ctl *ChatController) DeleteSession(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	var uri struct {
+		ID uint `uri:"id" binding:"required"`
+	}
+	if err := c.ShouldBindUri(&uri); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
+		return
+	}
+	if err := ctl.svc.DeleteSession(uri.ID, userID); err != nil {
+		response.Error(c, errcode.ErrNotFound.WithMsg("会话不存在"))
+		return
+	}
+	response.Success(c, nil)
+}
+
+// SendMessage SSE 流式响应
+func (ctl *ChatController) SendMessage(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	role := middleware.GetRole(c)
+
+	var uri struct {
+		ID uint `uri:"id" binding:"required"`
+	}
+	if err := c.ShouldBindUri(&uri); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
+		return
+	}
+
+	var req dto.SendChatMessageReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
+		return
+	}
+
+	// 校验会话归属
+	_, _, err := ctl.svc.GetSession(uri.ID, userID)
+	if err != nil {
+		response.Error(c, errcode.ErrNotFound.WithMsg("会话不存在"))
+		return
+	}
+
+	// SSE headers
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.WriteHeader(http.StatusOK)
+
+	ctx := c.Request.Context()
+	// 注入 user_id 和 role 到 context
+	ctx = agent.WithUserID(ctx, userID)
+	ctx = agent.WithRole(ctx, role)
+
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		response.Error(c, errcode.ErrInternal.WithMsg("不支持 SSE"))
+		return
+	}
+
+	result, err := ctl.svc.Run(ctx, uri.ID, req.Content, role, func(evt agent.SSEEvent) {
+		data, _ := json.Marshal(evt)
+		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+		flusher.Flush()
+	})
+
+	if err != nil {
+		data, _ := json.Marshal(agent.SSEEvent{Type: "error", Data: map[string]string{"message": err.Error()}})
+		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+		flusher.Flush()
+		return
+	}
+
+	// 持久化消息
+	go func() {
+		if err := ctl.svc.SaveMessages(uri.ID, userID, result.Messages); err != nil {
+			// 已记录日志，不阻塞
+		}
+	}()
+}

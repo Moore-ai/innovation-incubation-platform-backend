@@ -120,3 +120,11 @@ type SubmitAppealReq struct {
 type UpdateAppealStatusReq struct {
 	Status string `json:"status" binding:"required,oneof=pending processed"`
 }
+
+type CreateChatSessionReq struct {
+	Title string `json:"title"`
+}
+
+type SendChatMessageReq struct {
+	Content string `json:"content" binding:"required"`
+}
