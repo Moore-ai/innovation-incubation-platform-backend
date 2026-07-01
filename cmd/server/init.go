@@ -5,6 +5,10 @@ import (
 	"innovation-incubation-platform-backend/internal/controller"
 	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/internal/service"
+	agentpkg "innovation-incubation-platform-backend/internal/service/agent"
+	agentmemory "innovation-incubation-platform-backend/internal/service/agent/memory"
+	agenttools "innovation-incubation-platform-backend/internal/service/agent/tools"
+	agentbuiltin "innovation-incubation-platform-backend/internal/service/agent/tools/builtin"
 	"innovation-incubation-platform-backend/internal/storage"
 	"innovation-incubation-platform-backend/pkg/aiclient"
 	"log/slog"
@@ -24,6 +28,7 @@ type repositories struct {
 	deletion     *repository.DeletionRepo
 	policyFollow *repository.PolicyFollowRepo
 	appeal       *repository.AppealRepo
+	chat         *repository.ChatRepo
 }
 
 type services struct {
@@ -37,6 +42,7 @@ type services struct {
 	search  service.PolicySearch
 	test    *service.TestService
 	appeal  *service.AppealService
+	chat    *service.ChatService
 }
 
 type controllers struct {
@@ -47,6 +53,7 @@ type controllers struct {
 	file    *controller.FileController
 	notif   *controller.NotificationController
 	test    *controller.TestController
+	chat    *controller.ChatController
 }
 
 func initRepositories(db *gorm.DB) *repositories {
@@ -61,6 +68,7 @@ func initRepositories(db *gorm.DB) *repositories {
 		deletion:     repository.NewDeletionRepo(db),
 		policyFollow: repository.NewPolicyFollowRepo(db),
 		appeal:       repository.NewAppealRepo(db),
+		chat:         repository.NewChatRepo(db),
 	}
 }
 
@@ -104,6 +112,22 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 
 	appealSvc := service.NewAppealService(r.appeal)
 
+	// Agent
+	agentToolRegistry := agenttools.NewToolRegistry()
+	agentToolRegistry.Register(agentbuiltin.NewSearchPolicy(searchSvc))
+	agentToolRegistry.Register(agentbuiltin.NewQueryEnterpriseInfo(r.ent))
+	agentToolRegistry.Register(agentbuiltin.NewQueryAppeal(r.appeal))
+	agentToolRegistry.Register(agentbuiltin.NewQueryPolicyFollow(r.policyFollow))
+
+	agentWorkingMem := agentmemory.NewWorkingMemory(r.chat, cfg.Agent.WorkingMemory.Capacity)
+	agentSemanticMem := agentmemory.NewSemanticMemory(r.chat, embedClient, cfg.Agent.Memory.SemanticLimit)
+	agentMemMgr := agentmemory.NewMemoryManager(agentWorkingMem, agentSemanticMem, cfg.Agent)
+
+	agentReflect := agentpkg.NewReflectChecker(embedClient, agentToolRegistry, cfg.Agent.Reflect)
+	agentEngine := agentpkg.NewEngine(aiClient, agentToolRegistry, agentMemMgr, agentReflect, cfg.Agent)
+
+	chatSvc := service.NewChatService(agentEngine, r.chat, agentMemMgr, cfg.Agent)
+
 	return &services{
 		auth:    service.NewAuthService(r.auth, cfg.JWT),
 		ent:     service.NewEnterpriseService(r.ent, r.carrier, r.common, db, notifSvc, assigner, r.policyFollow),
@@ -115,6 +139,7 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 		search:  searchSvc,
 		test:    service.NewTestService(aiClient, embedClient),
 		appeal:  appealSvc,
+		chat:    chatSvc,
 	}
 }
 
@@ -127,5 +152,6 @@ func initControllers(r *repositories, s *services, cfg *config.Config, hub *serv
 		file:    controller.NewFileController(s.file, cfg),
 		notif:   controller.NewNotificationController(r.notif, hub, cfg),
 		test:    controller.NewTestController(s.test),
+		chat:    controller.NewChatController(s.chat),
 	}
 }
