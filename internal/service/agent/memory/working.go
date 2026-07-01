@@ -21,22 +21,12 @@ func (m *WorkingMemory) Add(ctx context.Context, item *MemoryItem) error {
 	return nil // 工作记忆不独立写入——消息通过 chat_messages 表持久化
 }
 
+// Retrieve is unused — BuildWorkingContext is the active code path.
+// It previously passed opts.UserID as sessionID to LoadRecentMessages, which was
+// incorrect since LoadRecentMessages expects a sessionID. Keeping this method
+// for the MemoryManager interface but it should not be called in production.
 func (m *WorkingMemory) Retrieve(ctx context.Context, query string, opts RetrievalOpts) ([]*MemoryItem, error) {
-	msgs, err := m.repo.LoadRecentMessages(opts.UserID, m.capacity)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]*MemoryItem, 0, len(msgs))
-	for _, msg := range msgs {
-		if msg.Content == "" {
-			continue
-		}
-		items = append(items, &MemoryItem{
-			Content: fmt.Sprintf("[%s]: %s", msg.Role, msg.Content),
-			Source:  "working",
-		})
-	}
-	return items, nil
+	return nil, fmt.Errorf("WorkingMemory.Retrieve is deprecated, use BuildWorkingContext instead")
 }
 
 func (m *WorkingMemory) Clear(ctx context.Context) error { return nil }
