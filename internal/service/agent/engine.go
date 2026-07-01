@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -93,7 +94,7 @@ func (e *Engine) Run(ctx context.Context, sessionID uint, userMessage string, ro
 		}
 
 		// 读取流式响应 -> 收集 content + tool_calls
-		var thinkContent string
+		var thinkContent strings.Builder
 		var toolCalls []openai.ToolCall
 		for {
 			recv, recvErr := stream.Recv()
@@ -101,7 +102,7 @@ func (e *Engine) Run(ctx context.Context, sessionID uint, userMessage string, ro
 				break
 			}
 			for _, choice := range recv.Choices {
-				thinkContent += choice.Delta.Content
+				thinkContent.WriteString(choice.Delta.Content)
 				if len(choice.Delta.Content) > 0 {
 					onEvent(SSEEvent{Type: "thinking", Data: choice.Delta.Content})
 				}
@@ -133,13 +134,13 @@ func (e *Engine) Run(ctx context.Context, sessionID uint, userMessage string, ro
 			tcJSON, _ := json.Marshal(toolCalls)
 			assistantMsg := openai.ChatCompletionMessage{
 				Role:      openai.ChatMessageRoleAssistant,
-				Content:   thinkContent,
+				Content:   thinkContent.String(),
 				ToolCalls: toolCalls,
 			}
 			messages = append(messages, assistantMsg)
 			records = append(records, ChatMessageRecord{
 				Role:      "assistant",
-				Content:   thinkContent,
+				Content:   thinkContent.String(),
 				ToolCalls: string(tcJSON),
 			})
 
@@ -157,7 +158,6 @@ func (e *Engine) Run(ctx context.Context, sessionID uint, userMessage string, ro
 			sem := make(chan struct{}, 4)
 			g, gctx := errgroup.WithContext(ctx)
 			for _, tc := range toolCalls {
-				tc := tc
 				g.Go(func() error {
 					sem <- struct{}{}
 					defer func() { <-sem }()
@@ -226,7 +226,7 @@ func (e *Engine) Run(ctx context.Context, sessionID uint, userMessage string, ro
 			}
 		} else {
 			// 纯文本回复 → 最终输出
-			finalReply = thinkContent
+			finalReply = thinkContent.String()
 			records = append(records, ChatMessageRecord{
 				Role:    "assistant",
 				Content: finalReply,
@@ -234,10 +234,10 @@ func (e *Engine) Run(ctx context.Context, sessionID uint, userMessage string, ro
 			onEvent(SSEEvent{Type: "reply", Data: finalReply})
 			onEvent(SSEEvent{Type: "done", Data: nil})
 			return &RunResult{
-				FinalReply:      finalReply,
-				Messages:        records,
-				StepsUsed:       step + 1,
-				ReflectTrigger:  reflectTrigger,
+				FinalReply:     finalReply,
+				Messages:       records,
+				StepsUsed:      step + 1,
+				ReflectTrigger: reflectTrigger,
 			}, nil
 		}
 	}
@@ -272,9 +272,9 @@ func (e *Engine) Run(ctx context.Context, sessionID uint, userMessage string, ro
 	onEvent(SSEEvent{Type: "done", Data: nil})
 
 	return &RunResult{
-		FinalReply:      finalReply,
-		Messages:        records,
-		StepsUsed:       e.cfg.MaxSteps,
-		ReflectTrigger:  reflectTrigger,
+		FinalReply:     finalReply,
+		Messages:       records,
+		StepsUsed:      e.cfg.MaxSteps,
+		ReflectTrigger: reflectTrigger,
 	}, nil
 }

@@ -21,7 +21,7 @@ func buildSystemPrompt(memoryContext string, tools []agenttools.Tool) string {
 
 	sb.WriteString("可用工具：\n")
 	for _, t := range tools {
-		sb.WriteString(fmt.Sprintf("- %s：%s\n", t.Name(), t.Description()))
+		fmt.Fprintf(&sb, "- %s：%s\n", t.Name(), t.Description())
 	}
 
 	return sb.String()

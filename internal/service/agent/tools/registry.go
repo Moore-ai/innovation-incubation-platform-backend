@@ -1,5 +1,7 @@
 package tools
 
+import "slices"
+
 type ToolRegistry struct {
 	tools map[string]Tool
 }
@@ -20,11 +22,8 @@ func (r *ToolRegistry) Get(name string) (Tool, bool) {
 func (r *ToolRegistry) ListForRole(role string) []Tool {
 	var out []Tool
 	for _, t := range r.tools {
-		for _, allowed := range t.AllowedRoles() {
-			if allowed == role {
-				out = append(out, t)
-				break
-			}
+		if slices.Contains(t.AllowedRoles(), role) {
+			out = append(out, t)
 		}
 	}
 	return out
