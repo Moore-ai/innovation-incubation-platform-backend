@@ -77,8 +77,9 @@ type LogConfig struct {
 }
 
 type ServerConfig struct {
-	Port int    `mapstructure:"port"`
-	Mode string `mapstructure:"mode"`
+	Port        int    `mapstructure:"port"`
+	Mode        string `mapstructure:"mode"`
+	RBACEnabled bool   `mapstructure:"rbac_enabled"`
 }
 
 type DBConfig struct {
@@ -136,18 +137,6 @@ type UploadConfig struct {
 	MaxSizeMB         int64    `mapstructure:"max_size_mb"`
 	Dir               string   `mapstructure:"dir"`
 	AllowedExtensions []string `mapstructure:"allowed_extensions"`
-}
-
-func (c *UploadConfig) Init() {
-	if c.MaxSizeMB == 0 {
-		c.MaxSizeMB = 20
-	}
-	if c.Dir == "" {
-		c.Dir = "./uploads"
-	}
-	if len(c.AllowedExtensions) == 0 {
-		c.AllowedExtensions = []string{".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".png"}
-	}
 }
 
 type RateLimitConfig struct {
@@ -238,6 +227,11 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("file_parser.venv_path", "sidecar/file-parser/venv")
 	v.SetDefault("file_parser.script_path", "sidecar/file-parser/server.py")
 	v.SetDefault("file_parser.timeout_sec", 30)
+
+	v.SetDefault("upload.max_size_mb", 20)
+	v.SetDefault("upload.dir", "./uploads")
+	v.SetDefault("upload.allowed_extensions", []string{".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".png"})
+	v.SetDefault("server.rbac_enabled", true)
 
 	if err := v.ReadConfig(bytes.NewReader([]byte(expanded))); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
