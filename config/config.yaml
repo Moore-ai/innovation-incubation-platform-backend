@@ -91,3 +91,16 @@ file_parser:
   venv_path: "sidecar/file-parser/venv"
   script_path: "sidecar/file-parser/server.py"
   timeout_sec: 30
+
+agent:
+  model: ""               # 空字符串表示沿用 ai.openai.model
+  max_steps: 10
+  message_max_chars: 2000
+  request_timeout_sec: 120
+  tool_timeout_sec: 10
+  working_memory:
+    capacity: 50
+  memory:
+    semantic_limit: 3
+  reflect:
+    similarity_threshold: 0.3
