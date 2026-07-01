@@ -24,6 +24,7 @@ type Config struct {
 	FileMatch    FileMatchConfig    `mapstructure:"filematch"`
 	Search       SearchConfig       `mapstructure:"search"`
 	FileParser   FileParserConfig   `mapstructure:"file_parser"`
+	Agent        AgentConfig        `mapstructure:"agent"`
 }
 
 type FileParserConfig struct {
@@ -238,7 +239,14 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("upload.dir", "./uploads")
 	v.SetDefault("upload.allowed_extensions", []string{".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".png"})
 	v.SetDefault("server.rbac_enabled", true)
-
+	v.SetDefault("agent.model", "")
+	v.SetDefault("agent.max_steps", 10)
+	v.SetDefault("agent.message_max_chars", 2000)
+	v.SetDefault("agent.request_timeout_sec", 120)
+	v.SetDefault("agent.tool_timeout_sec", 10)
+	v.SetDefault("agent.working_memory.capacity", 50)
+	v.SetDefault("agent.memory.semantic_limit", 3)
+	v.SetDefault("agent.reflect.similarity_threshold", 0.3)
 
 	if err := v.ReadConfig(bytes.NewReader([]byte(expanded))); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
@@ -255,4 +263,27 @@ func Load(path string) (*Config, error) {
 	MustLoadPromptFile("config/prompts/search.txt", &cfg.AI.Prompts.Search)
 	MustLoadPromptFile("config/prompts/search_analysis.txt", &cfg.AI.Prompts.SearchAnalysis)
 	return &cfg, nil
+}
+
+type AgentConfig struct {
+	Model            string              `mapstructure:"model"`
+	MaxSteps         int                 `mapstructure:"max_steps"`
+	MessageMaxChars  int                 `mapstructure:"message_max_chars"`
+	RequestTimeoutSec int                `mapstructure:"request_timeout_sec"`
+	ToolTimeoutSec   int                 `mapstructure:"tool_timeout_sec"`
+	WorkingMemory    WorkingMemoryConfig `mapstructure:"working_memory"`
+	Memory           AgentMemoryConfig   `mapstructure:"memory"`
+	Reflect          ReflectConfig       `mapstructure:"reflect"`
+}
+
+type WorkingMemoryConfig struct {
+	Capacity int `mapstructure:"capacity"`
+}
+
+type AgentMemoryConfig struct {
+	SemanticLimit int `mapstructure:"semantic_limit"`
+}
+
+type ReflectConfig struct {
+	SimilarityThreshold float64 `mapstructure:"similarity_threshold"`
 }
