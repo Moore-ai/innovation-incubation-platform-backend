@@ -1,10 +1,5 @@
 package tools
 
-import (
-	"encoding/json"
-	"fmt"
-)
-
 type ToolRegistry struct {
 	tools map[string]Tool
 }
@@ -41,12 +36,4 @@ func (r *ToolRegistry) All() []Tool {
 		out = append(out, t)
 	}
 	return out
-}
-
-func (r *ToolRegistry) GetOutputSchema(name string) (json.RawMessage, error) {
-	t, ok := r.tools[name]
-	if !ok {
-		return nil, fmt.Errorf("tool %s not found", name)
-	}
-	return t.OutputSchema(), nil
 }
