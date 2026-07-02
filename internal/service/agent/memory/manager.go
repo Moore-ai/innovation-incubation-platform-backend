@@ -33,18 +33,23 @@ func (m *MemoryManager) LoadContext(ctx context.Context, sessionID, userID uint,
 		}
 		if len(items) > 0 {
 			var sb strings.Builder
-			sb.WriteString("### 相关规则与偏好\n")
-			for _, item := range items {
-				line := "- " + item.Content + "\n"
-				tokens := tokenutil.ApproxTokenLen(line)
-				if tokens > budget {
-					break
+			headerLine := "### 相关规则与偏好\n"
+			headerTokens := tokenutil.ApproxTokenLen(headerLine)
+			if headerTokens <= budget {
+				budget -= headerTokens
+				sb.WriteString(headerLine)
+				for _, item := range items {
+					line := "- " + item.Content + "\n"
+					tokens := tokenutil.ApproxTokenLen(line)
+					if tokens > budget {
+						break
+					}
+					budget -= tokens
+					sb.WriteString(line)
 				}
-				budget -= tokens
-				sb.WriteString(line)
-			}
-			if sb.Len() > 0 {
-				parts = append(parts, sb.String())
+				if sb.Len() > 0 {
+					parts = append(parts, sb.String())
+				}
 			}
 		}
 	}
@@ -53,6 +58,9 @@ func (m *MemoryManager) LoadContext(ctx context.Context, sessionID, userID uint,
 	if budget > 0 {
 		wctx, err := m.working.BuildWorkingContext(sessionID, budget)
 		if err != nil {
+			if len(parts) > 0 {
+				return strings.Join(parts, "\n\n"), nil
+			}
 			return "", fmt.Errorf("working memory: %w", err)
 		}
 		if wctx != "" {
