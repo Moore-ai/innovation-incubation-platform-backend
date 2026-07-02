@@ -55,8 +55,14 @@ type toolResult struct {
 	err     error
 }
 
+// streamReader 可供测试 mock 的流式响应接口。
+type streamReader interface {
+	Recv() (openai.ChatCompletionStreamResponse, error)
+	Close() error
+}
+
 // readStream 读取流式 LLM 响应，收集 content（增量 SSE 推送）+ tool_calls（index 合并）。
-func readStream(stream *openai.ChatCompletionStream, onEvent func(SSEEvent)) (content string, toolCalls []openai.ToolCall) {
+func readStream(stream streamReader, onEvent func(SSEEvent)) (content string, toolCalls []openai.ToolCall) {
 	for {
 		recv, err := stream.Recv()
 		if err != nil {
