@@ -12,21 +12,30 @@ import (
 
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/pkg/aiclient"
+	"innovation-incubation-platform-backend/pkg/tokenutil"
 
 	agentmemory "innovation-incubation-platform-backend/internal/service/agent/memory"
 	agenttools "innovation-incubation-platform-backend/internal/service/agent/tools"
 )
 
 type Engine struct {
-	ai      *aiclient.Client
-	tools   *agenttools.ToolRegistry
-	memory  *agentmemory.MemoryManager
-	reflect *ReflectChecker
-	cfg     config.AgentConfig
+	ai            *aiclient.Client
+	tools         *agenttools.ToolRegistry
+	memory        *agentmemory.MemoryManager
+	reflect       *ReflectChecker
+	cfg           config.AgentConfig
+	toolDefTokens int
 }
 
 func NewEngine(ai *aiclient.Client, tools *agenttools.ToolRegistry, mem *agentmemory.MemoryManager, reflect *ReflectChecker, cfg config.AgentConfig) *Engine {
-	return &Engine{ai: ai, tools: tools, memory: mem, reflect: reflect, cfg: cfg}
+	return &Engine{
+		ai:            ai,
+		tools:         tools,
+		memory:        mem,
+		reflect:       reflect,
+		cfg:           cfg,
+		toolDefTokens: calcToolDefTokens(tools.All()),
+	}
 }
 
 type toolResult struct {
@@ -196,13 +205,16 @@ func (e *Engine) Run(ctx context.Context, sessionID uint, userMessage string, ro
 		return nil, fmt.Errorf("user_id not found in context")
 	}
 
-	memCtx, err := e.memory.LoadContext(ctx, sessionID, userID, userMessage)
+	tools := e.tools.ListForRole(role)
+	systemPrompt, templateTokens := buildSystemPrompt("", tools)
+	budget := int(float64(e.cfg.ContextWindow)*e.cfg.HistoryBudgetRatio) - e.toolDefTokens - templateTokens
+
+	memCtx, err := e.memory.LoadContext(ctx, sessionID, userID, userMessage, budget)
 	if err != nil {
 		slog.Warn("加载记忆上下文失败", "error", err, "session_id", sessionID)
 	}
 
-	tools := e.tools.ListForRole(role)
-	systemPrompt, _ := buildSystemPrompt(memCtx, tools)
+	systemPrompt, _ = buildSystemPrompt(memCtx, tools)
 	openaiTools := make([]openai.Tool, 0, len(tools))
 	for _, t := range tools {
 		openaiTools = append(openaiTools, openai.Tool{
@@ -297,4 +309,22 @@ func (e *Engine) Run(ctx context.Context, sessionID uint, userMessage string, ro
 		StepsUsed:      e.cfg.MaxSteps,
 		ReflectTrigger: reflectTrigger,
 	}, nil
+}
+
+// calcToolDefTokens 计算工具定义序列化为 OpenAI Tool 后的近似 Token 总数。
+func calcToolDefTokens(tools []agenttools.Tool) int {
+	total := 0
+	for _, t := range tools {
+		ot := openai.Tool{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        t.Name(),
+				Description: t.Description(),
+				Parameters:  t.InputSchema(),
+			},
+		}
+		b, _ := json.Marshal(ot)
+		total += tokenutil.ApproxTokenLen(string(b))
+	}
+	return total
 }
