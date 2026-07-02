@@ -72,7 +72,7 @@ func (r *ChatRepo) SearchMessages(userID uint, query string, limit int) ([]model
 // LoadMessagesPage 游标分页加载消息（按 created_at DESC），返回 (消息, 下一页 cursor, 是否有更多, error)
 func (r *ChatRepo) LoadMessagesPage(sessionID uint, cursorID uint, limit int) ([]model.ChatMessage, uint, bool, error) {
 	var msgs []model.ChatMessage
-	q := r.db.Where("session_id = ?", sessionID).Order("created_at DESC").Limit(limit + 1)
+	q := r.db.Where("session_id = ?", sessionID).Order("created_at DESC, id DESC").Limit(limit + 1)
 	if cursorID > 0 {
 		q = q.Where("id < ?", cursorID)
 	}
