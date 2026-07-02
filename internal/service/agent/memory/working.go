@@ -22,6 +22,7 @@ func (m *WorkingMemory) Add(ctx context.Context, item *MemoryItem) error {
 	return nil
 }
 
+// Deprecated: use BuildWorkingContext.
 func (m *WorkingMemory) Retrieve(ctx context.Context, query string, opts RetrievalOpts) ([]*MemoryItem, error) {
 	return nil, fmt.Errorf("WorkingMemory.Retrieve is deprecated, use BuildWorkingContext instead")
 }

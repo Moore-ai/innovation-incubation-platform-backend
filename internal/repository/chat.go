@@ -60,18 +60,6 @@ func (r *ChatRepo) ListMessagesBySession(sessionID uint) ([]model.ChatMessage, e
 	return msgs, err
 }
 
-// LoadRecentMessages 工作记忆：加载当前会话最近 N 条消息
-func (r *ChatRepo) LoadRecentMessages(sessionID uint, limit int) ([]model.ChatMessage, error) {
-	var msgs []model.ChatMessage
-	err := r.db.Where("session_id = ?", sessionID).
-		Order("created_at DESC").Limit(limit).Find(&msgs).Error
-	// 反转回时间升序
-	for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
-		msgs[i], msgs[j] = msgs[j], msgs[i]
-	}
-	return msgs, err
-}
-
 // SearchMessages 情景记忆：全文搜索历史消息
 func (r *ChatRepo) SearchMessages(userID uint, query string, limit int) ([]model.ChatMessage, error) {
 	var msgs []model.ChatMessage
