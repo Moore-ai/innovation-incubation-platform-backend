@@ -202,7 +202,7 @@ func (e *Engine) Run(ctx context.Context, sessionID uint, userMessage string, ro
 	}
 
 	tools := e.tools.ListForRole(role)
-	systemPrompt := buildSystemPrompt(memCtx, tools)
+	systemPrompt, _ := buildSystemPrompt(memCtx, tools)
 	openaiTools := make([]openai.Tool, 0, len(tools))
 	for _, t := range tools {
 		openaiTools = append(openaiTools, openai.Tool{
