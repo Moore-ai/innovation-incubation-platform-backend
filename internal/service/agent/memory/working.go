@@ -44,7 +44,7 @@ func (m *WorkingMemory) BuildWorkingContext(sessionID uint, budget int) (string,
 			line := msg.Role + ": " + msg.Content + "\n"
 			tokens := tokenutil.ApproxTokenLen(line)
 			if used+tokens > budget {
-				return buildOrdered(lines), nil
+				continue
 			}
 			used += tokens
 			lines = append(lines, line)
