@@ -710,6 +710,99 @@ func TestMultiTurn_RealAI(t *testing.T) {
 	}
 }
 
+// TestReflectRecovery_RealAI 测试 Reflect 触发后的工具替换恢复。
+// B 故意失败 -> Reflect 触发 -> LLM 改用 D 替代 B。
+func TestReflectRecovery_RealAI(t *testing.T) {
+	apiKey := os.Getenv("AI_API_KEY")
+	baseURL := os.Getenv("AI_BASE_URL")
+	model := os.Getenv("AI_MODEL")
+	if apiKey == "" || baseURL == "" {
+		t.Skip("AI_API_KEY or AI_BASE_URL not set, skipping real AI test")
+	}
+	if model == "" {
+		model = "qwen-plus"
+	}
+	client := aiclient.New(baseURL, apiKey, model, 60)
+
+	reg := agenttools.NewToolRegistry()
+	reg.Register(&mockTool{
+		name: "query_policy_follow", desc: "查询当前用户关注的政策列表，返回政策ID和标题",
+		allowedRoles: []string{"enterprise"},
+		inputSchema:  json.RawMessage(`{"type":"object","properties":{},"required":[]}`),
+		outputSchema: json.RawMessage(`{"type":"object"}`),
+		execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"follows":[{"policy_id":8,"title":"高端人才奖励办法"},{"policy_id":3,"title":"软件企业税收优惠"}],"total":2}`), nil
+		},
+	})
+	// B: 故意返回 error
+	reg.Register(&mockTool{
+		name: "policy_detail", desc: "根据政策ID查询详细内容、申报条件、补贴金额。注意：此接口不稳定",
+		allowedRoles: []string{"enterprise"},
+		inputSchema:  json.RawMessage(`{"type":"object","properties":{"policy_id":{"type":"integer","description":"政策ID"}},"required":["policy_id"]}`),
+		outputSchema: json.RawMessage(`{"type":"object"}`),
+		execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+			return nil, fmt.Errorf("Internal Server Error: 服务不可用，请使用 search_policy 替代")
+		},
+	})
+	// D: fallback
+	reg.Register(&mockTool{
+		name: "search_policy", desc: "根据关键词搜索匹配的政策。可替代 policy_detail 按政策名搜索获取详细内容",
+		allowedRoles: []string{"enterprise"},
+		inputSchema:  json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`),
+		outputSchema: json.RawMessage(`{"type":"object"}`),
+		execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"policies":[{"id":8,"title":"高端人才奖励办法","summary":"博士30万、硕士10万","department":"人才办"}],"total":1}`), nil
+		},
+	})
+	// C
+	reg.Register(&mockTool{
+		name: "query_enterprise_info", desc: "查询当前企业的入驻信息",
+		allowedRoles: []string{"enterprise"},
+		inputSchema:  json.RawMessage(`{"type":"object","properties":{},"required":[]}`),
+		outputSchema: json.RawMessage(`{"type":"object"}`),
+		execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"enterprise":{"name":"星辰科技","industry":"信息技术","scale":"中型"}}`), nil
+		},
+	})
+
+	checker := NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3})
+	eng := NewEngine(client, reg, agentmemory.NewMemoryManager(nil, nil, config.AgentConfig{}), checker,
+		config.AgentConfig{MaxSteps: 8, ToolTimeoutSec: 30})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	defer cancel()
+	ctx = WithUserID(WithRole(ctx, "enterprise"), 1)
+
+	result, err := eng.Run(ctx, 0, "先查看我关注了哪些政策，然后查第一条政策的详细内容，最后告诉我公司的入驻信息", "enterprise", func(e SSEEvent) {})
+	if err != nil {
+		t.Fatalf("Engine.Run: %v", err)
+	}
+
+	calledTools := extractAllToolNames(result.Messages)
+	t.Logf("Tools(%d): %v, Reflect=%v, Steps=%d, Reply: %s",
+		len(calledTools), calledTools, result.ReflectTrigger, result.StepsUsed,
+		result.FinalReply[:min(len(result.FinalReply), 120)])
+
+	if !result.ReflectTrigger {
+		t.Error("expected ReflectTrigger=true")
+	}
+	foundDetail := slices.Contains(calledTools, "policy_detail")
+	foundSearch := slices.Contains(calledTools, "search_policy")
+	if !foundDetail || !foundSearch {
+		t.Errorf("expected policy_detail(ok=%v) to fail then search_policy(ok=%v) as fallback: %v", foundDetail, foundSearch, calledTools)
+	}
+	if !foundDetail || !foundSearch {
+		return
+	}
+	if slices.Index(calledTools, "search_policy") <= slices.Index(calledTools, "policy_detail") {
+		t.Errorf("search_policy should come after policy_detail: %v", calledTools)
+	}
+	foundEnterprise := slices.Contains(calledTools, "query_enterprise_info")
+	if !foundEnterprise || len(calledTools) < 3 {
+		t.Errorf("expected >=3 tools called: %v", calledTools)
+	}
+}
+
 // extractAllToolNames 从所有消息中提取调用的工具名列表。
 func extractAllToolNames(msgs []ChatMessageRecord) []string {
 	var names []string
