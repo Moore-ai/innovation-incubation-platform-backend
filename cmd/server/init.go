@@ -126,6 +126,7 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 	agentToolRegistry.Register(agentbuiltin.NewQueryPendingChanges(r.carrier))
 	agentToolRegistry.Register(agentbuiltin.NewQueryEnterpriseApplications(r.carrier))
 	agentToolRegistry.Register(agentbuiltin.NewQueryPerformanceCampaigns(r.carrier))
+	agentToolRegistry.Register(agentbuiltin.NewQueryApplicationsByStatus(r.carrier))
 	agentToolRegistry.Register(agentbuiltin.NewQueryPolicyDetail(r.gov))
 	agentToolRegistry.Register(agentbuiltin.NewQueryMyFiles(r.file))
 
