@@ -22,12 +22,11 @@ func buildSystemPrompt(memoryContext string, tools []agenttools.Tool) (string, i
 		sb.WriteString("\n\n")
 	}
 
-	templateLen := tokenutil.ApproxTokenLen(sb.String())
-
 	sb.WriteString("可用工具：\n")
 	for _, t := range tools {
 		fmt.Fprintf(&sb, "- %s：%s\n", t.Name(), t.Description())
 	}
 
+	templateLen := tokenutil.ApproxTokenLen(sb.String())
 	return sb.String(), templateLen
 }
