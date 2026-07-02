@@ -3,6 +3,10 @@ package builtin
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+
+	"gorm.io/gorm"
 
 	"innovation-incubation-platform-backend/internal/repository"
 	agent "innovation-incubation-platform-backend/internal/service/agent"
@@ -20,7 +24,7 @@ func NewQueryEnterpriseApplications(carrierRepo *repository.CarrierRepo) *QueryE
 }
 
 func (t *QueryEnterpriseApplications) Name() string          { return "query_enterprise_applications" }
-func (t *QueryEnterpriseApplications) Description() string   { return "查询企业提交的政策申报记录，支持分页" }
+func (t *QueryEnterpriseApplications) Description() string   { return "查询待审核的企业政策申报记录，支持分页" }
 func (t *QueryEnterpriseApplications) AllowedRoles() []string { return []string{"carrier"} }
 
 func (t *QueryEnterpriseApplications) InputSchema() json.RawMessage {
@@ -35,13 +39,18 @@ func (t *QueryEnterpriseApplications) Execute(ctx context.Context, args json.Raw
 	userID := agent.UserIDFromCtx(ctx)
 	carrier, err := t.carrierRepo.FindCarrierByUserID(userID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("未找到用户关联的实体信息，请确认账号已注册")
+		}
 		return nil, err
 	}
 	var input struct {
 		Page     int `json:"page"`
 		PageSize int `json:"page_size"`
 	}
-	json.Unmarshal(args, &input)
+	if err := json.Unmarshal(args, &input); err != nil {
+		return nil, err
+	}
 	if input.Page <= 0 {
 		input.Page = 1
 	}

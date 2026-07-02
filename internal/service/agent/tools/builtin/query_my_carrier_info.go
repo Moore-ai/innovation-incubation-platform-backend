@@ -3,6 +3,10 @@ package builtin
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+
+	"gorm.io/gorm"
 
 	"innovation-incubation-platform-backend/internal/repository"
 	agent "innovation-incubation-platform-backend/internal/service/agent"
@@ -35,6 +39,9 @@ func (t *QueryMyCarrierInfo) Execute(ctx context.Context, args json.RawMessage) 
 	userID := agent.UserIDFromCtx(ctx)
 	carrier, err := t.carrierRepo.FindCarrierByUserID(userID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("未找到用户关联的实体信息，请确认账号已注册")
+		}
 		return nil, err
 	}
 	b, err := json.Marshal(map[string]any{"carrier": carrier})

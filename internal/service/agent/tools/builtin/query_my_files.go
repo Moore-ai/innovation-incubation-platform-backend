@@ -37,7 +37,9 @@ func (t *QueryMyFiles) Execute(ctx context.Context, args json.RawMessage) (json.
 		Page     int `json:"page"`
 		PageSize int `json:"page_size"`
 	}
-	json.Unmarshal(args, &input)
+	if err := json.Unmarshal(args, &input); err != nil {
+		return nil, err
+	}
 	if input.Page <= 0 {
 		input.Page = 1
 	}
