@@ -24,15 +24,25 @@ type Engine struct {
 	memory  *agentmemory.MemoryManager
 	reflect *ReflectChecker
 	cfg     config.AgentConfig
+
+	roleToolTokens map[string]int // 按角色预缓存的工具定义 Token 数
 }
 
 func NewEngine(ai *aiclient.Client, tools *agenttools.ToolRegistry, mem *agentmemory.MemoryManager, reflect *ReflectChecker, cfg config.AgentConfig) *Engine {
+	// 按角色预计算工具定义 Token
+	roleToolTokens := make(map[string]int)
+	for _, role := range []string{"enterprise", "carrier", "government"} {
+		roleTools := tools.ListForRole(role)
+		roleToolTokens[role] = calcToolDefTokens(roleTools)
+	}
+
 	return &Engine{
-		ai:      ai,
-		tools:   tools,
-		memory:  mem,
-		reflect: reflect,
-		cfg:     cfg,
+		ai:             ai,
+		tools:          tools,
+		memory:         mem,
+		reflect:        reflect,
+		cfg:            cfg,
+		roleToolTokens: roleToolTokens,
 	}
 }
 
@@ -205,7 +215,10 @@ func (e *Engine) Run(ctx context.Context, sessionID uint, userMessage string, ro
 
 	tools := e.tools.ListForRole(role)
 	systemPrompt, templateTokens := buildSystemPrompt("", tools)
-	toolDefTokens := calcToolDefTokens(tools)
+	toolDefTokens, ok := e.roleToolTokens[role]
+	if !ok {
+		toolDefTokens = calcToolDefTokens(tools)
+	}
 	budget := int(float64(e.cfg.ContextWindow)*e.cfg.HistoryBudgetRatio) - toolDefTokens - templateTokens
 
 	if budget <= 0 {

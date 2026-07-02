@@ -16,7 +16,7 @@ func ApproxTokenLen(text string) int {
 	}
 	// 过滤纯 CJK 的"词"，避免同一段 CJK 文字被既按字数又按词数重复计算
 	nonCJK := 0
-	for _, word := range strings.Fields(text) {
+	for word := range strings.FieldsSeq(text) {
 		hasCJK := false
 		for _, r := range word {
 			if IsCJK(r) {
