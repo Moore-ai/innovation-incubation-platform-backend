@@ -27,6 +27,6 @@ func buildSystemPrompt(memoryContext string, tools []agenttools.Tool) (string, i
 		fmt.Fprintf(&sb, "- %s：%s\n", t.Name(), t.Description())
 	}
 
-	templateLen := tokenutil.ApproxTokenLen(sb.String())
+	templateLen := tokenutil.Estimate(sb.String())
 	return sb.String(), templateLen
 }

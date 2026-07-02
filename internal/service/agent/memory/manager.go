@@ -34,13 +34,13 @@ func (m *MemoryManager) LoadContext(ctx context.Context, sessionID, userID uint,
 		if len(items) > 0 {
 			var sb strings.Builder
 			headerLine := "### 相关规则与偏好\n"
-			headerTokens := tokenutil.ApproxTokenLen(headerLine)
+			headerTokens := tokenutil.Estimate(headerLine)
 			if headerTokens <= budget {
 				budget -= headerTokens
 				sb.WriteString(headerLine)
 				for _, item := range items {
 					line := "- " + item.Content + "\n"
-					tokens := tokenutil.ApproxTokenLen(line)
+					tokens := tokenutil.Estimate(line)
 					if tokens > budget {
 						break
 					}

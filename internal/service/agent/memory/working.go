@@ -42,7 +42,7 @@ func (m *WorkingMemory) BuildWorkingContext(sessionID uint, budget int) (string,
 		}
 		for _, msg := range msgs {
 			line := msg.Role + ": " + msg.Content + "\n"
-			tokens := tokenutil.ApproxTokenLen(line)
+			tokens := tokenutil.Estimate(line)
 			if used+tokens > budget {
 				continue
 			}

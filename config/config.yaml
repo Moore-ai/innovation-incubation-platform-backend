@@ -10,7 +10,7 @@ db:
   password: ${DB_PASSWORD}
   name: ${DB_NAME}
   sslmode: disable
-  log_level: WARN
+  log_level: WARN    # INFO | WARN
 
 jwt:
   secret: ${JWT_SECRET}
@@ -47,7 +47,7 @@ filematch:
     - 扫描
 
 search:
-  method: vector
+  method: vector      # structured | vector
   max_results: 10
   vector:
     dimensions: 1024
@@ -100,8 +100,8 @@ agent:
   tool_timeout_sec: 10
   context_window: 512000
   history_budget_ratio: 0.7
+  token_estimation: better     # simple | better
   working_memory:
-    capacity: 50
     page_size: 10
   memory:
     semantic_limit: 3

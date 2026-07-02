@@ -150,6 +150,32 @@ type RateLimitConfig struct {
 	Whitelist  []uint `mapstructure:"whitelist"`
 }
 
+type AgentConfig struct {
+	Model              string              `mapstructure:"model"`
+	MaxSteps           int                 `mapstructure:"max_steps"`
+	MessageMaxChars    int                 `mapstructure:"message_max_chars"`
+	RequestTimeoutSec  int                 `mapstructure:"request_timeout_sec"`
+	ToolTimeoutSec     int                 `mapstructure:"tool_timeout_sec"`
+	ContextWindow      int                 `mapstructure:"context_window"`
+	HistoryBudgetRatio float64             `mapstructure:"history_budget_ratio"`
+	TokenEstimation    string              `mapstructure:"token_estimation"`
+	WorkingMemory      WorkingMemoryConfig `mapstructure:"working_memory"`
+	Memory             AgentMemoryConfig   `mapstructure:"memory"`
+	Reflect            ReflectConfig       `mapstructure:"reflect"`
+}
+
+type WorkingMemoryConfig struct {
+	PageSize int `mapstructure:"page_size"` // 分页加载每页条数
+}
+
+type AgentMemoryConfig struct {
+	SemanticLimit int `mapstructure:"semantic_limit"`
+}
+
+type ReflectConfig struct {
+	SimilarityThreshold float64 `mapstructure:"similarity_threshold"`
+}
+
 func (c *RateLimitConfig) IsWhitelisted(userID uint) bool {
 	return slices.Contains(c.Whitelist, userID)
 }
@@ -244,9 +270,9 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("agent.message_max_chars", 2000)
 	v.SetDefault("agent.request_timeout_sec", 120)
 	v.SetDefault("agent.tool_timeout_sec", 10)
-	v.SetDefault("agent.working_memory.capacity", 50)
 	v.SetDefault("agent.context_window", 512000)
 	v.SetDefault("agent.history_budget_ratio", 0.7)
+	v.SetDefault("agent.token_estimation", "better")
 	v.SetDefault("agent.working_memory.page_size", 10)
 	v.SetDefault("agent.memory.semantic_limit", 3)
 	v.SetDefault("agent.reflect.similarity_threshold", 0.3)
@@ -266,30 +292,4 @@ func Load(path string) (*Config, error) {
 	MustLoadPromptFile("config/prompts/search.txt", &cfg.AI.Prompts.Search)
 	MustLoadPromptFile("config/prompts/search_analysis.txt", &cfg.AI.Prompts.SearchAnalysis)
 	return &cfg, nil
-}
-
-type AgentConfig struct {
-	Model             string              `mapstructure:"model"`
-	MaxSteps          int                 `mapstructure:"max_steps"`
-	MessageMaxChars   int                 `mapstructure:"message_max_chars"`
-	RequestTimeoutSec int                 `mapstructure:"request_timeout_sec"`
-	ToolTimeoutSec    int                 `mapstructure:"tool_timeout_sec"`
-	ContextWindow     int                 `mapstructure:"context_window"`
-	HistoryBudgetRatio float64            `mapstructure:"history_budget_ratio"`
-	WorkingMemory     WorkingMemoryConfig `mapstructure:"working_memory"`
-	Memory            AgentMemoryConfig   `mapstructure:"memory"`
-	Reflect           ReflectConfig       `mapstructure:"reflect"`
-}
-
-type WorkingMemoryConfig struct {
-	Capacity int `mapstructure:"capacity"`  // 废弃，不再使用
-	PageSize int `mapstructure:"page_size"` // 分页加载每页条数
-}
-
-type AgentMemoryConfig struct {
-	SemanticLimit int `mapstructure:"semantic_limit"`
-}
-
-type ReflectConfig struct {
-	SimilarityThreshold float64 `mapstructure:"similarity_threshold"`
 }

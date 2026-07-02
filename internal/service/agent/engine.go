@@ -29,6 +29,8 @@ type Engine struct {
 }
 
 func NewEngine(ai *aiclient.Client, tools *agenttools.ToolRegistry, mem *agentmemory.MemoryManager, reflect *ReflectChecker, cfg config.AgentConfig) *Engine {
+	tokenutil.SetEstimationMode(cfg.TokenEstimation)
+
 	// 按角色预计算工具定义 Token
 	roleToolTokens := make(map[string]int)
 	for _, role := range []string{"enterprise", "carrier", "government"} {
@@ -343,7 +345,7 @@ func calcToolDefTokens(tools []agenttools.Tool) int {
 		if err != nil {
 			continue
 		}
-		total += tokenutil.ApproxTokenLen(string(b))
+		total += tokenutil.Estimate(string(b))
 	}
 	return total
 }
