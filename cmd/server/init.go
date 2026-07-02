@@ -119,7 +119,7 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 	agentToolRegistry.Register(agentbuiltin.NewQueryAppeal(r.appeal))
 	agentToolRegistry.Register(agentbuiltin.NewQueryPolicyFollow(r.policyFollow))
 
-	agentWorkingMem := agentmemory.NewWorkingMemory(r.chat, cfg.Agent.WorkingMemory.Capacity)
+	agentWorkingMem := agentmemory.NewWorkingMemory(r.chat, cfg.Agent.WorkingMemory.PageSize)
 	agentSemanticMem := agentmemory.NewSemanticMemory(r.chat, embedClient, cfg.Agent.Memory.SemanticLimit)
 	agentMemMgr := agentmemory.NewMemoryManager(agentWorkingMem, agentSemanticMem, cfg.Agent)
 

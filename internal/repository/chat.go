@@ -60,18 +60,6 @@ func (r *ChatRepo) ListMessagesBySession(sessionID uint) ([]model.ChatMessage, e
 	return msgs, err
 }
 
-// LoadRecentMessages 工作记忆：加载当前会话最近 N 条消息
-func (r *ChatRepo) LoadRecentMessages(sessionID uint, limit int) ([]model.ChatMessage, error) {
-	var msgs []model.ChatMessage
-	err := r.db.Where("session_id = ?", sessionID).
-		Order("created_at DESC").Limit(limit).Find(&msgs).Error
-	// 反转回时间升序
-	for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
-		msgs[i], msgs[j] = msgs[j], msgs[i]
-	}
-	return msgs, err
-}
-
 // SearchMessages 情景记忆：全文搜索历史消息
 func (r *ChatRepo) SearchMessages(userID uint, query string, limit int) ([]model.ChatMessage, error) {
 	var msgs []model.ChatMessage
@@ -79,6 +67,27 @@ func (r *ChatRepo) SearchMessages(userID uint, query string, limit int) ([]model
 		Where("to_tsvector('simple', content) @@ plainto_tsquery('simple', ?)", query).
 		Order("created_at DESC").Limit(limit).Find(&msgs).Error
 	return msgs, err
+}
+
+// LoadMessagesPage 游标分页加载消息（按 created_at DESC），返回 (消息, 下一页 cursor, 是否有更多, error)
+func (r *ChatRepo) LoadMessagesPage(sessionID uint, cursorID uint, limit int) ([]model.ChatMessage, uint, bool, error) {
+	var msgs []model.ChatMessage
+	q := r.db.Where("session_id = ?", sessionID).Order("created_at DESC, id DESC").Limit(limit + 1)
+	if cursorID > 0 {
+		q = q.Where("id < ?", cursorID)
+	}
+	if err := q.Find(&msgs).Error; err != nil {
+		return nil, 0, false, err
+	}
+	hasMore := len(msgs) > limit
+	if hasMore {
+		msgs = msgs[:limit]
+	}
+	var nextCursor uint
+	if hasMore {
+		nextCursor = msgs[len(msgs)-1].ID
+	}
+	return msgs, nextCursor, hasMore, nil
 }
 
 // --- SemanticMemory ---
