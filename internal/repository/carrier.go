@@ -107,6 +107,18 @@ func (r *CarrierRepo) ListEnterpriseApplicationsForCarrier(carrierID uint, page,
 	return apps, total, err
 }
 
+func (r *CarrierRepo) ListEnterpriseApplicationsByStatus(carrierID uint, status string, page, pageSize int) ([]model.PolicyApplication, int64, error) {
+	var apps []model.PolicyApplication
+	var total int64
+	q := r.db.Model(&model.PolicyApplication{}).
+		Joins("JOIN incubation_records ON incubation_records.enterprise_id = policy_applications.applicant_id").
+		Where("incubation_records.carrier_id = ? AND policy_applications.status = ? AND policy_applications.applicant_type = 'enterprise'", carrierID, status)
+	q.Count(&total)
+	err := q.Preload("Policy").Order("policy_applications.created_at DESC").
+		Offset((page-1)*pageSize).Limit(pageSize).Find(&apps).Error
+	return apps, total, err
+}
+
 func (r *CarrierRepo) FindPolicyApplicationByID(id uint) (*model.PolicyApplication, error) {
 	var app model.PolicyApplication
 	err := r.db.Preload("Policy").First(&app, id).Error
