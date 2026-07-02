@@ -98,8 +98,11 @@ agent:
   message_max_chars: 2000
   request_timeout_sec: 120
   tool_timeout_sec: 10
+  context_window: 512000
+  history_budget_ratio: 0.7
   working_memory:
     capacity: 50
+    page_size: 10
   memory:
     semantic_limit: 3
   reflect:
