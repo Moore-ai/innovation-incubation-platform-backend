@@ -14,7 +14,21 @@ func ApproxTokenLen(text string) int {
 			cjk++
 		}
 	}
-	return cjk + len(strings.Fields(text))
+	// 过滤纯 CJK 的"词"，避免同一段 CJK 文字被既按字数又按词数重复计算
+	nonCJK := 0
+	for _, word := range strings.Fields(text) {
+		hasCJK := false
+		for _, r := range word {
+			if IsCJK(r) {
+				hasCJK = true
+				break
+			}
+		}
+		if !hasCJK {
+			nonCJK++
+		}
+	}
+	return cjk + nonCJK
 }
 
 // IsCJK 判断 rune 是否为中日韩统一表意文字（CJK Unified Ideographs）
