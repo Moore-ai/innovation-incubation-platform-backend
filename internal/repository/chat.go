@@ -81,6 +81,27 @@ func (r *ChatRepo) SearchMessages(userID uint, query string, limit int) ([]model
 	return msgs, err
 }
 
+// LoadMessagesPage 游标分页加载消息（按 created_at DESC），返回 (消息, 下一页 cursor, 是否有更多, error)
+func (r *ChatRepo) LoadMessagesPage(sessionID uint, cursorID uint, limit int) ([]model.ChatMessage, uint, bool, error) {
+	var msgs []model.ChatMessage
+	q := r.db.Where("session_id = ?", sessionID).Order("created_at DESC").Limit(limit + 1)
+	if cursorID > 0 {
+		q = q.Where("id < ?", cursorID)
+	}
+	if err := q.Find(&msgs).Error; err != nil {
+		return nil, 0, false, err
+	}
+	hasMore := len(msgs) > limit
+	if hasMore {
+		msgs = msgs[:limit]
+	}
+	var nextCursor uint
+	if hasMore {
+		nextCursor = msgs[len(msgs)-1].ID
+	}
+	return msgs, nextCursor, hasMore, nil
+}
+
 // --- SemanticMemory ---
 
 func (r *ChatRepo) CreateSemanticMemory(m *model.SemanticMemory) error {
