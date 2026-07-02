@@ -803,6 +803,101 @@ func TestReflectRecovery_RealAI(t *testing.T) {
 	}
 }
 
+// TestChainToolCall_RealAI 测试 LLM 驱动的 A -> (B+C并行) -> D 顺序工具调用。
+// 验证 Engine 正确处理单工具调用、并行多工具调用、以及结果回传后的下一步调用。
+func TestChainToolCall_RealAI(t *testing.T) {
+	apiKey := os.Getenv("AI_API_KEY")
+	baseURL := os.Getenv("AI_BASE_URL")
+	model := os.Getenv("AI_MODEL")
+	if apiKey == "" || baseURL == "" {
+		t.Skip("AI_API_KEY or AI_BASE_URL not set, skipping real AI test")
+	}
+	if model == "" {
+		model = "qwen-plus"
+	}
+	client := aiclient.New(baseURL, apiKey, model, 60)
+
+	reg := agenttools.NewToolRegistry()
+	reg.Register(&mockTool{
+		name: "query_policy_follow", desc: "查询当前用户关注的政策列表，返回政策ID和标题",
+		allowedRoles: []string{"enterprise"},
+		inputSchema:  json.RawMessage(`{"type":"object","properties":{},"required":[]}`),
+		outputSchema: json.RawMessage(`{"type":"object"}`),
+		execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"follows":[{"policy_id":1,"title":"数字化转型专项资金"},{"policy_id":3,"title":"科技型企业研发补贴"}],"total":2}`), nil
+		},
+	})
+	reg.Register(&mockTool{
+		name: "search_policy", desc: "根据关键词、行业等条件检索匹配的政策，返回政策列表（含摘要、条件、补贴金额）",
+		allowedRoles: []string{"enterprise"},
+		inputSchema:  json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`),
+		outputSchema: json.RawMessage(`{"type":"object"}`),
+		execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"policies":[{"id":1,"title":"数字化转型专项资金","summary":"最高200万","department":"经信局"},{"id":3,"title":"科技型企业研发补贴","summary":"研发费用50%加计扣除","department":"科技局"}],"total":2}`), nil
+		},
+	})
+	reg.Register(&mockTool{
+		name: "query_enterprise_info", desc: "查询当前企业的入驻信息、状态、所在载体",
+		allowedRoles: []string{"enterprise"},
+		inputSchema:  json.RawMessage(`{"type":"object","properties":{},"required":[]}`),
+		outputSchema: json.RawMessage(`{"type":"object"}`),
+		execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"enterprise":{"name":"星辰科技","industry":"信息技术","scale":"中型","status":"已入驻","carrier":"创新谷孵化器"}}`), nil
+		},
+	})
+	reg.Register(&mockTool{
+		name: "query_appeal", desc: "查询当前用户提交的诉求（反馈/建议）的处理状态和结果",
+		allowedRoles: []string{"enterprise"},
+		inputSchema:  json.RawMessage(`{"type":"object","properties":{},"required":[]}`),
+		outputSchema: json.RawMessage(`{"type":"object"}`),
+		execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"appeals":[{"id":1,"problem_type":"tax","content":"税费减免申报","status":"pending"}],"total":1}`), nil
+		},
+	})
+
+	eng := NewEngine(client, reg, agentmemory.NewMemoryManager(nil, nil, config.AgentConfig{}),
+		NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3}),
+		config.AgentConfig{MaxSteps: 8, ToolTimeoutSec: 30})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	defer cancel()
+	ctx = WithUserID(WithRole(ctx, "enterprise"), 1)
+
+	result, err := eng.Run(ctx, 0, "请先查看我关注的政策，然后同时确认这些政策的详细信息和我们公司的入驻情况，最后再查一下我的诉求列表", "enterprise",
+		func(e SSEEvent) {})
+
+	if err != nil {
+		t.Fatalf("Engine.Run: %v", err)
+	}
+	calledTools := extractAllToolNames(result.Messages)
+	t.Logf("Tools(%d): %v, Steps=%d, Reply: %s",
+		len(calledTools), calledTools, result.StepsUsed,
+		result.FinalReply[:min(len(result.FinalReply), 150)])
+
+	// A 必须先被调
+	if !slices.Contains(calledTools, "query_policy_follow") {
+		t.Error("A(query_policy_follow) not called")
+	}
+	// A 应该在 B 和 C 之前
+	aIdx := slices.Index(calledTools, "query_policy_follow")
+	cIdx := slices.Index(calledTools, "query_enterprise_info")
+	bIdx := slices.Index(calledTools, "search_policy")
+	if aIdx < 0 || cIdx < 0 || bIdx < 0 {
+		t.Error("missing required tools")
+	} else {
+		if aIdx >= bIdx || aIdx >= cIdx {
+			t.Errorf("A(%d) should be before B(%d) and C(%d): %v", aIdx, bIdx, cIdx, calledTools)
+		}
+	}
+	// D 应该在最后
+	dIdx := slices.Index(calledTools, "query_appeal")
+	if dIdx < 0 {
+		t.Error("D(query_appeal) not called")
+	} else if aIdx >= 0 && cIdx >= 0 && dIdx <= max(aIdx, cIdx) {
+		t.Errorf("D(%d) should be last after A(%d) and B/C: %v", dIdx, min(aIdx, cIdx), calledTools)
+	}
+}
+
 // extractAllToolNames 从所有消息中提取调用的工具名列表。
 func extractAllToolNames(msgs []ChatMessageRecord) []string {
 	var names []string
