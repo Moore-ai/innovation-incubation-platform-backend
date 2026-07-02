@@ -19,22 +19,20 @@ import (
 )
 
 type Engine struct {
-	ai            *aiclient.Client
-	tools         *agenttools.ToolRegistry
-	memory        *agentmemory.MemoryManager
-	reflect       *ReflectChecker
-	cfg           config.AgentConfig
-	toolDefTokens int
+	ai      *aiclient.Client
+	tools   *agenttools.ToolRegistry
+	memory  *agentmemory.MemoryManager
+	reflect *ReflectChecker
+	cfg     config.AgentConfig
 }
 
 func NewEngine(ai *aiclient.Client, tools *agenttools.ToolRegistry, mem *agentmemory.MemoryManager, reflect *ReflectChecker, cfg config.AgentConfig) *Engine {
 	return &Engine{
-		ai:            ai,
-		tools:         tools,
-		memory:        mem,
-		reflect:       reflect,
-		cfg:           cfg,
-		toolDefTokens: calcToolDefTokens(tools.All()),
+		ai:      ai,
+		tools:   tools,
+		memory:  mem,
+		reflect: reflect,
+		cfg:     cfg,
 	}
 }
 
@@ -207,7 +205,12 @@ func (e *Engine) Run(ctx context.Context, sessionID uint, userMessage string, ro
 
 	tools := e.tools.ListForRole(role)
 	systemPrompt, templateTokens := buildSystemPrompt("", tools)
-	budget := int(float64(e.cfg.ContextWindow)*e.cfg.HistoryBudgetRatio) - e.toolDefTokens - templateTokens
+	toolDefTokens := calcToolDefTokens(tools)
+	budget := int(float64(e.cfg.ContextWindow)*e.cfg.HistoryBudgetRatio) - toolDefTokens - templateTokens
+
+	if budget <= 0 {
+		slog.Warn("历史消息预算为0或负数，跳过所有记忆加载", "budget", budget, "session_id", sessionID)
+	}
 
 	memCtx, err := e.memory.LoadContext(ctx, sessionID, userID, userMessage, budget)
 	if err != nil {
@@ -323,7 +326,10 @@ func calcToolDefTokens(tools []agenttools.Tool) int {
 				Parameters:  t.InputSchema(),
 			},
 		}
-		b, _ := json.Marshal(ot)
+		b, err := json.Marshal(ot)
+		if err != nil {
+			continue
+		}
 		total += tokenutil.ApproxTokenLen(string(b))
 	}
 	return total
