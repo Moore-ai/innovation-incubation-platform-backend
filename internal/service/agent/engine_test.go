@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -177,8 +178,8 @@ func TestReadStream_EmitsThinkingEvents(t *testing.T) {
 func TestCalcToolDefTokens(t *testing.T) {
 	tools := []agenttools.Tool{
 		&mockTool{
-			name: "test_tool",
-			desc: "a short description",
+			name:         "test_tool",
+			desc:         "a short description",
 			inputSchema:  json.RawMessage(`{"type":"object","properties":{"q":{"type":"string"}},"required":["q"]}`),
 			outputSchema: json.RawMessage(`{"type":"object"}`),
 		},
@@ -193,8 +194,8 @@ func TestCalcToolDefTokens(t *testing.T) {
 func TestExecuteToolCalls(t *testing.T) {
 	var execCount atomic.Int32
 	tool := &mockTool{
-		name: "echo",
-		desc: "echo tool",
+		name:         "echo",
+		desc:         "echo tool",
 		allowedRoles: []string{"enterprise"},
 		inputSchema:  json.RawMessage(`{"type":"object"}`),
 		outputSchema: json.RawMessage(`{"type":"object"}`),
@@ -326,8 +327,8 @@ func TestToolSelection_E2E(t *testing.T) {
 				body, _ := io.ReadAll(r.Body)
 				var req struct {
 					Messages []struct {
-						Role      string `json:"role"`
-						Content   string `json:"content"`
+						Role    string `json:"role"`
+						Content string `json:"content"`
 					} `json:"messages"`
 					Tools []struct {
 						Type     string `json:"type"`
@@ -588,12 +589,145 @@ func TestToolSelection_RealAI(t *testing.T) {
 				t.Fatalf("Engine.Run: %v", err)
 			}
 			selectedTool := extractToolCallName(result.Messages)
-		t.Logf("Query: %s → Tool: %s, Reply: %s", tt.query, selectedTool, result.FinalReply[:min(len(result.FinalReply), 80)])
+			t.Logf("Query: %s → Tool: %s, Reply: %s", tt.query, selectedTool, result.FinalReply[:min(len(result.FinalReply), 80)])
 			if selectedTool != tt.expectedTool {
 				t.Errorf("expected tool %q, got %q", tt.expectedTool, selectedTool)
 			}
 		})
 	}
+}
+
+// TestMultiTurn_RealAI 测试 LLM 驱动的多轮工具调用。
+// 模拟复杂用户请求需要调用多个工具才能完整回答。
+func TestMultiTurn_RealAI(t *testing.T) {
+	apiKey := os.Getenv("AI_API_KEY")
+	baseURL := os.Getenv("AI_BASE_URL")
+	model := os.Getenv("AI_MODEL")
+	if apiKey == "" || baseURL == "" {
+		t.Skip("AI_API_KEY or AI_BASE_URL not set, skipping real AI test")
+	}
+	if model == "" {
+		model = "qwen-plus"
+	}
+
+	client := aiclient.New(baseURL, apiKey, model, 60)
+
+	reg := agenttools.NewToolRegistry()
+	reg.Register(&mockTool{
+		name: "search_policy", desc: "根据关键词、行业、企业规模等条件检索匹配的政策，返回政策列表（含标题、摘要、适用条件、补贴详情）",
+		allowedRoles: []string{"enterprise", "carrier"},
+		inputSchema:  json.RawMessage(`{"type":"object","properties":{"query":{"type":"string","description":"搜索关键词或问题描述"},"industry":{"type":"string"},"scale":{"type":"string"},"region":{"type":"string"}},"required":["query"]}`),
+		outputSchema: json.RawMessage(`{"type":"object"}`),
+		execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"policies":[{"id":1,"title":"数字化转型专项资金","summary":"支持企业数字化转型，最高补贴100万元","department":"经信局"},{"id":2,"title":"科技型企业研发补贴","summary":"研发费用补贴50%","department":"科技局"}],"total":2}`), nil
+		},
+	})
+	reg.Register(&mockTool{
+		name: "query_enterprise_info", desc: "查询当前企业的入驻信息、入驻状态、申报进度等。仅企业用户可用",
+		allowedRoles: []string{"enterprise"},
+		inputSchema:  json.RawMessage(`{"type":"object","properties":{},"required":[]}`),
+		outputSchema: json.RawMessage(`{"type":"object"}`),
+		execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"enterprise":{"id":1,"name":"星辰科技","industry":"信息技术","scale":"中型","status":"已入驻","incubations":[{"id":10,"carrier":"创新谷","status":"在孵"}]}}`), nil
+		},
+	})
+	reg.Register(&mockTool{
+		name: "query_appeal", desc: "查询当前用户提交的诉求（反馈/建议）的处理状态和结果",
+		allowedRoles: []string{"enterprise", "carrier"},
+		inputSchema:  json.RawMessage(`{"type":"object","properties":{},"required":[]}`),
+		outputSchema: json.RawMessage(`{"type":"object"}`),
+		execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"appeals":[{"id":1,"problem_type":"tax","content":"2025年税费减免申报进度","status":"pending","created_at":"2025-06-01"}],"total":1}`), nil
+		},
+	})
+	reg.Register(&mockTool{
+		name: "query_policy_follow", desc: "查询当前用户关注的政策列表",
+		allowedRoles: []string{"enterprise", "carrier"},
+		inputSchema:  json.RawMessage(`{"type":"object","properties":{},"required":[]}`),
+		outputSchema: json.RawMessage(`{"type":"object"}`),
+		execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"follows":[{"policy":{"id":1,"title":"人工智能产业扶持办法","department":"科技局","status":"active"}},{"policy":{"id":5,"title":"高层次人才引进补贴","department":"人社局","status":"active"}}],"total":2}`), nil
+		},
+	})
+
+	mem := agentmemory.NewMemoryManager(nil, nil, config.AgentConfig{})
+	checker := NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3})
+	eng := NewEngine(client, reg, mem, checker, config.AgentConfig{MaxSteps: 6, ToolTimeoutSec: 30})
+
+	tests := []struct {
+		name          string
+		query         string
+		expectedTools []string
+		minTools      int
+	}{
+		{
+			name:          "search + enterprise info",
+			query:         "帮我找一下数字化转型补贴，并且告诉我我们公司的入驻信息",
+			expectedTools: []string{"search_policy", "query_enterprise_info"},
+			minTools:      2,
+		},
+		{
+			name:          "appeal + follow",
+			query:         "查看我的诉求处理情况，然后再看看我收藏的政策列表",
+			expectedTools: []string{"query_appeal", "query_policy_follow"},
+			minTools:      2,
+		},
+		{
+			name:          "search + appeal",
+			query:         "找找有没有人工智能方面的政策，同时查一下我之前反馈的税费问题解决了吗",
+			expectedTools: []string{"search_policy", "query_appeal"},
+			minTools:      2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+			defer cancel()
+			ctx = WithUserID(WithRole(ctx, "enterprise"), 1)
+
+			result, err := eng.Run(ctx, 0, tt.query, "enterprise", func(e SSEEvent) {})
+			if err != nil {
+				t.Fatalf("Engine.Run: %v", err)
+			}
+
+			calledTools := extractAllToolNames(result.Messages)
+			t.Logf("Query: %s", tt.query)
+			t.Logf("Tools called (%d): %v", len(calledTools), calledTools)
+			t.Logf("Reply: %s", result.FinalReply[:min(len(result.FinalReply), 120)])
+			t.Logf("Steps: %d", result.StepsUsed)
+
+			if len(calledTools) < tt.minTools {
+				t.Errorf("expected at least %d tool calls, got %d: %v", tt.minTools, len(calledTools), calledTools)
+			}
+			for _, expected := range tt.expectedTools {
+				found := slices.Contains(calledTools, expected)
+				if !found {
+					t.Errorf("expected tool %q not called. Called: %v", expected, calledTools)
+				}
+			}
+		})
+	}
+}
+
+// extractAllToolNames 从所有消息中提取调用的工具名列表。
+func extractAllToolNames(msgs []ChatMessageRecord) []string {
+	var names []string
+	for _, m := range msgs {
+		if m.Role == "assistant" && m.ToolCalls != "" {
+			var calls []struct {
+				Function struct {
+					Name string `json:"name"`
+				} `json:"function"`
+			}
+			if json.Unmarshal([]byte(m.ToolCalls), &calls) == nil {
+				for _, c := range calls {
+					names = append(names, c.Function.Name)
+				}
+			}
+		}
+	}
+	return names
 }
 
 // extractToolCallName 从 RunResult.Messages 中提取第一个工具调用的名称。
