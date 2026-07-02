@@ -23,7 +23,8 @@ func (m *MemoryManager) LoadContext(ctx context.Context, sessionID uint, userID 
 	var parts []string
 
 	// 工作记忆
-	wctx, err := m.working.BuildWorkingContext(sessionID)
+	budget := int(float64(m.cfg.ContextWindow) * m.cfg.HistoryBudgetRatio)
+	wctx, err := m.working.BuildWorkingContext(sessionID, budget)
 	if err != nil {
 		return "", fmt.Errorf("working memory: %w", err)
 	}
