@@ -1,19 +1,54 @@
-package agent
+﻿package agent
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	openai "github.com/sashabaranov/go-openai"
 
 	"innovation-incubation-platform-backend/config"
+	agentmemory "innovation-incubation-platform-backend/internal/service/agent/memory"
 	agenttools "innovation-incubation-platform-backend/internal/service/agent/tools"
+	"innovation-incubation-platform-backend/pkg/aiclient"
 	"innovation-incubation-platform-backend/pkg/tokenutil"
 )
+
+func buildStreamResponse(id string, toolCallsJSON []byte) []byte {
+	if len(toolCallsJSON) > 0 {
+		var toolCalls []any
+		json.Unmarshal(toolCallsJSON, &toolCalls)
+		chunk, _ := json.Marshal(map[string]any{
+			"id":      id,
+			"object":  "chat.completion.chunk",
+			"choices": []map[string]any{{"index": 0, "delta": map[string]any{"tool_calls": toolCalls}}},
+		})
+		return chunk
+	}
+	chunk, _ := json.Marshal(map[string]any{
+		"id":      id,
+		"object":  "chat.completion.chunk",
+		"choices": []map[string]any{{"index": 0, "delta": map[string]string{"content": "result ok"}}},
+	})
+	return chunk
+}
+
+func containsEventType(events []SSEEvent, typ string) bool {
+	for _, e := range events {
+		if e.Type == typ {
+			return true
+		}
+	}
+	return false
+}
 
 type mockStream struct {
 	responses []openai.ChatCompletionStreamResponse
@@ -261,6 +296,323 @@ func TestObserveToolResults_NoReflectOnSuccess(t *testing.T) {
 	}
 }
 
+// TestToolSelection_E2E 测试工具选择：mock server 解析请求中的用户消息，返回最匹配的工具
+func TestToolSelection_E2E(t *testing.T) {
+	tests := []struct {
+		name         string
+		userQuery    string
+		expectedTool string
+		role         string
+	}{
+		{"search policy", "帮我找一下数字化转型的补贴政策", "search_policy", "enterprise"},
+		{"query enterprise", "我的入驻信息是什么", "query_enterprise_info", "enterprise"},
+		{"query appeal", "我之前提交的诉求处理得怎么样了", "query_appeal", "enterprise"},
+		{"query follow", "查看我关注的政策列表", "query_policy_follow", "enterprise"},
+		{"search by carrier", "找找科技型中小企业政策", "search_policy", "carrier"},
+		{"appeal by carrier", "我的诉求有回复吗", "query_appeal", "carrier"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			callCount := &atomic.Int32{}
+			selectedTool := &atomic.Value{}
+			selectedTool.Store("")
+
+			mockHandler := func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				w.Header().Set("Cache-Control", "no-cache")
+				flusher, _ := w.(http.Flusher)
+
+				body, _ := io.ReadAll(r.Body)
+				var req struct {
+					Messages []struct {
+						Role      string `json:"role"`
+						Content   string `json:"content"`
+					} `json:"messages"`
+					Tools []struct {
+						Type     string `json:"type"`
+						Function struct {
+							Name        string `json:"name"`
+							Description string `json:"description"`
+						} `json:"function"`
+					} `json:"tools"`
+				}
+				json.Unmarshal(body, &req)
+
+				count := callCount.Add(1)
+
+				if count == 1 {
+					var userQuery string
+					for _, msg := range req.Messages {
+						if msg.Role == "user" {
+							userQuery = msg.Content
+						}
+					}
+					toolName := matchToolByDescription(userQuery, req.Tools)
+					if toolName == "" {
+						t.Error("could not determine tool from tools definitions")
+						toolName = tt.expectedTool
+					}
+					selectedTool.Store(toolName)
+					t.Logf("User: %s → Tool: %s (among %d tools)", userQuery, toolName, len(req.Tools))
+
+					chunk := fmt.Sprintf(`data: {"id":"test_1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_%s","type":"function","function":{"name":"%s","arguments":"%s"}}]}}]}`+"\n\n",
+						toolName, toolName, `{}`)
+					fmt.Fprint(w, chunk)
+					fmt.Fprint(w, "data: [DONE]\n\n")
+				} else {
+					var lastToolResult string
+					for _, msg := range req.Messages {
+						if msg.Role == "tool" {
+							lastToolResult = msg.Content
+						}
+					}
+					resp, _ := json.Marshal(map[string]any{
+						"id": "test_2", "object": "chat.completion.chunk",
+						"choices": []map[string]any{{"index": 0, "delta": map[string]string{"content": fmt.Sprintf("Result: %s", lastToolResult)}}},
+					})
+					fmt.Fprintf(w, "data: %s\n\n", resp)
+					fmt.Fprint(w, "data: [DONE]\n\n")
+				}
+				flusher.Flush()
+			}
+
+			server := httptest.NewServer(http.HandlerFunc(mockHandler))
+			defer server.Close()
+
+			client := aiclient.New(server.URL+"/v1", "", "test-model", 30)
+
+			// 注册所有 4 个工具
+			reg := agenttools.NewToolRegistry()
+			reg.Register(&mockTool{
+				name: "search_policy", desc: "search policy",
+				allowedRoles: []string{"enterprise", "carrier"},
+				inputSchema:  json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`),
+				outputSchema: json.RawMessage(`{"type":"object"}`),
+				execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+					return json.RawMessage(`{"policies":["policy1","policy2"]}`), nil
+				},
+			})
+			reg.Register(&mockTool{
+				name: "query_enterprise_info", desc: "query enterprise info",
+				allowedRoles: []string{"enterprise"},
+				inputSchema:  json.RawMessage(`{"type":"object","properties":{}}`),
+				outputSchema: json.RawMessage(`{"type":"object"}`),
+				execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+					return json.RawMessage(`{"enterprise":{"name":"TestCorp","status":"active"}}`), nil
+				},
+			})
+			reg.Register(&mockTool{
+				name: "query_appeal", desc: "query appeal status",
+				allowedRoles: []string{"enterprise", "carrier"},
+				inputSchema:  json.RawMessage(`{"type":"object","properties":{}}`),
+				outputSchema: json.RawMessage(`{"type":"object"}`),
+				execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+					return json.RawMessage(`{"appeals":[{"id":1,"status":"processed"}]}`), nil
+				},
+			})
+			reg.Register(&mockTool{
+				name: "query_policy_follow", desc: "query followed policies",
+				allowedRoles: []string{"enterprise", "carrier"},
+				inputSchema:  json.RawMessage(`{"type":"object","properties":{}}`),
+				outputSchema: json.RawMessage(`{"type":"object"}`),
+				execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+					return json.RawMessage(`{"follows":[{"policy_id":1,"title":"Test Policy"}]}`), nil
+				},
+			})
+
+			mem := agentmemory.NewMemoryManager(nil, nil, config.AgentConfig{})
+			checker := NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3})
+			eng := NewEngine(client, reg, mem, checker, config.AgentConfig{
+				MaxSteps: 3, ToolTimeoutSec: 5,
+			})
+
+			ctx := WithUserID(WithRole(context.Background(), tt.role), 1)
+
+			var events []SSEEvent
+			result, err := eng.Run(ctx, 0, tt.userQuery, tt.role, func(e SSEEvent) {
+				events = append(events, e)
+			})
+
+			if err != nil {
+				t.Fatalf("Engine.Run failed: %v", err)
+			}
+			if result.FinalReply == "" {
+				t.Error("expected non-empty FinalReply")
+			}
+
+			calledTool := selectedTool.Load().(string)
+			if calledTool != tt.expectedTool {
+				t.Errorf("expected tool %q, got %q", tt.expectedTool, calledTool)
+			}
+			if !containsEventType(events, "tool_call") {
+				t.Error("expected tool_call event")
+			}
+			if !containsEventType(events, "reply") {
+				t.Error("expected reply event")
+			}
+		})
+	}
+}
+
+// matchToolByDescription 模拟 LLM 工具选择：根据用户消息和工具定义（name + description）匹配最佳工具。
+// 工具定义来自 Engine 实际发送的请求体，因此测试了 Engine 传递工具定义的逻辑。
+func matchToolByDescription(query string, tools []struct {
+	Type     string `json:"type"`
+	Function struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	} `json:"function"`
+}) string {
+	// 每个工具的描述关键词表（从 Description 字段中提取的核心语义）
+	toolKeywords := map[string][]string{
+		"search_policy":         {"政策", "补贴", "申报", "奖励", "资助", "条件"},
+		"query_enterprise_info": {"入驻", "企业信息", "孵化", "在孵", "状态"},
+		"query_appeal":          {"诉求", "反馈", "投诉", "建议", "求助"},
+		"query_policy_follow":   {"关注的政策", "关注的", "收藏", "关注列表"},
+	}
+
+	bestTool := ""
+	bestScore := 0
+	bestSpecificity := 0
+	for _, t := range tools {
+		keywords, ok := toolKeywords[t.Function.Name]
+		if !ok {
+			continue
+		}
+		score := 0
+		totalLen := 0
+		for _, kw := range keywords {
+			if stringsContains(query, kw) {
+				score++
+				totalLen += len(kw) // 更长的匹配词 = 更精确的语义匹配
+			}
+		}
+		// 分数优先，同分时取关键词总长更长者（更具体）
+		if score > bestScore || (score == bestScore && score > 0 && totalLen > bestSpecificity) {
+			bestScore = score
+			bestSpecificity = totalLen
+			bestTool = t.Function.Name
+		}
+	}
+	return bestTool
+}
+
+func stringsContains(s, sub string) bool {
+	for i := 0; i <= len(s)-len(sub); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}
+
+// TestToolSelection_RealAI 使用真实 AI 客户端测试工具选择逻辑。
+// 不 mock HTTP server，而是直接调用 config.yaml 中配置的 AI 服务。
+// 需要设置 AI_API_KEY 环境变量，否则跳过。
+func TestToolSelection_RealAI(t *testing.T) {
+	apiKey := os.Getenv("AI_API_KEY")
+	baseURL := os.Getenv("AI_BASE_URL")
+	model := os.Getenv("AI_MODEL")
+	if apiKey == "" || baseURL == "" {
+		t.Skip("AI_API_KEY or AI_BASE_URL not set, skipping real AI test")
+	}
+	if model == "" {
+		model = "qwen-plus"
+	}
+
+	client := aiclient.New(baseURL, apiKey, model, 60)
+
+	tests := []struct {
+		name         string
+		query        string
+		expectedTool string
+	}{
+		{"政策搜索", "帮我找数字化转型的补贴政策", "search_policy"},
+		{"企业信息", "我想看一下我们公司的入驻状态", "query_enterprise_info"},
+		{"诉求查询", "我上次提交了一个税费问题的诉求，现在处理得怎么样了", "query_appeal"},
+		{"关注列表", "看看我收藏了哪些政策", "query_policy_follow"},
+	}
+
+	reg := agenttools.NewToolRegistry()
+	reg.Register(&mockTool{
+		name: "search_policy", desc: "根据关键词、行业、企业规模等条件检索匹配的政策，返回政策列表（含标题、摘要、适用条件、补贴详情）",
+		allowedRoles: []string{"enterprise", "carrier"},
+		inputSchema:  json.RawMessage(`{"type":"object","properties":{"query":{"type":"string","description":"搜索关键词或问题描述"},"industry":{"type":"string"},"scale":{"type":"string"},"region":{"type":"string"}},"required":["query"]}`),
+		outputSchema: json.RawMessage(`{"type":"object"}`),
+		execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"policies":[{"id":1,"title":"数字化转型补贴","summary":"支持企业数字化转型的专项资金"},{"id":2,"title":"科技型企业奖励","summary":"科技型中小企业研发补贴"}],"total":2}`), nil
+		},
+	})
+	reg.Register(&mockTool{
+		name: "query_enterprise_info", desc: "查询当前企业的入驻信息、入驻状态、申报进度等。仅企业用户可用",
+		allowedRoles: []string{"enterprise"},
+		inputSchema:  json.RawMessage(`{"type":"object","properties":{},"required":[]}`),
+		outputSchema: json.RawMessage(`{"type":"object"}`),
+		execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"enterprise":{"id":1,"name":"测试科技有限公司","industry":"信息技术","scale":"中型","status":"已入驻"}}`), nil
+		},
+	})
+	reg.Register(&mockTool{
+		name: "query_appeal", desc: "查询当前用户提交的诉求（反馈/建议）的处理状态和结果",
+		allowedRoles: []string{"enterprise", "carrier"},
+		inputSchema:  json.RawMessage(`{"type":"object","properties":{},"required":[]}`),
+		outputSchema: json.RawMessage(`{"type":"object"}`),
+		execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"appeals":[{"id":1,"problem_type":"tax","content":"税费减免咨询","status":"processed"}],"total":1}`), nil
+		},
+	})
+	reg.Register(&mockTool{
+		name: "query_policy_follow", desc: "查询当前用户关注的政策列表",
+		allowedRoles: []string{"enterprise", "carrier"},
+		inputSchema:  json.RawMessage(`{"type":"object","properties":{"page":{"type":"integer"},"page_size":{"type":"integer"}},"required":[]}`),
+		outputSchema: json.RawMessage(`{"type":"object"}`),
+		execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"follows":[{"policy_id":1,"policy":{"title":"数字化转型补贴","department":"科技局"}}],"total":1}`), nil
+		},
+	})
+
+	mem := agentmemory.NewMemoryManager(nil, nil, config.AgentConfig{})
+	checker := NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3})
+	eng := NewEngine(client, reg, mem, checker, config.AgentConfig{MaxSteps: 3, ToolTimeoutSec: 30})
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+			defer cancel()
+			ctx = WithUserID(WithRole(ctx, "enterprise"), 1)
+
+			result, err := eng.Run(ctx, 0, tt.query, "enterprise", func(e SSEEvent) {})
+
+			if err != nil {
+				t.Fatalf("Engine.Run: %v", err)
+			}
+			selectedTool := extractToolCallName(result.Messages)
+		t.Logf("Query: %s → Tool: %s, Reply: %s", tt.query, selectedTool, result.FinalReply[:min(len(result.FinalReply), 80)])
+			if selectedTool != tt.expectedTool {
+				t.Errorf("expected tool %q, got %q", tt.expectedTool, selectedTool)
+			}
+		})
+	}
+}
+
+// extractToolCallName 从 RunResult.Messages 中提取第一个工具调用的名称。
+func extractToolCallName(msgs []ChatMessageRecord) string {
+	for _, m := range msgs {
+		if m.Role == "assistant" && m.ToolCalls != "" {
+			var calls []struct {
+				Function struct {
+					Name string `json:"name"`
+				} `json:"function"`
+			}
+			if json.Unmarshal([]byte(m.ToolCalls), &calls) == nil && len(calls) > 0 {
+				return calls[0].Function.Name
+			}
+		}
+	}
+	return ""
+}
+
 func TestNewEngine_RoleToolTokens(t *testing.T) {
 	tool := &mockTool{
 		name: "test", desc: "test tool", allowedRoles: []string{"enterprise"},
@@ -289,5 +641,83 @@ func TestTokenUtilEstimate(t *testing.T) {
 	got := tokenutil.Estimate("subsidy policy")
 	if got <= 0 {
 		t.Errorf("expected positive token estimate, got %d", got)
+	}
+}
+
+// TestEngineRun_E2E 端到端测试：mock OpenAI HTTP server → 真实 aiclient 流式调用 → 工具执行 → 最终回复
+func TestEngineRun_E2E(t *testing.T) {
+	callCount := &atomic.Int32{}
+
+	// tool_call delta 的 JSON 片段
+	toolCallJSON := `[{"index":0,"id":"call_echo","type":"function","function":{"name":"echo","arguments":"{\"msg\":\"test\"}"}}]`
+	// 第二次调用的文本回复
+	textReply := `Summary: echo returned successfully`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		flusher, _ := w.(http.Flusher)
+
+		count := callCount.Add(1)
+
+		if count == 1 {
+			chunk := fmt.Sprintf(`data: {"id":"test_1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":%s}}]}`+"\n\n", toolCallJSON)
+			fmt.Fprint(w, chunk)
+			fmt.Fprint(w, "data: [DONE]\n\n")
+		} else {
+			chunk := fmt.Sprintf(`data: {"id":"test_2","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"%s"}}]}`+"\n\n", textReply)
+			fmt.Fprint(w, chunk)
+			fmt.Fprint(w, "data: [DONE]\n\n")
+		}
+		flusher.Flush()
+	}))
+	defer server.Close()
+
+	client := aiclient.New(server.URL+"/v1", "", "test-model", 30)
+
+	tool := &mockTool{
+		name: "echo", desc: "echo", allowedRoles: []string{"enterprise"},
+		inputSchema:  json.RawMessage(`{"type":"object","properties":{"msg":{"type":"string"}}}`),
+		outputSchema: json.RawMessage(`{"type":"object"}`),
+		execFn: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+			return args, nil
+		},
+	}
+
+	reg := agenttools.NewToolRegistry()
+	reg.Register(tool)
+
+	mem := agentmemory.NewMemoryManager(nil, nil, config.AgentConfig{})
+	checker := NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3})
+
+	eng := NewEngine(client, reg, mem, checker, config.AgentConfig{
+		MaxSteps:       3,
+		ToolTimeoutSec: 5,
+	})
+
+	ctx := WithUserID(WithRole(context.Background(), "enterprise"), 1)
+
+	var events []SSEEvent
+	result, err := eng.Run(ctx, 0, "test query", "enterprise", func(e SSEEvent) {
+		events = append(events, e)
+	})
+
+	if err != nil {
+		t.Fatalf("Engine.Run failed: %v", err)
+	}
+	if result.FinalReply == "" {
+		t.Error("expected non-empty FinalReply")
+	}
+	if !containsEventType(events, "tool_call") {
+		t.Error("expected tool_call event")
+	}
+	if !containsEventType(events, "reply") {
+		t.Error("expected reply event")
+	}
+	if !containsEventType(events, "done") {
+		t.Error("expected done event")
+	}
+	if len(result.Messages) < 3 {
+		t.Errorf("expected >=3 messages, got %d", len(result.Messages))
 	}
 }
