@@ -90,7 +90,14 @@ func (e *Engine) buildExecContext(memCtx string, tools []agenttools.Tool, plan *
 
 // replanPhase 重新规划剩余步骤，返回新计划。失败时返回 nil。
 func (e *Engine) replanPhase(ctx context.Context, messages []openai.ChatCompletionMessage, planModel string, onEvent func(SSEEvent)) (newPlan *Plan, replanText string) {
-	resp, err := e.ai.ChatCompletion(ctx, openai.ChatCompletionRequest{Model: planModel, Messages: messages})
+	// 注入格式提示到消息中，帮助 LLM 正确输出
+	formatHint := openai.ChatCompletionMessage{
+		Role:    openai.ChatMessageRoleSystem,
+		Content: buildReplanFormatHint(e.tools.All()),
+	}
+	hintedMessages := append([]openai.ChatCompletionMessage{formatHint}, messages[1:]...)
+
+	resp, err := e.ai.ChatCompletion(ctx, openai.ChatCompletionRequest{Model: planModel, Messages: hintedMessages})
 	if err != nil {
 		slog.Warn("重新规划失败", "error", err)
 		return nil, ""
@@ -100,7 +107,7 @@ func (e *Engine) replanPhase(ctx context.Context, messages []openai.ChatCompleti
 	}
 	newPlan, err = parsePlan(replanText, e.tools)
 	if err != nil || len(newPlan.Steps) == 0 {
-		slog.Warn("重新规划解析失败，终止执行")
+		slog.Warn("重新规划解析失败，终止执行", "text", replanText[:min(len(replanText), 200)])
 		return nil, ""
 	}
 	onEvent(SSEEvent{Type: "replan", Data: newPlan})
@@ -201,7 +208,7 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 		reflectTrigger = true
 		messages = append(messages, openai.ChatCompletionMessage{
 			Role:    openai.ChatMessageRoleUser,
-			Content: fmt.Sprintf("第 %d 步执行失败，请重新制定剩余步骤的替代计划。格式同前：Plan:\n...", stepIdx+1),
+			Content: fmt.Sprintf("第 %d 步执行失败。请立即输出替代计划，只输出计划本身（不要其他文字）。格式如下：\n\nPlan:\n1. tool(param) — 说明\n", stepIdx+1),
 		})
 		newPlan, replanText := e.replanPhase(ctx, messages, planModel, onEvent)
 		if newPlan == nil {
