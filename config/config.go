@@ -1,4 +1,4 @@
-package config
+﻿package config
 
 import (
 	"bytes"
@@ -158,6 +158,9 @@ type AgentConfig struct {
 	ToolTimeoutSec     int                 `mapstructure:"tool_timeout_sec"`
 	ContextWindow      int                 `mapstructure:"context_window"`
 	HistoryBudgetRatio float64             `mapstructure:"history_budget_ratio"`
+	PlanningEnabled    bool                `mapstructure:"planning_enabled"`
+	PlanningModel      string              `mapstructure:"planning_model"`
+	PublicSSETypes     []string            `mapstructure:"public_sse_types"` // 允许暴露给前端的 SSE 事件类型
 	TokenEstimation    string              `mapstructure:"token_estimation"`
 	WorkingMemory      WorkingMemoryConfig `mapstructure:"working_memory"`
 	Memory             AgentMemoryConfig   `mapstructure:"memory"`
@@ -169,7 +172,9 @@ type WorkingMemoryConfig struct {
 }
 
 type AgentMemoryConfig struct {
-	SemanticLimit int `mapstructure:"semantic_limit"`
+	SemanticLimit       int     `mapstructure:"semantic_limit"`
+	EpisodicLimit       int     `mapstructure:"episodic_limit"`        // 情景记忆检索条数
+	EpisodicDecayFactor float64 `mapstructure:"episodic_decay_factor"` // 时间衰减因子，0 表示不衰减（默认 0）
 }
 
 type ReflectConfig struct {
@@ -272,9 +277,14 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("agent.tool_timeout_sec", 10)
 	v.SetDefault("agent.context_window", 512000)
 	v.SetDefault("agent.history_budget_ratio", 0.7)
+	v.SetDefault("agent.planning_enabled", false)
+	v.SetDefault("agent.planning_model", "")
+	v.SetDefault("agent.public_sse_types", []string{"reply", "done", "thinking", "error"})
 	v.SetDefault("agent.token_estimation", "better")
 	v.SetDefault("agent.working_memory.page_size", 10)
 	v.SetDefault("agent.memory.semantic_limit", 3)
+	v.SetDefault("agent.memory.episodic_limit", 3)
+	v.SetDefault("agent.memory.episodic_decay_factor", 0.0)
 	v.SetDefault("agent.reflect.similarity_threshold", 0.3)
 
 	if err := v.ReadConfig(bytes.NewReader([]byte(expanded))); err != nil {

@@ -12,10 +12,11 @@ type ChatSession struct {
 
 type ChatMessage struct {
 	BaseModel
-	SessionID  uint   `gorm:"index;not null" json:"session_id"`
-	UserID     uint   `gorm:"index;not null" json:"user_id"`
-	Role       string `gorm:"size:16;not null" json:"role"`
-	Content    string `gorm:"type:text;not null;default:''" json:"content"`
-	ToolCallID string `gorm:"size:64" json:"tool_call_id"`
-	ToolCalls  string `gorm:"type:jsonb" json:"tool_calls"`
+	SessionID  uint      `gorm:"index;not null" json:"session_id"`
+	UserID     uint      `gorm:"index;not null" json:"user_id"`
+	Role       string    `gorm:"size:16;not null" json:"role"`
+	Content    string    `gorm:"type:text;not null;default:''" json:"content"`
+	ToolCallID string    `gorm:"size:64" json:"tool_call_id"`
+	ToolCalls  string    `gorm:"type:jsonb" json:"tool_calls"`
+	Embedding  []float32 `gorm:"type:vector(1024)" json:"-"`
 }

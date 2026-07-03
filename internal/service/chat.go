@@ -2,25 +2,32 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log/slog"
+	"strings"
 	"time"
+
+	openai "github.com/sashabaranov/go-openai"
 
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/repository"
 	agent "innovation-incubation-platform-backend/internal/service/agent"
 	agentmemory "innovation-incubation-platform-backend/internal/service/agent/memory"
+	"innovation-incubation-platform-backend/pkg/aiclient"
 )
 
 type ChatService struct {
 	engine *agent.Engine
 	repo   *repository.ChatRepo
 	memory *agentmemory.MemoryManager
+	ai     *aiclient.Client
 	cfg    config.AgentConfig
 }
 
-func NewChatService(engine *agent.Engine, repo *repository.ChatRepo, memory *agentmemory.MemoryManager, cfg config.AgentConfig) *ChatService {
-	return &ChatService{engine: engine, repo: repo, memory: memory, cfg: cfg}
+func NewChatService(engine *agent.Engine, repo *repository.ChatRepo, memory *agentmemory.MemoryManager, ai *aiclient.Client, cfg config.AgentConfig) *ChatService {
+	return &ChatService{engine: engine, repo: repo, memory: memory, ai: ai, cfg: cfg}
 }
 
 // CreateSession 创建新会话
@@ -78,7 +85,7 @@ func (s *ChatService) Run(ctx context.Context, sessionID uint, userMessage strin
 
 	result, err := s.engine.Run(ctx, sessionID, userMessage, role, onEvent)
 	if err == nil && result.ReflectTrigger {
-		_ = s.AddSemanticMemory(ctx, fmt.Sprintf("在会话%d中，工具调用出现问题需要修正", sessionID))
+		go s.writeLesson(result.Messages)
 	}
 	return result, err
 }
@@ -105,4 +112,53 @@ func (s *ChatService) SaveMessages(sessionID uint, userID uint, records []agent.
 // AddSemanticMemory 写入语义记忆（Reflect 触发后调用）
 func (s *ChatService) AddSemanticMemory(ctx context.Context, content string) error {
 	return s.memory.AddSemantic(ctx, content, 0.5, "lesson")
+}
+
+// writeLesson 用 LLM 分析对话上下文，提炼可复用的教训写入语义记忆。
+func (s *ChatService) writeLesson(msgs []agent.ChatMessageRecord) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	var b strings.Builder
+	type toolCallInfo struct {
+		Function struct {
+			Name      string `json:"name"`
+			Arguments string `json:"arguments"`
+		} `json:"function"`
+	}
+	for _, m := range msgs {
+		if m.Role == "assistant" && m.ToolCalls != "" {
+			var calls []toolCallInfo
+			if json.Unmarshal([]byte(m.ToolCalls), &calls) == nil {
+				for _, c := range calls {
+					fmt.Fprintf(&b, "调用工具: %s, 参数: %s\n", c.Function.Name, c.Function.Arguments)
+				}
+			}
+		}
+		if m.Role == "tool" {
+			fmt.Fprintf(&b, "工具返回: %s\n", m.Content)
+		}
+	}
+	contextStr := b.String()
+	if contextStr == "" {
+		return
+	}
+
+	resp, err := s.ai.ChatCompletion(ctx, openai.ChatCompletionRequest{
+		Model: s.ai.Model(),
+		Messages: []openai.ChatCompletionMessage{
+			{Role: openai.ChatMessageRoleSystem, Content: "你是一个AI学习助手。请分析以下对话中工具调用的执行情况，提炼一条简短的教训。教训应包含: 哪个工具失败了、失败原因是什么、应该如何避免或替代。用一句话总结，不超过80字。"},
+			{Role: openai.ChatMessageRoleUser, Content: contextStr},
+		},
+	})
+	if err != nil || len(resp.Choices) == 0 {
+		slog.Warn("提炼教训失败", "error", err)
+		return
+	}
+	lesson := strings.TrimSpace(resp.Choices[0].Message.Content)
+	if lesson != "" {
+		if err := s.AddSemanticMemory(ctx, lesson); err != nil {
+			slog.Error("写入语义记忆失败", "error", err)
+		}
+	}
 }

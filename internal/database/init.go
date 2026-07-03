@@ -20,6 +20,7 @@ func MustInit(cfg *config.Config) *gorm.DB {
 
 	db.Exec("CREATE EXTENSION IF NOT EXISTS vector")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_chat_messages_fts ON chat_messages USING GIN (to_tsvector('simple', content))")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_chat_messages_vector ON chat_messages USING ivfflat (embedding vector_cosine_ops) WITH (lists = 50)")
 
 	if err := db.AutoMigrate(model.AllModels()...); err != nil {
 		slog.Error("failed to auto migrate", "error", err)
