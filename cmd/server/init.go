@@ -137,7 +137,7 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 	agentReflect := agentpkg.NewReflectChecker(embedClient, agentToolRegistry, cfg.Agent.Reflect)
 	agentEngine := agentpkg.NewEngine(aiClient, agentToolRegistry, agentMemMgr, agentReflect, cfg.Agent)
 
-	chatSvc := service.NewChatService(agentEngine, r.chat, agentMemMgr, cfg.Agent)
+	chatSvc := service.NewChatService(agentEngine, r.chat, agentMemMgr, aiClient, cfg.Agent)
 
 	return &services{
 		auth:    service.NewAuthService(r.auth, cfg.JWT),
