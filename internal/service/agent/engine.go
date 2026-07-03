@@ -224,6 +224,15 @@ func (e *Engine) Run(ctx context.Context, sessionID uint, userMessage string, ro
 	if e.cfg.PlanningEnabled {
 		return e.RunWithPlan(ctx, sessionID, userMessage, role, onEvent)
 	}
+	return e.runReAct(ctx, sessionID, userMessage, role, onEvent)
+}
+
+// runReAct 执行 ReAct 循环（不检查 PlanningEnabled）。
+func (e *Engine) runReAct(ctx context.Context, sessionID uint, userMessage string, role string, onEvent func(SSEEvent)) (*RunResult, error) {
+	userID := UserIDFromCtx(ctx)
+	if userID == 0 {
+		return nil, fmt.Errorf("user_id not found in context")
+	}
 
 	tools := e.tools.ListForRole(role)
 	memCtx := e.loadMemory(ctx, sessionID, userID, role, userMessage)
@@ -268,7 +277,11 @@ func (e *Engine) Run(ctx context.Context, sessionID uint, userMessage string, ro
 		}
 
 		// 记录 Assistant 消息
-		tcJSON, _ := json.Marshal(toolCalls)
+		tcJSON, err := json.Marshal(toolCalls)
+		if err != nil {
+			slog.Warn("工具调用序列化失败", "error", err)
+			tcJSON = []byte("[]")
+		}
 		messages = append(messages, openai.ChatCompletionMessage{
 			Role:      openai.ChatMessageRoleAssistant,
 			Content:   thinkContent,

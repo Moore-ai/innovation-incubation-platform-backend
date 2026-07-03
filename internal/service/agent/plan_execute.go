@@ -10,6 +10,8 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
+const maxStepRetries = 3
+
 // buildPlanProgress 生成进度文本（含完整计划和状态标记）
 func buildPlanProgress(plan *Plan, currentStep int) string {
 	var sb strings.Builder
@@ -21,9 +23,9 @@ func buildPlanProgress(plan *Plan, currentStep int) string {
 		} else if i == currentStep-1 {
 			marker = "➡️"
 		}
-		sb.WriteString(fmt.Sprintf("%s Step %d: %s", marker, s.Index, strings.Join(s.Tools, ", ")))
+		fmt.Fprintf(&sb, "%s Step %d: %s", marker, s.Index, strings.Join(s.Tools, ", "))
 		if s.Desc != "" {
-			sb.WriteString(fmt.Sprintf(" — %s", s.Desc))
+			fmt.Fprintf(&sb, " — %s", s.Desc)
 		}
 		sb.WriteString("\n")
 	}
@@ -58,7 +60,8 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 	})
 	if err != nil {
 		slog.Warn("规划调用失败，回退 ReAct", "error", err)
-		return e.Run(ctx, sessionID, userMessage, role, onEvent)
+		onEvent(SSEEvent{Type: "error", Data: map[string]string{"message": "规划失败，使用标准模式回复"}})
+		return e.runReAct(ctx, sessionID, userMessage, role, onEvent)
 	}
 	var planText string
 	if len(planResp.Choices) > 0 {
@@ -67,12 +70,14 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 	plan, err := parsePlan(planText, e.tools)
 	if err != nil {
 		slog.Warn("计划解析失败，回退 ReAct", "error", err)
-		return e.Run(ctx, sessionID, userMessage, role, onEvent)
+		onEvent(SSEEvent{Type: "error", Data: map[string]string{"message": "规划失败，使用标准模式回复"}})
+		return e.runReAct(ctx, sessionID, userMessage, role, onEvent)
 	}
 	onEvent(SSEEvent{Type: "plan", Data: plan})
 
 	if len(plan.Steps) == 0 {
-		return e.Run(ctx, sessionID, userMessage, role, onEvent)
+		onEvent(SSEEvent{Type: "error", Data: map[string]string{"message": "规划失败，使用标准模式回复"}})
+		return e.runReAct(ctx, sessionID, userMessage, role, onEvent)
 	}
 
 	// 3. 构建执行阶段的 Messages
@@ -94,6 +99,9 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 
 	var records []ChatMessageRecord
 	reflectTrigger := false
+	retries := 0
+	replanFailed := false
+	completedSteps := 0
 
 	// 4. 按计划逐步执行
 	for stepIdx := 0; stepIdx < len(plan.Steps); stepIdx++ {
@@ -116,18 +124,27 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 		if len(toolCalls) == 0 {
 			// 没有工具调用，检查是否还有步骤
 			if stepIdx+1 < len(plan.Steps) {
-				// 步骤未完成但 LLM 没返回工具调用，尝试强制追问
-				messages = append(messages, openai.ChatCompletionMessage{
-					Role:    openai.ChatMessageRoleUser,
-					Content: fmt.Sprintf("请继续执行计划的第 %d 步。", stepIdx+1),
-				})
-				stepIdx-- // 重试当前步骤
+				retries++
+				if retries <= maxStepRetries {
+					// 步骤未完成但 LLM 没返回工具调用，尝试强制追问
+					messages = append(messages, openai.ChatCompletionMessage{
+						Role:    openai.ChatMessageRoleUser,
+						Content: fmt.Sprintf("请继续执行计划的第 %d 步。", stepIdx+1),
+					})
+					stepIdx-- // 重试当前步骤
+				} else {
+					slog.Warn("步骤重试次数超限", "step", stepIdx+1)
+				}
 				continue
 			}
-			return e.finishReply(thinkContent, records, stepIdx, reflectTrigger, onEvent)
+			return e.finishReply(thinkContent, records, completedSteps, reflectTrigger, onEvent)
 		}
 
-		tcJSON, _ := json.Marshal(toolCalls)
+		tcJSON, err := json.Marshal(toolCalls)
+		if err != nil {
+			slog.Warn("工具调用序列化失败", "error", err)
+			tcJSON = []byte("[]")
+		}
 		messages = append(messages, openai.ChatCompletionMessage{
 			Role: openai.ChatMessageRoleAssistant, Content: thinkContent, ToolCalls: toolCalls,
 		})
@@ -139,6 +156,7 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 		results := e.executeToolCalls(ctx, toolCalls)
 		var hit bool
 		messages, records, hit = e.observeToolResults(ctx, results, messages, records, onEvent)
+		completedSteps++
 		if hit {
 			reflectTrigger = true
 			// 重新规划剩余步骤
@@ -151,6 +169,7 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 			})
 			if replanErr != nil {
 				slog.Warn("重新规划失败", "error", replanErr)
+				replanFailed = true
 				break
 			}
 			var replanText string
@@ -160,21 +179,32 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 			newPlan, replanErr := parsePlan(replanText, e.tools)
 			if replanErr == nil && len(newPlan.Steps) > 0 {
 				plan = newPlan
+				// 追加重新规划的响应
+				messages = append(messages, openai.ChatCompletionMessage{
+					Role: openai.ChatMessageRoleAssistant, Content: replanText,
+				})
+				records = append(records, ChatMessageRecord{Role: "assistant", Content: replanText})
+				systemPrompt, _ = buildSystemPrompt(memCtx, tools)
 				onEvent(SSEEvent{Type: "replan", Data: plan})
 				stepIdx = -1 // 下次循环从 0 开始（步数重置）
 				continue
 			}
 			slog.Warn("重新规划解析失败，终止执行")
+			replanFailed = true
 			break
 		}
 	}
 
 	// 5. 所有步骤完成，生成最终回复
+	promptText := "所有计划步骤已完成。请基于以上全部信息给出完整、清晰的最终回复。"
+	if replanFailed {
+		promptText = "部分计划步骤未能完成。请基于已有的信息给出当前能提供的最佳回复。"
+	}
 	finalResp, err := e.ai.ChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model: e.promptModel(),
 		Messages: append(messages, openai.ChatCompletionMessage{
-			Role: openai.ChatMessageRoleUser,
-			Content: "所有计划步骤已完成。请基于以上全部信息给出完整、清晰的最终回复。",
+			Role:    openai.ChatMessageRoleUser,
+			Content: promptText,
 		}),
 	})
 	var finalReply string
@@ -188,6 +218,6 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 	onEvent(SSEEvent{Type: "done", Data: nil})
 	return &RunResult{
 		FinalReply: finalReply, Messages: records,
-		StepsUsed: len(plan.Steps) + 1, ReflectTrigger: reflectTrigger,
+		StepsUsed: completedSteps + 1, ReflectTrigger: reflectTrigger,
 	}, nil
 }

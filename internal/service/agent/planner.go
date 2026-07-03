@@ -55,7 +55,11 @@ func parsePlan(text string, registry *agenttools.ToolRegistry) (*Plan, error) {
 		line = strings.TrimSpace(line)
 		if !planLineRe.MatchString(line) {
 			if len(steps) > 0 {
-				break // 已开始解析，非匹配行停止
+				if strings.TrimSpace(line) == "" {
+					continue // skip blank lines, don't break
+				}
+				// Non-blank, non-step line after steps started — likely end of plan
+				break
 			}
 			continue
 		}
@@ -64,7 +68,10 @@ func parsePlan(text string, registry *agenttools.ToolRegistry) (*Plan, error) {
 
 		// 分割工具名和描述
 		var desc string
-		if dIdx := strings.Index(line, "---"); dIdx >= 0 {
+		if dIdx := strings.Index(line, "—"); dIdx >= 0 { // Unicode em dash (U+2014)
+			desc = strings.TrimSpace(line[dIdx+3:])
+			line = strings.TrimSpace(line[:dIdx])
+		} else if dIdx := strings.Index(line, "---"); dIdx >= 0 {
 			desc = strings.TrimSpace(line[dIdx+3:])
 			line = strings.TrimSpace(line[:dIdx])
 		} else if dIdx := strings.Index(line, "--"); dIdx >= 0 {
