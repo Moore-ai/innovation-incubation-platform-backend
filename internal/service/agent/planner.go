@@ -23,7 +23,7 @@ type Plan struct {
 // buildPlanPrompt 生成规划 Prompt
 func buildPlanPrompt(tools []agenttools.Tool) string {
 	var sb strings.Builder
-	sb.WriteString("你是一个顶级的AI规划专家兼创新孵化平台的智能助手。请分析用户的问题，将其分解成由简单步骤组成的行动计划。\n\n")
+	sb.WriteString("你是一个顶级的AI规划专家兼创新孵化平台的智能助手。请分析用户的问题，将其分解成由简单步骤组成的行动计划，尽可能高效。\n\n")
 	sb.WriteString("可用工具：\n")
 	for _, t := range tools {
 		fmt.Fprintf(&sb, "- %s：%s\n", t.Name(), t.Description())
