@@ -97,6 +97,8 @@ agent:
   max_steps: 10
   message_max_chars: 2000
   request_timeout_sec: 120
+  planning_enabled: false
+  planning_model: ""
   tool_timeout_sec: 10
   context_window: 512000
   history_budget_ratio: 0.7
