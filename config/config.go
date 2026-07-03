@@ -158,6 +158,8 @@ type AgentConfig struct {
 	ToolTimeoutSec     int                 `mapstructure:"tool_timeout_sec"`
 	ContextWindow      int                 `mapstructure:"context_window"`
 	HistoryBudgetRatio float64             `mapstructure:"history_budget_ratio"`
+	PlanningEnabled   bool                `mapstructure:"planning_enabled"`
+	PlanningModel     string              `mapstructure:"planning_model"`
 	TokenEstimation    string              `mapstructure:"token_estimation"`
 	WorkingMemory      WorkingMemoryConfig `mapstructure:"working_memory"`
 	Memory             AgentMemoryConfig   `mapstructure:"memory"`
@@ -272,6 +274,8 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("agent.tool_timeout_sec", 10)
 	v.SetDefault("agent.context_window", 512000)
 	v.SetDefault("agent.history_budget_ratio", 0.7)
+	v.SetDefault("agent.planning_enabled", false)
+	v.SetDefault("agent.planning_model", "")
 	v.SetDefault("agent.token_estimation", "better")
 	v.SetDefault("agent.working_memory.page_size", 10)
 	v.SetDefault("agent.memory.semantic_limit", 3)
