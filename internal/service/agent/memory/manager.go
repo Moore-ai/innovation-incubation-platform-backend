@@ -15,11 +15,27 @@ import (
 	"innovation-incubation-platform-backend/pkg/tokenutil"
 )
 
+// episodicRepo 情景记忆所需的仓储方法。
+type episodicRepo interface {
+	SearchMessagesByVectorWithDistance(userID uint, embedding []float32, limit int) ([]model.ChatMessage, []float64, error)
+}
+
+// workingContextProvider 工作记忆的上下文构建能力。
+type workingContextProvider interface {
+	BuildWorkingContext(sessionID uint, budget int) (string, error)
+}
+
+// semanticRetriever 语义记忆的检索与写入能力。
+type semanticRetriever interface {
+	Retrieve(ctx context.Context, query string, opts RetrievalOpts) ([]*MemoryItem, error)
+	Add(ctx context.Context, item *MemoryItem) error
+}
+
 type MemoryManager struct {
-	working     *WorkingMemory
-	semantic    *SemanticMemory
-	repo        *repository.ChatRepo
-	embedClient *aiclient.EmbeddingClient
+	working     workingContextProvider
+	semantic    semanticRetriever
+	repo        episodicRepo
+	embedClient embedder
 	cfg         config.AgentConfig
 }
 

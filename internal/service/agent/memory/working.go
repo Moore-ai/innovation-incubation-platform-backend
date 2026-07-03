@@ -5,12 +5,18 @@ import (
 	"fmt"
 	"strings"
 
+	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/pkg/tokenutil"
 )
 
+// workingRepo WorkingMemory 所需的仓储方法。
+type workingRepo interface {
+	LoadMessagesPage(sessionID uint, cursorID uint, limit int) ([]model.ChatMessage, uint, bool, error)
+}
+
 type WorkingMemory struct {
-	repo     *repository.ChatRepo
+	repo     workingRepo
 	pageSize int
 }
 

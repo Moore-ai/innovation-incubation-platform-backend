@@ -9,9 +9,21 @@ import (
 	"innovation-incubation-platform-backend/pkg/aiclient"
 )
 
+// embedder SemanticMemory 所需的 embedding 能力。
+type embedder interface {
+	Embed(ctx context.Context, text string) ([]float32, error)
+}
+
+// semanticRepo SemanticMemory 所需的仓储方法。
+type semanticRepo interface {
+	CreateSemanticMemory(m *model.SemanticMemory) error
+	RetrieveSemanticByCategory(userID uint, categories []string, keyword string, limit int) ([]model.SemanticMemory, error)
+	RetrieveSemanticByVector(userID uint, embedding []float32, limit int) ([]model.SemanticMemory, error)
+}
+
 type SemanticMemory struct {
-	repo          *repository.ChatRepo
-	embedClient   *aiclient.EmbeddingClient
+	repo          semanticRepo
+	embedClient   embedder
 	semanticLimit int
 }
 
