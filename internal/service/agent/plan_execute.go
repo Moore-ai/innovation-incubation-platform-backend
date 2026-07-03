@@ -120,6 +120,8 @@ func (e *Engine) runExecStep(ctx context.Context, messages []openai.ChatCompleti
 
 // RunWithPlan 规划后执行模式：先规划再按步骤顺序执行。
 func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage string, role string, onEvent func(SSEEvent)) (*RunResult, error) {
+	onEvent = e.filterInternalEvents(onEvent)
+
 	userID := UserIDFromCtx(ctx)
 	if userID == 0 {
 		return nil, fmt.Errorf("user_id not found in context")

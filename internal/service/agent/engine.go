@@ -228,7 +228,22 @@ func (e *Engine) Run(ctx context.Context, sessionID uint, userMessage string, ro
 }
 
 // runReAct 执行 ReAct 循环（不检查 PlanningEnabled）。
+// filterInternalEvents 过滤掉工具调用等内部事件，只保留配置中允许的类型。
+func (e *Engine) filterInternalEvents(onEvent func(SSEEvent)) func(SSEEvent) {
+	allowed := e.cfg.PublicSSETypes
+	allowSet := make(map[string]bool, len(allowed))
+	for _, t := range allowed {
+		allowSet[t] = true
+	}
+	return func(evt SSEEvent) {
+		if allowSet[evt.Type] {
+			onEvent(evt)
+		}
+	}
+}
+
 func (e *Engine) runReAct(ctx context.Context, sessionID uint, userMessage string, role string, onEvent func(SSEEvent)) (*RunResult, error) {
+	onEvent = e.filterInternalEvents(onEvent)
 	userID := UserIDFromCtx(ctx)
 	if userID == 0 {
 		return nil, fmt.Errorf("user_id not found in context")

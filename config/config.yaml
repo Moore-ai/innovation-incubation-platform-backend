@@ -99,6 +99,7 @@ agent:
   request_timeout_sec: 120
   planning_enabled: false
   planning_model: ""
+  public_sse_types: [reply, done, thinking, error, plan, replan, tool_call, tool_result]  # 允许暴露给前端的 SSE 事件
   tool_timeout_sec: 10
   context_window: 512000
   history_budget_ratio: 0.7

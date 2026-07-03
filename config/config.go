@@ -1,4 +1,4 @@
-package config
+﻿package config
 
 import (
 	"bytes"
@@ -158,8 +158,9 @@ type AgentConfig struct {
 	ToolTimeoutSec     int                 `mapstructure:"tool_timeout_sec"`
 	ContextWindow      int                 `mapstructure:"context_window"`
 	HistoryBudgetRatio float64             `mapstructure:"history_budget_ratio"`
-	PlanningEnabled   bool                `mapstructure:"planning_enabled"`
-	PlanningModel     string              `mapstructure:"planning_model"`
+	PlanningEnabled    bool                `mapstructure:"planning_enabled"`
+	PlanningModel      string              `mapstructure:"planning_model"`
+	PublicSSETypes     []string            `mapstructure:"public_sse_types"` // 允许暴露给前端的 SSE 事件类型
 	TokenEstimation    string              `mapstructure:"token_estimation"`
 	WorkingMemory      WorkingMemoryConfig `mapstructure:"working_memory"`
 	Memory             AgentMemoryConfig   `mapstructure:"memory"`
@@ -276,6 +277,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("agent.history_budget_ratio", 0.7)
 	v.SetDefault("agent.planning_enabled", false)
 	v.SetDefault("agent.planning_model", "")
+	v.SetDefault("agent.public_sse_types", []string{"reply", "done", "thinking", "error"})
 	v.SetDefault("agent.token_estimation", "better")
 	v.SetDefault("agent.working_memory.page_size", 10)
 	v.SetDefault("agent.memory.semantic_limit", 3)
