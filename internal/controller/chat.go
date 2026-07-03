@@ -84,6 +84,65 @@ func (ctl *ChatController) DeleteSession(c *gin.Context) {
 	response.Success(c, nil)
 }
 
+// EditAndResend 编辑最后一条用户消息并重新发送（SSE）。
+func (ctl *ChatController) EditAndResend(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	role := middleware.GetRole(c)
+
+	var uri struct {
+		SessionID uint `uri:"id" binding:"required"`
+		MessageID uint `uri:"messageId" binding:"required"`
+	}
+	if err := c.ShouldBindUri(&uri); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
+		return
+	}
+
+	var req dto.SendChatMessageReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
+		return
+	}
+
+	// 校验消息长度
+	if ctl.cfg.Agent.MessageMaxChars > 0 && len([]rune(req.Content)) > ctl.cfg.Agent.MessageMaxChars {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("消息超过最大长度限制"))
+		return
+	}
+
+	// SSE headers
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.WriteHeader(http.StatusOK)
+
+	ctx := c.Request.Context()
+	ctx = agent.WithUserID(ctx, userID)
+	ctx = agent.WithRole(ctx, role)
+	if len(req.State) > 0 {
+		ctx = agent.WithState(ctx, req.State)
+	}
+
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		response.Error(c, errcode.ErrInternal.WithMsg("不支持 SSE"))
+		return
+	}
+
+	_, err := ctl.svc.EditAndResend(ctx, uri.SessionID, uri.MessageID, req.Content, role, func(evt agent.SSEEvent) {
+		data, _ := json.Marshal(evt)
+		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+		flusher.Flush()
+	})
+
+	if err != nil {
+		data, _ := json.Marshal(agent.SSEEvent{Type: "error", Data: map[string]string{"message": err.Error()}})
+		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+		flusher.Flush()
+		return
+	}
+}
+
 // SendMessage SSE 流式响应
 func (ctl *ChatController) SendMessage(c *gin.Context) {
 	userID := middleware.GetUserID(c)

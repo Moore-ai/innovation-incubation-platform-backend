@@ -215,4 +215,5 @@ func registerChatRoutes(r *gin.Engine, deps *Deps) {
 	chat.GET("/sessions/:id", deps.ChatController.GetSession)
 	chat.DELETE("/sessions/:id", deps.ChatController.DeleteSession)
 	chat.POST("/sessions/:id/messages", deps.ChatController.SendMessage)
+	chat.PUT("/sessions/:id/messages/:messageId", deps.ChatController.EditAndResend)
 }
