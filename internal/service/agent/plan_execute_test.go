@@ -56,9 +56,10 @@ func TestPlanExecute_RealAI(t *testing.T) {
 		},
 	})
 
-	eng := NewEngine(client, reg, agentmemory.NewMemoryManager(nil, nil, config.AgentConfig{}),
+	eng := NewEngine(client, reg, agentmemory.NewMemoryManager(nil, nil, config.AgentConfig{PublicSSETypes: sseAll}),
 		NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3}),
 		config.AgentConfig{
+			PublicSSETypes:  sseAll,
 			PlanningEnabled: true,
 			MaxSteps:        8,
 			ToolTimeoutSec:  30,
