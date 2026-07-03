@@ -1,4 +1,4 @@
-package agent
+﻿package agent
 
 import (
 	"context"
@@ -58,7 +58,7 @@ func TestPlanExecute_RealAI(t *testing.T) {
 		},
 	})
 
-	eng := NewEngine(client, reg, agentmemory.NewMemoryManager(nil, nil, config.AgentConfig{PublicSSETypes: sseAll}),
+	eng := NewEngine(client, reg, agentmemory.NewMemoryManager(nil, nil, nil, nil, config.AgentConfig{PublicSSETypes: sseAll}),
 		NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3}),
 		config.AgentConfig{
 			PublicSSETypes:  sseAll,
@@ -161,7 +161,7 @@ func TestPlanExecute_Replan_RealAI(t *testing.T) {
 		},
 	})
 
-	eng := NewEngine(client, reg, agentmemory.NewMemoryManager(nil, nil, config.AgentConfig{PublicSSETypes: sseAll}),
+	eng := NewEngine(client, reg, agentmemory.NewMemoryManager(nil, nil, nil, nil, config.AgentConfig{PublicSSETypes: sseAll}),
 		NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3}),
 		config.AgentConfig{
 			PublicSSETypes:  sseAll,

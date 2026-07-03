@@ -108,5 +108,6 @@ agent:
     page_size: 10
   memory:
     semantic_limit: 3
+    episodic_limit: 3
   reflect:
     similarity_threshold: 0.3

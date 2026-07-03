@@ -69,6 +69,16 @@ func (r *ChatRepo) SearchMessages(userID uint, query string, limit int) ([]model
 	return msgs, err
 }
 
+// SearchMessagesByVector 向量语义相似度检索历史消息。
+func (r *ChatRepo) SearchMessagesByVector(userID uint, embedding []float32, limit int) ([]model.ChatMessage, error) {
+	var msgs []model.ChatMessage
+	vecStr := model.PGVector(embedding).String()
+	err := r.db.Where("user_id = ? AND embedding IS NOT NULL", userID).
+		Order(fmt.Sprintf("embedding <=> '%s'", vecStr)).
+		Limit(limit).Find(&msgs).Error
+	return msgs, err
+}
+
 // LoadMessagesPage 游标分页加载消息（按 created_at DESC），返回 (消息, 下一页 cursor, 是否有更多, error)
 func (r *ChatRepo) LoadMessagesPage(sessionID uint, cursorID uint, limit int) ([]model.ChatMessage, uint, bool, error) {
 	var msgs []model.ChatMessage
