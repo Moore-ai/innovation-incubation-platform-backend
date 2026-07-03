@@ -27,6 +27,34 @@ func NewMemoryManager(working *WorkingMemory, semantic *SemanticMemory, repo *re
 	return &MemoryManager{working: working, semantic: semantic, repo: repo, embedClient: embedClient, cfg: cfg}
 }
 
+// appendSegment 将 items 按 Token 预算追加到 parts，每条由 formatFn 转换为字符串。
+// 返回剩余 budget。
+func appendSegment[T any](parts *[]string, budget int, header string, items []T, formatFn func(T) string) int {
+	if len(items) == 0 || budget <= 0 {
+		return budget
+	}
+	headerTokens := tokenutil.Estimate(header)
+	if headerTokens > budget {
+		return budget
+	}
+	budget -= headerTokens
+	var sb strings.Builder
+	sb.WriteString(header)
+	for _, item := range items {
+		line := formatFn(item)
+		tokens := tokenutil.Estimate(line)
+		if tokens > budget {
+			break
+		}
+		budget -= tokens
+		sb.WriteString(line)
+	}
+	if sb.Len() > 0 {
+		*parts = append(*parts, sb.String())
+	}
+	return budget
+}
+
 // LoadContext 加载上下文：语义记忆 → 情景记忆（向量检索）→ 工作记忆。
 // 用户查询的 embedding 在入口计算一次，语义和情景共享。
 func (m *MemoryManager) LoadContext(ctx context.Context, sessionID, userID uint, query string, budget int) (string, error) {
@@ -46,32 +74,14 @@ func (m *MemoryManager) LoadContext(ctx context.Context, sessionID, userID uint,
 		if err != nil {
 			items = nil
 		}
-		if len(items) > 0 {
-			var sb strings.Builder
-			headerLine := "### 相关规则与偏好\n"
-			headerTokens := tokenutil.Estimate(headerLine)
-			if headerTokens <= budget {
-				budget -= headerTokens
-				sb.WriteString(headerLine)
-				for _, item := range items {
-					line := "- " + item.Content + "\n"
-					tokens := tokenutil.Estimate(line)
-					if tokens > budget {
-						break
-					}
-					budget -= tokens
-					sb.WriteString(line)
-				}
-				if sb.Len() > 0 {
-					parts = append(parts, sb.String())
-				}
-			}
-		}
+		budget = appendSegment(&parts, budget, "### 相关规则与偏好\n", items, func(item *MemoryItem) string {
+			return "- " + item.Content + "\n"
+		})
 	}
 
 	// 2. 情景记忆（向量语义相似度 + 时间衰减复合评分）
 	if budget > 0 && m.cfg.Memory.EpisodicLimit > 0 && len(queryVec) > 0 {
-		// 衰减时多取候选，供组合重排；不衰减则直取 TopK
+		// 衰减时多取候选，供组合重排
 		fetchLimit := m.cfg.Memory.EpisodicLimit
 		if m.cfg.Memory.EpisodicDecayFactor > 0 {
 			fetchLimit = m.cfg.Memory.EpisodicLimit * 3
@@ -80,30 +90,12 @@ func (m *MemoryManager) LoadContext(ctx context.Context, sessionID, userID uint,
 		if err != nil {
 			msgs = nil
 		}
-		if len(msgs) > 0 {
-			if m.cfg.Memory.EpisodicDecayFactor > 0 {
-				msgs = rankWithDecay(msgs, distances, m.cfg.Memory.EpisodicDecayFactor, m.cfg.Memory.EpisodicLimit)
-			}
-			var sb strings.Builder
-			headerLine := "### 相关历史对话\n"
-			headerTokens := tokenutil.Estimate(headerLine)
-			if headerTokens <= budget {
-				budget -= headerTokens
-				sb.WriteString(headerLine)
-				for _, msg := range msgs {
-					line := msg.Role + ": " + msg.Content + "\n"
-					tokens := tokenutil.Estimate(line)
-					if tokens > budget {
-						break
-					}
-					budget -= tokens
-					sb.WriteString(line)
-				}
-				if sb.Len() > 0 {
-					parts = append(parts, sb.String())
-				}
-			}
+		if len(msgs) > 0 && m.cfg.Memory.EpisodicDecayFactor > 0 {
+			msgs = rankWithDecay(msgs, distances, m.cfg.Memory.EpisodicDecayFactor, m.cfg.Memory.EpisodicLimit)
 		}
+		budget = appendSegment(&parts, budget, "### 相关历史对话\n", msgs, func(msg model.ChatMessage) string {
+			return msg.Role + ": " + msg.Content + "\n"
+		})
 	}
 
 	// 3. 工作记忆（剩余预算）
@@ -125,14 +117,14 @@ func (m *MemoryManager) LoadContext(ctx context.Context, sessionID, userID uint,
 
 // rankWithDecay 组合评分重排：cosine_similarity × decay^(days/30)，取 TopK。
 func rankWithDecay(msgs []model.ChatMessage, distances []float64, decayFactor float64, limit int) []model.ChatMessage {
-	now := time.Now()
 	type scored struct {
 		msg   model.ChatMessage
 		score float64
 	}
+	now := time.Now()
 	scoredList := make([]scored, 0, len(msgs))
 	for i, msg := range msgs {
-		simScore := 1.0 - distances[i] // 余弦距离 0~2 → 相似度 1~-1，裁剪到 0~1
+		simScore := 1.0 - distances[i]
 		if simScore < 0 {
 			simScore = 0
 		}
