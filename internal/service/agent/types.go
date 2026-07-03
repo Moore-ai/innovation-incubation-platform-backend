@@ -1,6 +1,9 @@
 package agent
 
-import "context"
+import (
+	"context"
+	"maps"
+)
 
 type SSEEvent struct {
 	Type string `json:"type"` // "thinking" | "tool_call" | "tool_result" | "reply" | "error" | "done"
@@ -8,10 +11,10 @@ type SSEEvent struct {
 }
 
 type RunResult struct {
-	FinalReply      string
-	Messages        []ChatMessageRecord
-	StepsUsed       int
-	ReflectTrigger  bool
+	FinalReply     string
+	Messages       []ChatMessageRecord
+	StepsUsed      int
+	ReflectTrigger bool
 }
 
 type ChatMessageRecord struct {
@@ -26,6 +29,7 @@ type ctxKey string
 const (
 	ctxKeyUserID ctxKey = "user_id"
 	ctxKeyRole   ctxKey = "role"
+	ctxKeyState  ctxKey = "state"
 )
 
 func UserIDFromCtx(ctx context.Context) uint {
@@ -38,10 +42,19 @@ func RoleFromCtx(ctx context.Context) string {
 	return v
 }
 
+func StateFromCtx(ctx context.Context) map[string]any {
+	v, _ := ctx.Value(ctxKeyState).(map[string]any)
+	return v
+}
+
 func WithUserID(ctx context.Context, id uint) context.Context {
 	return context.WithValue(ctx, ctxKeyUserID, id)
 }
 
 func WithRole(ctx context.Context, role string) context.Context {
 	return context.WithValue(ctx, ctxKeyRole, role)
+}
+
+func WithState(ctx context.Context, state map[string]any) context.Context {
+	return context.WithValue(ctx, ctxKeyState, maps.Clone(state))
 }

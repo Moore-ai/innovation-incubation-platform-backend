@@ -14,7 +14,6 @@ import (
 
 const maxStepRetries = 3
 
-// buildPlanProgress 生成进度文本（含完整计划和状态标记）
 func buildPlanProgress(plan *Plan, currentStep int) string {
 	var sb strings.Builder
 	sb.WriteString("计划执行进度：\n")
@@ -36,7 +35,6 @@ func buildPlanProgress(plan *Plan, currentStep int) string {
 	return sb.String()
 }
 
-// planPhase 规划阶段：调用 LLM 生成执行计划，失败时回退 runReAct。
 func (e *Engine) planPhase(ctx context.Context, userMessage string, tools []agenttools.Tool, onEvent func(SSEEvent)) *Plan {
 	planPrompt := buildPlanPrompt(tools)
 	planModel := e.cfg.PlanningModel
@@ -68,9 +66,11 @@ func (e *Engine) planPhase(ctx context.Context, userMessage string, tools []agen
 	return plan
 }
 
-// buildExecContext 构造执行阶段的 System Prompt、Messages 和 OpenAI Tools。
-func (e *Engine) buildExecContext(memCtx string, tools []agenttools.Tool, plan *Plan, userMessage string) (string, []openai.ChatCompletionMessage, []openai.Tool) {
+func (e *Engine) buildExecContext(ctx context.Context, memCtx string, tools []agenttools.Tool, plan *Plan, userMessage string) (string, []openai.ChatCompletionMessage, []openai.Tool) {
 	systemPrompt, _ := buildSystemPrompt(memCtx, tools)
+	if stateCtx := formatStateContext(StateFromCtx(ctx)); stateCtx != "" {
+		systemPrompt += "\n" + stateCtx
+	}
 	systemPrompt += "\n" + buildPlanProgress(plan, 0)
 	messages := []openai.ChatCompletionMessage{
 		{Role: openai.ChatMessageRoleSystem, Content: systemPrompt},
@@ -88,9 +88,7 @@ func (e *Engine) buildExecContext(memCtx string, tools []agenttools.Tool, plan *
 	return systemPrompt, messages, openaiTools
 }
 
-// replanPhase 重新规划剩余步骤，返回新计划。失败时返回 nil。
 func (e *Engine) replanPhase(ctx context.Context, messages []openai.ChatCompletionMessage, planModel string, onEvent func(SSEEvent)) (newPlan *Plan, replanText string) {
-	// 注入格式提示到消息中，帮助 LLM 正确输出
 	formatHint := openai.ChatCompletionMessage{
 		Role:    openai.ChatMessageRoleSystem,
 		Content: buildReplanFormatHint(e.tools.All()),
@@ -114,7 +112,6 @@ func (e *Engine) replanPhase(ctx context.Context, messages []openai.ChatCompleti
 	return newPlan, replanText
 }
 
-// runExecStep 执行单个计划步骤：流式 LLM 调用 → 工具执行 → 结果观察。
 func (e *Engine) runExecStep(ctx context.Context, messages []openai.ChatCompletionMessage, openaiTools []openai.Tool, onEvent func(SSEEvent)) (string, []openai.ToolCall, error) {
 	stream, err := e.startChatStream(ctx, messages, openaiTools)
 	if err != nil {
@@ -125,7 +122,6 @@ func (e *Engine) runExecStep(ctx context.Context, messages []openai.ChatCompleti
 	return thinkContent, toolCalls, nil
 }
 
-// RunWithPlan 规划后执行模式：先规划再按步骤顺序执行。
 func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage string, role string, onEvent func(SSEEvent)) (*RunResult, error) {
 	onEvent = e.filterInternalEvents(onEvent)
 
@@ -137,14 +133,13 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 	memCtx := e.loadMemory(ctx, sessionID, userID, role, userMessage)
 	tools := e.tools.ListForRole(role)
 
-	// 规划
 	plan := e.planPhase(ctx, userMessage, tools, onEvent)
 	if plan == nil || len(plan.Steps) == 0 {
 		return e.runReAct(ctx, sessionID, userMessage, role, onEvent)
 	}
 	onEvent(SSEEvent{Type: "plan", Data: plan})
 
-	systemPrompt, messages, openaiTools := e.buildExecContext(memCtx, tools, plan, userMessage)
+	systemPrompt, messages, openaiTools := e.buildExecContext(ctx, memCtx, tools, plan, userMessage)
 	planModel := e.cfg.PlanningModel
 	if planModel == "" {
 		planModel = e.promptModel()
@@ -221,6 +216,9 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 		records = append(records, ChatMessageRecord{Role: "assistant", Content: replanText})
 		plan = newPlan
 		systemPrompt, _ = buildSystemPrompt(memCtx, tools)
+		if stateCtx := formatStateContext(StateFromCtx(ctx)); stateCtx != "" {
+			systemPrompt += "\n" + stateCtx
+		}
 		stepIdx = -1
 	}
 

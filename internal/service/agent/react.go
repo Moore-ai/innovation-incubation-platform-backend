@@ -34,6 +34,9 @@ func (e *Engine) runReAct(ctx context.Context, sessionID uint, userMessage strin
 	memCtx := e.loadMemory(ctx, sessionID, userID, role, userMessage)
 
 	systemPrompt, _ := buildSystemPrompt(memCtx, tools)
+	if stateCtx := formatStateContext(StateFromCtx(ctx)); stateCtx != "" {
+		systemPrompt += "\n" + stateCtx
+	}
 	openaiTools := make([]openai.Tool, 0, len(tools))
 	for _, t := range tools {
 		openaiTools = append(openaiTools, openai.Tool{

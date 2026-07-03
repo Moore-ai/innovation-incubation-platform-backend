@@ -123,9 +123,12 @@ func (ctl *ChatController) SendMessage(c *gin.Context) {
 	c.Writer.WriteHeader(http.StatusOK)
 
 	ctx := c.Request.Context()
-	// 注入 user_id 和 role 到 context
+	// 注入 user_id、role 和 state 到 context
 	ctx = agent.WithUserID(ctx, userID)
 	ctx = agent.WithRole(ctx, role)
+	if len(req.State) > 0 {
+		ctx = agent.WithState(ctx, req.State)
+	}
 
 	flusher, ok := c.Writer.(http.Flusher)
 	if !ok {
