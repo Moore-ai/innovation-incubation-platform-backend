@@ -59,13 +59,6 @@ func (r *ChatRepo) CreateMessages(msgs []model.ChatMessage) error {
 	return r.db.Create(&msgs).Error
 }
 
-// DeleteMessagesFrom 软删除指定消息及之后所有消息，返回删除条数。
-func (r *ChatRepo) DeleteMessagesFrom(sessionID uint, fromMessageID uint) (int64, error) {
-	result := r.db.Where("session_id = ? AND id >= ?", sessionID, fromMessageID).
-		Delete(&model.ChatMessage{})
-	return result.RowsAffected, result.Error
-}
-
 func (r *ChatRepo) ListMessagesBySession(sessionID uint) ([]model.ChatMessage, error) {
 	var msgs []model.ChatMessage
 	err := r.db.Where("session_id = ?", sessionID).Order("created_at ASC").Find(&msgs).Error
