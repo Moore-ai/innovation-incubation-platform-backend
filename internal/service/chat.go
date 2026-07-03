@@ -16,6 +16,7 @@ import (
 	agent "innovation-incubation-platform-backend/internal/service/agent"
 	agentmemory "innovation-incubation-platform-backend/internal/service/agent/memory"
 	"innovation-incubation-platform-backend/pkg/aiclient"
+	"innovation-incubation-platform-backend/pkg/errcode"
 )
 
 type ChatService struct {
@@ -107,6 +108,81 @@ func (s *ChatService) SaveMessages(sessionID uint, userID uint, records []agent.
 		return err
 	}
 	return s.repo.UpdateSessionStats(sessionID, time.Now(), len(msgs))
+}
+
+// EditAndResend 编辑最后一条用户消息并重新发送。
+// 先执行 Agent，成功后在事务中软删旧消息、插入新消息。
+func (s *ChatService) EditAndResend(ctx context.Context, sessionID uint, messageID uint, userMessage, role string, onEvent func(agent.SSEEvent)) (*agent.RunResult, error) {
+	// 1. 查 session 下最后一条 user 消息
+	msgs, err := s.repo.ListMessagesBySession(sessionID)
+	if err != nil {
+		return nil, errcode.ErrNotFound.WithMsg("会话不存在")
+	}
+	if len(msgs) == 0 {
+		return nil, errcode.ErrInvalidParams.WithMsg("会话为空")
+	}
+
+	var lastUserMsg *model.ChatMessage
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == "user" {
+			lastUserMsg = &msgs[i]
+			break
+		}
+	}
+	if lastUserMsg == nil {
+		return nil, errcode.ErrInvalidParams.WithMsg("会话无用户消息")
+	}
+	if lastUserMsg.ID != messageID {
+		return nil, errcode.ErrInvalidParams.WithMsg("只能编辑最后一条用户消息")
+	}
+
+	// 2. 请求级超时
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(s.cfg.RequestTimeoutSec)*time.Second)
+	defer cancel()
+
+	// 3. 执行 Agent（不修改数据库）
+	result, err := s.engine.Run(ctx, sessionID, userMessage, role, onEvent)
+	if err != nil {
+		return result, err
+	}
+
+	// 4. 组装新记录
+	newRecords := append(
+		[]agent.ChatMessageRecord{{Role: "user", Content: userMessage}},
+		result.Messages...,
+	)
+	newModels := make([]model.ChatMessage, 0, len(newRecords))
+	for _, r := range newRecords {
+		newModels = append(newModels, model.ChatMessage{
+			SessionID:  sessionID,
+			UserID:     agent.UserIDFromCtx(ctx),
+			Role:       r.Role,
+			Content:    r.Content,
+			ToolCallID: r.ToolCallID,
+			ToolCalls:  r.ToolCalls,
+		})
+	}
+
+	// 5. 软删旧消息
+	deletedCount, err := s.repo.DeleteMessagesFrom(sessionID, messageID)
+	if err != nil {
+		slog.Error("软删旧消息失败", "error", err, "session_id", sessionID)
+		return result, errcode.ErrInternal.WithMsg("删除旧消息失败")
+	}
+
+	// 6. 插入新消息
+	if err := s.repo.CreateMessages(newModels); err != nil {
+		slog.Error("插入新消息失败", "error", err, "session_id", sessionID)
+		return result, errcode.ErrInternal.WithMsg("保存消息失败")
+	}
+
+	// 7. 更新会话统计
+	delta := len(newRecords) - int(deletedCount)
+	if err := s.repo.UpdateSessionStats(sessionID, time.Now(), delta); err != nil {
+		slog.Error("更新会话统计失败", "error", err, "session_id", sessionID)
+	}
+
+	return result, nil
 }
 
 // AddSemanticMemory 写入语义记忆（Reflect 触发后调用）
