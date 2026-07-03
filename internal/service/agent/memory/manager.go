@@ -3,9 +3,13 @@ package memory
 import (
 	"context"
 	"fmt"
+	"math"
+	"sort"
 	"strings"
+	"time"
 
 	"innovation-incubation-platform-backend/config"
+	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/pkg/aiclient"
 	"innovation-incubation-platform-backend/pkg/tokenutil"
@@ -65,13 +69,21 @@ func (m *MemoryManager) LoadContext(ctx context.Context, sessionID, userID uint,
 		}
 	}
 
-	// 2. 情景记忆（向量语义相似度检索）
+	// 2. 情景记忆（向量语义相似度 + 时间衰减复合评分）
 	if budget > 0 && m.cfg.Memory.EpisodicLimit > 0 && len(queryVec) > 0 {
-		msgs, err := m.repo.SearchMessagesByVector(userID, queryVec, m.cfg.Memory.EpisodicLimit)
+		// 衰减时多取候选，供组合重排；不衰减则直取 TopK
+		fetchLimit := m.cfg.Memory.EpisodicLimit
+		if m.cfg.Memory.EpisodicDecayFactor > 0 {
+			fetchLimit = m.cfg.Memory.EpisodicLimit * 3
+		}
+		msgs, distances, err := m.repo.SearchMessagesByVectorWithDistance(userID, queryVec, fetchLimit)
 		if err != nil {
 			msgs = nil
 		}
 		if len(msgs) > 0 {
+			if m.cfg.Memory.EpisodicDecayFactor > 0 {
+				msgs = rankWithDecay(msgs, distances, m.cfg.Memory.EpisodicDecayFactor, m.cfg.Memory.EpisodicLimit)
+			}
 			var sb strings.Builder
 			headerLine := "### 相关历史对话\n"
 			headerTokens := tokenutil.Estimate(headerLine)
@@ -109,6 +121,34 @@ func (m *MemoryManager) LoadContext(ctx context.Context, sessionID, userID uint,
 	}
 
 	return strings.Join(parts, "\n\n"), nil
+}
+
+// rankWithDecay 组合评分重排：cosine_similarity × decay^(days/30)，取 TopK。
+func rankWithDecay(msgs []model.ChatMessage, distances []float64, decayFactor float64, limit int) []model.ChatMessage {
+	now := time.Now()
+	type scored struct {
+		msg   model.ChatMessage
+		score float64
+	}
+	scoredList := make([]scored, 0, len(msgs))
+	for i, msg := range msgs {
+		simScore := 1.0 - distances[i] // 余弦距离 0~2 → 相似度 1~-1，裁剪到 0~1
+		if simScore < 0 {
+			simScore = 0
+		}
+		daysOld := now.Sub(msg.CreatedAt).Hours() / 24
+		timeWeight := 1.0
+		if decayFactor > 0 && daysOld > 0 {
+			timeWeight = math.Pow(decayFactor, daysOld/30)
+		}
+		scoredList = append(scoredList, scored{msg, simScore * timeWeight})
+	}
+	sort.Slice(scoredList, func(i, j int) bool { return scoredList[i].score > scoredList[j].score })
+	result := make([]model.ChatMessage, 0, limit)
+	for i := 0; i < len(scoredList) && len(result) < limit; i++ {
+		result = append(result, scoredList[i].msg)
+	}
+	return result
 }
 
 // AddSemantic 写入语义记忆（外部触发）

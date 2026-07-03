@@ -109,5 +109,6 @@ agent:
   memory:
     semantic_limit: 3
     episodic_limit: 3
+    episodic_decay_factor: 0.95   # 情景记忆每个月的保存能力
   reflect:
     similarity_threshold: 0.3

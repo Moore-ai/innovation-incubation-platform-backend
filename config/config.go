@@ -172,8 +172,9 @@ type WorkingMemoryConfig struct {
 }
 
 type AgentMemoryConfig struct {
-	SemanticLimit int `mapstructure:"semantic_limit"`
-	EpisodicLimit int `mapstructure:"episodic_limit"` // FTS 情景记忆检索条数
+	SemanticLimit       int     `mapstructure:"semantic_limit"`
+	EpisodicLimit       int     `mapstructure:"episodic_limit"`        // 情景记忆检索条数
+	EpisodicDecayFactor float64 `mapstructure:"episodic_decay_factor"` // 时间衰减因子，0 表示不衰减（默认 0）
 }
 
 type ReflectConfig struct {
@@ -283,6 +284,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("agent.working_memory.page_size", 10)
 	v.SetDefault("agent.memory.semantic_limit", 3)
 	v.SetDefault("agent.memory.episodic_limit", 3)
+	v.SetDefault("agent.memory.episodic_decay_factor", 0.0)
 	v.SetDefault("agent.reflect.similarity_threshold", 0.3)
 
 	if err := v.ReadConfig(bytes.NewReader([]byte(expanded))); err != nil {
