@@ -16,6 +16,11 @@ func NewChatRepo(db *gorm.DB) *ChatRepo {
 	return &ChatRepo{db: db}
 }
 
+// DB 暴露底层的 *gorm.DB，用于在服务层启动事务。
+func (r *ChatRepo) DB() *gorm.DB {
+	return r.db
+}
+
 // --- ChatSession ---
 
 func (r *ChatRepo) CreateSession(s *model.ChatSession) error {

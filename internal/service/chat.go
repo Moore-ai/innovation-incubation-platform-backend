@@ -9,6 +9,7 @@ import (
 	"time"
 
 	openai "github.com/sashabaranov/go-openai"
+	"gorm.io/gorm"
 
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/model"
@@ -163,20 +164,23 @@ func (s *ChatService) EditAndResend(ctx context.Context, sessionID uint, message
 		})
 	}
 
-	// 5. 软删旧消息
-	deletedCount, err := s.repo.DeleteMessagesFrom(sessionID, messageID)
+	// 5. 事务内软删旧消息 + 插入新消息
+	var deletedCount int64
+	err = s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		result := tx.Where("session_id = ? AND id >= ?", sessionID, messageID).
+			Delete(&model.ChatMessage{})
+		if result.Error != nil {
+			return result.Error
+		}
+		deletedCount = result.RowsAffected
+		return tx.Create(&newModels).Error
+	})
 	if err != nil {
-		slog.Error("软删旧消息失败", "error", err, "session_id", sessionID)
-		return result, errcode.ErrInternal.WithMsg("删除旧消息失败")
+		slog.Error("替换消息事务失败", "error", err, "session_id", sessionID)
+		return result, errcode.ErrInternal.WithMsg("替换消息失败")
 	}
 
-	// 6. 插入新消息
-	if err := s.repo.CreateMessages(newModels); err != nil {
-		slog.Error("插入新消息失败", "error", err, "session_id", sessionID)
-		return result, errcode.ErrInternal.WithMsg("保存消息失败")
-	}
-
-	// 7. 更新会话统计
+	// 6. 更新会话统计
 	delta := len(newRecords) - int(deletedCount)
 	if err := s.repo.UpdateSessionStats(sessionID, time.Now(), delta); err != nil {
 		slog.Error("更新会话统计失败", "error", err, "session_id", sessionID)
