@@ -149,7 +149,7 @@ func (e *Engine) loadMemory(ctx context.Context, sessionID, userID uint, role, q
 	if budget <= 0 {
 		slog.Warn("历史消息预算为0或负数，跳过所有记忆加载", "budget", budget, "session_id", sessionID)
 	}
-	memCtx, err := e.memory.LoadContext(ctx, sessionID, userID, query, budget)
+	memCtx, err := e.memory.LoadContext(ctx, sessionID, userID, query, budget, ExcludeFromMessageID(ctx))
 	if err != nil {
 		slog.Warn("加载记忆上下文失败", "error", err, "session_id", sessionID)
 	}

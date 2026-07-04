@@ -36,7 +36,8 @@ func (m *WorkingMemory) Retrieve(ctx context.Context, query string, opts Retriev
 func (m *WorkingMemory) Clear(ctx context.Context) error { return nil }
 
 // BuildWorkingContext 按 Token 预算分页加载历史消息，返回时间升序的上下文文本。
-func (m *WorkingMemory) BuildWorkingContext(sessionID uint, budget int) (string, error) {
+// excludeID > 0 时跳过 ID >= excludeID 的消息（用于编辑重发场景）。
+func (m *WorkingMemory) BuildWorkingContext(sessionID uint, budget int, excludeID uint) (string, error) {
 	var cursor uint
 	var lines []string
 	used := 0
@@ -47,6 +48,9 @@ func (m *WorkingMemory) BuildWorkingContext(sessionID uint, budget int) (string,
 			return "", err
 		}
 		for _, msg := range msgs {
+			if excludeID > 0 && msg.ID >= excludeID {
+				continue
+			}
 			line := msg.Role + ": " + msg.Content + "\n"
 			tokens := tokenutil.Estimate(line)
 			if used+tokens > budget {

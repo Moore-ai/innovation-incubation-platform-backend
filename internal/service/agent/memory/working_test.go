@@ -34,7 +34,7 @@ func TestBuildWorkingContext_NoMessages(t *testing.T) {
 	}
 	wm := &WorkingMemory{repo: mock, pageSize: 10}
 
-	result, err := wm.BuildWorkingContext(1, 1000)
+	result, err := wm.BuildWorkingContext(1, 1000, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestBuildWorkingContext_BudgetStop(t *testing.T) {
 	wm := &WorkingMemory{repo: mock, pageSize: 10}
 
 	// 预算足够容纳 "user: hello\n" (简单模式 ~2 tokens)
-	result, err := wm.BuildWorkingContext(1, 100)
+	result, err := wm.BuildWorkingContext(1, 100, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestBuildWorkingContext_SkipsMessagesOverBudget(t *testing.T) {
 	// "user: hi\n" = 简单模式: CJK=0, fields=["user:","hi"] → 2 tokens
 	// "assistant: hello world long reply\n" → fields=["assistant:","hello","world","long","reply"] → 5 tokens
 	shortTokens := tokenutil.Estimate("user: hi\n")
-	result, err := wm.BuildWorkingContext(1, shortTokens)
+	result, err := wm.BuildWorkingContext(1, shortTokens, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestBuildWorkingContext_OrderAscending(t *testing.T) {
 	}
 	wm := &WorkingMemory{repo: mock, pageSize: 10}
 
-	result, err := wm.BuildWorkingContext(1, 1000)
+	result, err := wm.BuildWorkingContext(1, 1000, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestBuildWorkingContext_MultiPage(t *testing.T) {
 	}
 	wm := &WorkingMemory{repo: mock, pageSize: 3}
 
-	_, err := wm.BuildWorkingContext(1, 1000)
+	_, err := wm.BuildWorkingContext(1, 1000, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

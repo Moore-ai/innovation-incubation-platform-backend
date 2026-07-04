@@ -9,7 +9,6 @@ import (
 	"time"
 
 	openai "github.com/sashabaranov/go-openai"
-	"gorm.io/gorm"
 
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/model"
@@ -137,7 +136,8 @@ func (s *ChatService) EditAndResend(ctx context.Context, sessionID uint, message
 		return nil, errcode.ErrInvalidParams.WithMsg("只能编辑最后一条用户消息")
 	}
 
-	// 2. 请求级超时
+	// 请求级超时前注入排除标记，让记忆加载跳过即将被替换的消息。
+	ctx = agent.WithExcludeFromMessageID(ctx, messageID)
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(s.cfg.RequestTimeoutSec)*time.Second)
 	defer cancel()
 
@@ -166,21 +166,12 @@ func (s *ChatService) EditAndResend(ctx context.Context, sessionID uint, message
 
 	// 5. 事务内软删旧消息 + 插入新消息
 	var deletedCount int64
-	err = s.repo.DB().Transaction(func(tx *gorm.DB) error {
-		result := tx.Where("session_id = ? AND id >= ?", sessionID, messageID).
-			Delete(&model.ChatMessage{})
-		if result.Error != nil {
-			return result.Error
-		}
-		deletedCount = result.RowsAffected
-		return tx.Create(&newModels).Error
-	})
+	deletedCount, err = s.repo.ReplaceMessages(sessionID, messageID, newModels)
 	if err != nil {
 		slog.Error("替换消息事务失败", "error", err, "session_id", sessionID)
 		return result, errcode.ErrInternal.WithMsg("替换消息失败")
 	}
-
-	// 6. 更新会话统计
+		// 6. 更新会话统计
 	delta := len(newRecords) - int(deletedCount)
 	if err := s.repo.UpdateSessionStats(sessionID, time.Now(), delta); err != nil {
 		slog.Error("更新会话统计失败", "error", err, "session_id", sessionID)

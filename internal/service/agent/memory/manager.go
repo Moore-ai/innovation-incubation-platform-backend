@@ -22,7 +22,7 @@ type episodicRepo interface {
 
 // workingContextProvider 工作记忆的上下文构建能力。
 type workingContextProvider interface {
-	BuildWorkingContext(sessionID uint, budget int) (string, error)
+	BuildWorkingContext(sessionID uint, budget int, excludeID uint) (string, error)
 }
 
 // semanticRetriever 语义记忆的检索与写入能力。
@@ -72,8 +72,8 @@ func appendSegment[T any](parts *[]string, budget int, header string, items []T,
 }
 
 // LoadContext 加载上下文：语义记忆 → 情景记忆（向量检索）→ 工作记忆。
-// 用户查询的 embedding 在入口计算一次，语义和情景共享。
-func (m *MemoryManager) LoadContext(ctx context.Context, sessionID, userID uint, query string, budget int) (string, error) {
+// excludeID > 0 时从情景/工作记忆中排除 ID >= excludeID 的消息（编辑重发场景）。
+func (m *MemoryManager) LoadContext(ctx context.Context, sessionID, userID uint, query string, budget int, excludeID uint) (string, error) {
 	var queryVec []float32
 	if m.embedClient != nil && budget > 0 {
 		vec, err := m.embedClient.Embed(ctx, query)
@@ -97,7 +97,6 @@ func (m *MemoryManager) LoadContext(ctx context.Context, sessionID, userID uint,
 
 	// 2. 情景记忆（向量语义相似度 + 时间衰减复合评分）
 	if budget > 0 && m.cfg.Memory.EpisodicLimit > 0 && len(queryVec) > 0 {
-		// 衰减时多取候选，供组合重排
 		fetchLimit := m.cfg.Memory.EpisodicLimit
 		if m.cfg.Memory.EpisodicDecayFactor > 0 {
 			fetchLimit = m.cfg.Memory.EpisodicLimit * 3
@@ -105,6 +104,19 @@ func (m *MemoryManager) LoadContext(ctx context.Context, sessionID, userID uint,
 		msgs, distances, err := m.repo.SearchMessagesByVectorWithDistance(userID, queryVec, fetchLimit)
 		if err != nil {
 			msgs = nil
+		}
+		// 编辑重发时排除即将被替换的消息（消息和距离数组同步过滤）
+		if excludeID > 0 {
+			filtered := make([]model.ChatMessage, 0, len(msgs))
+			filteredDist := make([]float64, 0, len(distances))
+			for i, msg := range msgs {
+				if msg.ID < excludeID {
+					filtered = append(filtered, msg)
+					filteredDist = append(filteredDist, distances[i])
+				}
+			}
+			msgs = filtered
+			distances = filteredDist
 		}
 		if len(msgs) > 0 && m.cfg.Memory.EpisodicDecayFactor > 0 {
 			msgs = rankWithDecay(msgs, distances, m.cfg.Memory.EpisodicDecayFactor, m.cfg.Memory.EpisodicLimit)
@@ -116,7 +128,7 @@ func (m *MemoryManager) LoadContext(ctx context.Context, sessionID, userID uint,
 
 	// 3. 工作记忆（剩余预算）
 	if budget > 0 {
-		wctx, err := m.working.BuildWorkingContext(sessionID, budget)
+		wctx, err := m.working.BuildWorkingContext(sessionID, budget, excludeID)
 		if err != nil {
 			if len(parts) > 0 {
 				return strings.Join(parts, "\n\n"), nil

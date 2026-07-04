@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -104,13 +103,17 @@ func (ctl *ChatController) EditAndResend(c *gin.Context) {
 		return
 	}
 
-	// 校验消息长度
 	if ctl.cfg.Agent.MessageMaxChars > 0 && len([]rune(req.Content)) > ctl.cfg.Agent.MessageMaxChars {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg("消息超过最大长度限制"))
 		return
 	}
 
-	// SSE headers
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		response.Error(c, errcode.ErrInternal.WithMsg("不支持 SSE"))
+		return
+	}
+
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "keep-alive")
@@ -123,22 +126,12 @@ func (ctl *ChatController) EditAndResend(c *gin.Context) {
 		ctx = agent.WithState(ctx, req.State)
 	}
 
-	flusher, ok := c.Writer.(http.Flusher)
-	if !ok {
-		response.Error(c, errcode.ErrInternal.WithMsg("不支持 SSE"))
-		return
-	}
-
 	_, err := ctl.svc.EditAndResend(ctx, uri.SessionID, uri.MessageID, req.Content, role, func(evt agent.SSEEvent) {
-		data, _ := json.Marshal(evt)
-		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
-		flusher.Flush()
+		agent.WriteSSEEvent(c.Writer, flusher, evt)
 	})
 
 	if err != nil {
-		data, _ := json.Marshal(agent.SSEEvent{Type: "error", Data: map[string]string{"message": err.Error()}})
-		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
-		flusher.Flush()
+		agent.WriteSSEEvent(c.Writer, flusher, agent.SSEEvent{Type: "error", Data: map[string]string{"message": err.Error()}})
 		return
 	}
 }
@@ -162,31 +155,15 @@ func (ctl *ChatController) SendMessage(c *gin.Context) {
 		return
 	}
 
-	// 校验消息长度
 	if ctl.cfg.Agent.MessageMaxChars > 0 && len([]rune(req.Content)) > ctl.cfg.Agent.MessageMaxChars {
 		response.Error(c, errcode.ErrInvalidParams.WithMsg("消息超过最大长度限制"))
 		return
 	}
 
-	// 校验会话归属
 	_, _, err := ctl.svc.GetSession(uri.ID, userID)
 	if err != nil {
 		response.Error(c, errcode.ErrNotFound.WithMsg("会话不存在"))
 		return
-	}
-
-	// SSE headers
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.WriteHeader(http.StatusOK)
-
-	ctx := c.Request.Context()
-	// 注入 user_id、role 和 state 到 context
-	ctx = agent.WithUserID(ctx, userID)
-	ctx = agent.WithRole(ctx, role)
-	if len(req.State) > 0 {
-		ctx = agent.WithState(ctx, req.State)
 	}
 
 	flusher, ok := c.Writer.(http.Flusher)
@@ -195,16 +172,24 @@ func (ctl *ChatController) SendMessage(c *gin.Context) {
 		return
 	}
 
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.WriteHeader(http.StatusOK)
+
+	ctx := c.Request.Context()
+	ctx = agent.WithUserID(ctx, userID)
+	ctx = agent.WithRole(ctx, role)
+	if len(req.State) > 0 {
+		ctx = agent.WithState(ctx, req.State)
+	}
+
 	result, err := ctl.svc.Run(ctx, uri.ID, req.Content, role, func(evt agent.SSEEvent) {
-		data, _ := json.Marshal(evt)
-		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
-		flusher.Flush()
+		agent.WriteSSEEvent(c.Writer, flusher, evt)
 	})
 
 	if err != nil {
-		data, _ := json.Marshal(agent.SSEEvent{Type: "error", Data: map[string]string{"message": err.Error()}})
-		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
-		flusher.Flush()
+		agent.WriteSSEEvent(c.Writer, flusher, agent.SSEEvent{Type: "error", Data: map[string]string{"message": err.Error()}})
 		return
 	}
 

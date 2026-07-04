@@ -2,7 +2,11 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"maps"
+	"net/http"
 )
 
 type SSEEvent struct {
@@ -27,9 +31,10 @@ type ChatMessageRecord struct {
 type ctxKey string
 
 const (
-	ctxKeyUserID ctxKey = "user_id"
-	ctxKeyRole   ctxKey = "role"
-	ctxKeyState  ctxKey = "state"
+	ctxKeyUserID           ctxKey = "user_id"
+	ctxKeyRole             ctxKey = "role"
+	ctxKeyState            ctxKey = "state"
+	ctxKeyExcludeFromMsgID ctxKey = "exclude_from_msg_id"
 )
 
 func UserIDFromCtx(ctx context.Context) uint {
@@ -57,4 +62,22 @@ func WithRole(ctx context.Context, role string) context.Context {
 
 func WithState(ctx context.Context, state map[string]any) context.Context {
 	return context.WithValue(ctx, ctxKeyState, maps.Clone(state))
+}
+
+// ExcludeFromMessageID 返回编辑重发场景下需跳过的起始消息 ID，0 = 不跳过。
+func ExcludeFromMessageID(ctx context.Context) uint {
+	v, _ := ctx.Value(ctxKeyExcludeFromMsgID).(uint)
+	return v
+}
+
+// WithExcludeFromMessageID 标记编辑重发时需排除的消息起始 ID。
+func WithExcludeFromMessageID(ctx context.Context, msgID uint) context.Context {
+	return context.WithValue(ctx, ctxKeyExcludeFromMsgID, msgID)
+}
+
+// WriteSSEEvent 将 SSEEvent 序列化并写入 SSE 流。
+func WriteSSEEvent(w io.Writer, f http.Flusher, evt SSEEvent) {
+	data, _ := json.Marshal(evt)
+	fmt.Fprintf(w, "data: %s\n\n", data)
+	f.Flush()
 }

@@ -16,9 +16,19 @@ func NewChatRepo(db *gorm.DB) *ChatRepo {
 	return &ChatRepo{db: db}
 }
 
-// DB 暴露底层的 *gorm.DB，用于在服务层启动事务。
-func (r *ChatRepo) DB() *gorm.DB {
-	return r.db
+// ReplaceMessages 在事务内软删旧消息并插入新消息，返回软删条数。
+func (r *ChatRepo) ReplaceMessages(sessionID, fromMessageID uint, newMsgs []model.ChatMessage) (int64, error) {
+	var deletedCount int64
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Where("session_id = ? AND id >= ?", sessionID, fromMessageID).
+			Delete(&model.ChatMessage{})
+		if result.Error != nil {
+			return result.Error
+		}
+		deletedCount = result.RowsAffected
+		return tx.Create(&newMsgs).Error
+	})
+	return deletedCount, err
 }
 
 // --- ChatSession ---

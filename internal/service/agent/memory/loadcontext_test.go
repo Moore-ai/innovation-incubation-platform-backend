@@ -21,7 +21,7 @@ type mockWorkingProvider struct {
 	err error
 }
 
-func (m *mockWorkingProvider) BuildWorkingContext(sessionID uint, budget int) (string, error) {
+func (m *mockWorkingProvider) BuildWorkingContext(sessionID uint, budget int, excludeID uint) (string, error) {
 	return m.ctx, m.err
 }
 
@@ -53,8 +53,8 @@ func (m *mockEpisodicRepo) SearchMessagesByVectorWithDistance(userID uint, embed
 func newTestCfg() config.AgentConfig {
 	return config.AgentConfig{
 		Memory: config.AgentMemoryConfig{
-			SemanticLimit:      5,
-			EpisodicLimit:      3,
+			SemanticLimit:       5,
+			EpisodicLimit:       3,
 			EpisodicDecayFactor: 0,
 		},
 	}
@@ -73,7 +73,7 @@ func TestLoadContext_SemanticOnly(t *testing.T) {
 		cfg:         newTestCfg(),
 	}
 
-	result, err := mgr.LoadContext(context.Background(), 1, 100, "测试查询", 1000)
+	result, err := mgr.LoadContext(context.Background(), 1, 100, "测试查询", 1000, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestLoadContext_SemanticAndWorking(t *testing.T) {
 		cfg:         newTestCfg(),
 	}
 
-	result, err := mgr.LoadContext(context.Background(), 1, 100, "query", 1000)
+	result, err := mgr.LoadContext(context.Background(), 1, 100, "query", 1000, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -114,14 +114,14 @@ func TestLoadContext_SemanticAndWorking(t *testing.T) {
 
 func TestLoadContext_ZeroBudget(t *testing.T) {
 	mgr := &MemoryManager{
-		working:  &mockWorkingProvider{ctx: "should not appear"},
-		semantic: &mockSemanticRetriever{items: nil},
-		repo:     &mockEpisodicRepo{},
+		working:     &mockWorkingProvider{ctx: "should not appear"},
+		semantic:    &mockSemanticRetriever{items: nil},
+		repo:        &mockEpisodicRepo{},
 		embedClient: &mockEmbedder{vec: []float32{0.1}},
-		cfg:      newTestCfg(),
+		cfg:         newTestCfg(),
 	}
 
-	result, err := mgr.LoadContext(context.Background(), 1, 100, "q", 0)
+	result, err := mgr.LoadContext(context.Background(), 1, 100, "q", 0, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -131,7 +131,6 @@ func TestLoadContext_ZeroBudget(t *testing.T) {
 }
 
 func TestLoadContext_SemanticPriority(t *testing.T) {
-	// 语义记忆应该在工作记忆之前加载
 	mgr := &MemoryManager{
 		working: &mockWorkingProvider{
 			ctx: "工作记忆\n",
@@ -146,7 +145,7 @@ func TestLoadContext_SemanticPriority(t *testing.T) {
 		cfg:         newTestCfg(),
 	}
 
-	result, err := mgr.LoadContext(context.Background(), 1, 100, "q", 1000)
+	result, err := mgr.LoadContext(context.Background(), 1, 100, "q", 1000, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -162,7 +161,6 @@ func TestLoadContext_SemanticPriority(t *testing.T) {
 }
 
 func TestLoadContext_TightBudget(t *testing.T) {
-	// 预算只够语义记忆的 header，不够任何条目
 	headerTokens := tokenutil.Estimate("### 相关规则与偏好\n")
 	mgr := &MemoryManager{
 		working: &mockWorkingProvider{ctx: ""},
@@ -176,11 +174,10 @@ func TestLoadContext_TightBudget(t *testing.T) {
 		cfg:         newTestCfg(),
 	}
 
-	result, err := mgr.LoadContext(context.Background(), 1, 100, "q", headerTokens)
+	result, err := mgr.LoadContext(context.Background(), 1, 100, "q", headerTokens, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// header 刚好用完预算，条目放不下 → 工作记忆也放不下
 	if strings.Contains(result, "语义记忆条目") {
 		t.Error("item should not fit in tight budget")
 	}
