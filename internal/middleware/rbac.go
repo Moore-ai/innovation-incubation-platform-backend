@@ -30,6 +30,9 @@ func SeedPolicies(e *casbin.Enforcer) {
 		{"enterprise", "/api/v1/enterprise/*", "(GET|POST|PUT|PATCH|DELETE)"},
 		{"carrier", "/api/v1/carrier/*", "(GET|POST|PUT|PATCH|DELETE)"},
 		{"government", "/api/v1/gov/*", "(GET|POST|PUT|PATCH|DELETE)"},
+		{"enterprise", "/api/v1/chat/*", "(GET|POST|PUT|PATCH|DELETE)"},
+		{"carrier", "/api/v1/chat/*", "(GET|POST|PUT|PATCH|DELETE)"},
+		{"government", "/api/v1/chat/*", "(GET|POST|PUT|PATCH|DELETE)"},
 		{"*", "/api/v1/auth/*", "(GET|POST|PUT)"},
 	}
 	for _, p := range policies {

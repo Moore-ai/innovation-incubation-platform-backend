@@ -28,6 +28,9 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*dto.LoginResponse, er
 	if !model.UserRole(req.Role).IsValid() {
 		return nil, errcode.ErrInvalidParams.WithMsg("角色无效")
 	}
+	if req.Role == string(model.UserRoleGovernment) {
+		return nil, errcode.ErrInvalidParams.WithMsg("政务账号不支持自助注册")
+	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -65,15 +68,6 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*dto.LoginResponse, er
 			Area:   req.CarrierArea,
 		}
 		if err := s.repo.CreateCarrier(carrier); err != nil {
-			return nil, errcode.ErrInternal
-		}
-	case string(model.UserRoleGovernment):
-		gov := &model.Government{
-			UserID:     user.ID,
-			Name:       req.GovName,
-			Department: req.GovDepartment,
-		}
-		if err := s.repo.CreateGovernment(gov); err != nil {
 			return nil, errcode.ErrInternal
 		}
 	}

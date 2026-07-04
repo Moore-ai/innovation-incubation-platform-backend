@@ -62,7 +62,7 @@ func newTestCfg() config.AgentConfig {
 
 func TestLoadContext_SemanticOnly(t *testing.T) {
 	mgr := &MemoryManager{
-		working:  &mockWorkingProvider{ctx: ""},
+		working: &mockWorkingProvider{ctx: ""},
 		semantic: &mockSemanticRetriever{
 			items: []*MemoryItem{
 				{Content: "重要规则: 优先使用 search_policy", Importance: 0.9},
@@ -82,6 +82,13 @@ func TestLoadContext_SemanticOnly(t *testing.T) {
 	}
 	if !strings.Contains(result, "search_policy") {
 		t.Errorf("expected semantic item content, got: %s", result)
+	}
+}
+
+func TestNewMemoryManager_NilEmbeddingClientStaysNil(t *testing.T) {
+	mgr := NewMemoryManager(nil, nil, nil, nil, newTestCfg())
+	if mgr.embedClient != nil {
+		t.Fatal("nil embedding client should not be stored as a non-nil interface")
 	}
 }
 
