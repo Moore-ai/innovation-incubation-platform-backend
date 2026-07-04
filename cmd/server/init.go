@@ -90,7 +90,7 @@ func initSearchService(r *repositories, cfg *config.Config, db *gorm.DB, aiClien
 	}
 }
 
-func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, embedClient *aiclient.EmbeddingClient, searchSvc service.PolicySearch) (*service.ChatService, *agentpkg.Engine) {
+func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, embedClient *aiclient.EmbeddingClient, searchSvc service.PolicySearch, db *gorm.DB) (*service.ChatService, *agentpkg.Engine) {
 	registry := agenttools.NewToolRegistry()
 	registry.Register(agentbuiltin.NewSearchPolicy(searchSvc))
 	registry.Register(agentbuiltin.NewQueryEnterpriseInfo(r.ent))
@@ -107,6 +107,10 @@ func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, e
 	registry.Register(agentbuiltin.NewQueryApplicationsByStatus(r.carrier))
 	registry.Register(agentbuiltin.NewQueryPolicyDetail(r.gov))
 	registry.Register(agentbuiltin.NewQueryMyFiles(r.file))
+
+	for _, tcfg := range agentbuiltin.TableConfigs {
+		registry.Register(agentbuiltin.NewGenericQueryTool(tcfg, db))
+	}
 
 	workingMem := agentmemory.NewWorkingMemory(r.chat, cfg.Agent.WorkingMemory.PageSize)
 	semanticMem := agentmemory.NewSemanticMemory(r.chat, embedClient, cfg.Agent.Memory.SemanticLimit)
@@ -138,7 +142,7 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 	}
 
 	searchSvc := initSearchService(r, cfg, db, aiClient, aiSvc, embedClient)
-	chatSvc, _ := initAgent(r, cfg, aiClient, embedClient, searchSvc)
+	chatSvc, _ := initAgent(r, cfg, aiClient, embedClient, searchSvc, db)
 
 	return &services{
 		auth:    service.NewAuthService(r.auth, cfg.JWT),
