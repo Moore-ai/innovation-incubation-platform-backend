@@ -19,6 +19,7 @@ type Deps struct {
 	GovernmentController   *controller.GovernmentController
 	FileController         *controller.FileController
 	NotificationController *controller.NotificationController
+	ChatController         *controller.ChatController
 	TestController         *controller.TestController
 }
 
@@ -35,6 +36,7 @@ func RegisterRoutes(r *gin.Engine, deps *Deps) {
 	registerFileRoutes(r, deps)
 	registerNotificationRoutes(r, deps)
 	registerTestRoutes(r, deps)
+	registerChatRoutes(r, deps)
 
 	r.GET("/api/v1/health", func(c *gin.Context) {
 		response.Success(c, gin.H{"status": "ok"})
@@ -197,4 +199,21 @@ func registerTestRoutes(r *gin.Engine, deps *Deps) {
 	t.POST("/llm", deps.TestController.TestLLM)
 	t.POST("/embedding", deps.TestController.TestEmbedding)
 	t.POST("/convert", deps.TestController.TestConvertFile)
+}
+
+func registerChatRoutes(r *gin.Engine, deps *Deps) {
+	if deps.ChatController == nil {
+		return
+	}
+	chat := r.Group("/api/v1/chat")
+	chat.Use(middleware.AuthMiddleware(deps.Config.JWT))
+	if deps.Enforcer != nil {
+		chat.Use(middleware.RbacMiddleware(deps.Enforcer))
+	}
+	chat.POST("/sessions", deps.ChatController.CreateSession)
+	chat.GET("/sessions", deps.ChatController.ListSessions)
+	chat.GET("/sessions/:id", deps.ChatController.GetSession)
+	chat.DELETE("/sessions/:id", deps.ChatController.DeleteSession)
+	chat.POST("/sessions/:id/messages", deps.ChatController.SendMessage)
+	chat.PUT("/sessions/:id/messages/:messageId", deps.ChatController.EditAndResend)
 }

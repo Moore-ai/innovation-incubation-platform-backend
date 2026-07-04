@@ -5,6 +5,10 @@ import (
 	"innovation-incubation-platform-backend/internal/controller"
 	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/internal/service"
+	agentpkg "innovation-incubation-platform-backend/internal/service/agent"
+	agentmemory "innovation-incubation-platform-backend/internal/service/agent/memory"
+	agenttools "innovation-incubation-platform-backend/internal/service/agent/tools"
+	agentbuiltin "innovation-incubation-platform-backend/internal/service/agent/tools/builtin"
 	"innovation-incubation-platform-backend/internal/storage"
 	"innovation-incubation-platform-backend/pkg/aiclient"
 	"log/slog"
@@ -24,6 +28,7 @@ type repositories struct {
 	deletion     *repository.DeletionRepo
 	policyFollow *repository.PolicyFollowRepo
 	appeal       *repository.AppealRepo
+	chat         *repository.ChatRepo
 }
 
 type services struct {
@@ -37,6 +42,7 @@ type services struct {
 	search  service.PolicySearch
 	test    *service.TestService
 	appeal  *service.AppealService
+	chat    *service.ChatService
 }
 
 type controllers struct {
@@ -47,6 +53,7 @@ type controllers struct {
 	file    *controller.FileController
 	notif   *controller.NotificationController
 	test    *controller.TestController
+	chat    *controller.ChatController
 }
 
 func initRepositories(db *gorm.DB) *repositories {
@@ -61,7 +68,55 @@ func initRepositories(db *gorm.DB) *repositories {
 		deletion:     repository.NewDeletionRepo(db),
 		policyFollow: repository.NewPolicyFollowRepo(db),
 		appeal:       repository.NewAppealRepo(db),
+		chat:         repository.NewChatRepo(db),
 	}
+}
+
+func initSearchService(r *repositories, cfg *config.Config, db *gorm.DB, aiClient *aiclient.Client, aiSvc *service.AIService, embedClient *aiclient.EmbeddingClient) service.PolicySearch {
+	switch cfg.Search.Method {
+	case "vector":
+		if embedClient == nil {
+			slog.Error("vector search requires embed client, falling back to structured")
+			return service.NewStructuredSearch(aiSvc, r.carrier, db, cfg.Search)
+		}
+		expander := service.NewQueryExpander(aiClient, cfg.Search.Vector.MQE.NQueries)
+		var hydeGen *service.HyDEGenerator
+		if cfg.Search.Vector.HyDE.Enabled && aiClient != nil {
+			hydeGen = service.NewHyDEGenerator(aiClient, cfg.Search.Vector.HyDE)
+		}
+		return service.NewVectorSearch(embedClient, aiSvc, expander, hydeGen, r.carrier, db, cfg.Search)
+	default:
+		return service.NewStructuredSearch(aiSvc, r.carrier, db, cfg.Search)
+	}
+}
+
+func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, embedClient *aiclient.EmbeddingClient, searchSvc service.PolicySearch) (*service.ChatService, *agentpkg.Engine) {
+	registry := agenttools.NewToolRegistry()
+	registry.Register(agentbuiltin.NewSearchPolicy(searchSvc))
+	registry.Register(agentbuiltin.NewQueryEnterpriseInfo(r.ent))
+	registry.Register(agentbuiltin.NewQueryAppeal(r.appeal))
+	registry.Register(agentbuiltin.NewQueryPolicyFollow(r.policyFollow))
+	registry.Register(agentbuiltin.NewQueryIncubationRecords(r.ent))
+	registry.Register(agentbuiltin.NewQueryChangeHistory(r.ent))
+	registry.Register(agentbuiltin.NewQueryMyPolicyApplications(r.ent))
+	registry.Register(agentbuiltin.NewQueryMyCarrierInfo(r.carrier))
+	registry.Register(agentbuiltin.NewQueryPendingIncubations(r.carrier))
+	registry.Register(agentbuiltin.NewQueryPendingChanges(r.carrier))
+	registry.Register(agentbuiltin.NewQueryEnterpriseApplications(r.carrier))
+	registry.Register(agentbuiltin.NewQueryPerformanceCampaigns(r.carrier))
+	registry.Register(agentbuiltin.NewQueryApplicationsByStatus(r.carrier))
+	registry.Register(agentbuiltin.NewQueryPolicyDetail(r.gov))
+	registry.Register(agentbuiltin.NewQueryMyFiles(r.file))
+
+	workingMem := agentmemory.NewWorkingMemory(r.chat, cfg.Agent.WorkingMemory.PageSize)
+	semanticMem := agentmemory.NewSemanticMemory(r.chat, embedClient, cfg.Agent.Memory.SemanticLimit)
+	memMgr := agentmemory.NewMemoryManager(workingMem, semanticMem, r.chat, embedClient, cfg.Agent)
+
+	reflect := agentpkg.NewReflectChecker(embedClient, registry, cfg.Agent.Reflect)
+	engine := agentpkg.NewEngine(aiClient, registry, memMgr, reflect, cfg.Agent)
+
+	chatSvc := service.NewChatService(engine, r.chat, memMgr, aiClient, cfg.Agent)
+	return chatSvc, engine
 }
 
 func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service.SSEHub) *services {
@@ -82,27 +137,8 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 		embedClient = aiclient.NewEmbeddingClient(cfg.AI.Embedding)
 	}
 
-	var searchSvc service.PolicySearch
-	switch cfg.Search.Method {
-	case "vector":
-		if embedClient == nil {
-			slog.Error("vector search requires embed client, falling back to structured")
-			searchSvc = service.NewStructuredSearch(aiSvc, r.carrier, db, cfg.Search)
-		} else {
-			expander := service.NewQueryExpander(aiClient, cfg.Search.Vector.MQE.NQueries)
-			var hydeGen *service.HyDEGenerator
-			if cfg.Search.Vector.HyDE.Enabled && aiClient != nil {
-				hydeGen = service.NewHyDEGenerator(aiClient, cfg.Search.Vector.HyDE)
-			}
-			searchSvc = service.NewVectorSearch(embedClient, aiSvc, expander, hydeGen, r.carrier, db, cfg.Search)
-		}
-	case "structured":
-		searchSvc = service.NewStructuredSearch(aiSvc, r.carrier, db, cfg.Search)
-	default:
-		searchSvc = service.NewStructuredSearch(aiSvc, r.carrier, db, cfg.Search)
-	}
-
-	appealSvc := service.NewAppealService(r.appeal)
+	searchSvc := initSearchService(r, cfg, db, aiClient, aiSvc, embedClient)
+	chatSvc, _ := initAgent(r, cfg, aiClient, embedClient, searchSvc)
 
 	return &services{
 		auth:    service.NewAuthService(r.auth, cfg.JWT),
@@ -114,7 +150,8 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 		file:    fileSvc,
 		search:  searchSvc,
 		test:    service.NewTestService(aiClient, embedClient),
-		appeal:  appealSvc,
+		appeal:  service.NewAppealService(r.appeal),
+		chat:    chatSvc,
 	}
 }
 
@@ -127,5 +164,6 @@ func initControllers(r *repositories, s *services, cfg *config.Config, hub *serv
 		file:    controller.NewFileController(s.file, cfg),
 		notif:   controller.NewNotificationController(r.notif, hub, cfg),
 		test:    controller.NewTestController(s.test),
+		chat:    controller.NewChatController(s.chat, cfg),
 	}
 }

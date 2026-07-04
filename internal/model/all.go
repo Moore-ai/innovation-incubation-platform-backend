@@ -19,5 +19,8 @@ func AllModels() []any {
 		&AccountDeletionRequest{},
 		&PolicyFollow{},
 		&Appeal{},
+		&ChatSession{},
+		&ChatMessage{},
+		&SemanticMemory{},
 	}
 }

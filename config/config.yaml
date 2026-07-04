@@ -10,7 +10,7 @@ db:
   password: ${DB_PASSWORD}
   name: ${DB_NAME}
   sslmode: disable
-  log_level: WARN
+  log_level: WARN    # INFO | WARN
 
 jwt:
   secret: ${JWT_SECRET}
@@ -47,7 +47,7 @@ filematch:
     - 扫描
 
 search:
-  method: vector
+  method: vector      # structured | vector
   max_results: 10
   vector:
     dimensions: 1024
@@ -91,3 +91,24 @@ file_parser:
   venv_path: "sidecar/file-parser/venv"
   script_path: "sidecar/file-parser/server.py"
   timeout_sec: 30
+
+agent:
+  model: ""               # 空字符串表示沿用 ai.openai.model
+  max_steps: 10
+  message_max_chars: 2000
+  request_timeout_sec: 120
+  planning_enabled: false
+  planning_model: ""
+  public_sse_types: [reply, done, thinking, error]  # 允许暴露给前端的 SSE 事件
+  tool_timeout_sec: 10
+  context_window: 512000
+  history_budget_ratio: 0.7
+  token_estimation: better     # simple | better
+  working_memory:
+    page_size: 10
+  memory:
+    semantic_limit: 3
+    episodic_limit: 3
+    episodic_decay_factor: 0.95   # 情景记忆每个月的保存能力
+  reflect:
+    similarity_threshold: 0.3

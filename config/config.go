@@ -1,4 +1,4 @@
-package config
+﻿package config
 
 import (
 	"bytes"
@@ -24,6 +24,7 @@ type Config struct {
 	FileMatch    FileMatchConfig    `mapstructure:"filematch"`
 	Search       SearchConfig       `mapstructure:"search"`
 	FileParser   FileParserConfig   `mapstructure:"file_parser"`
+	Agent        AgentConfig        `mapstructure:"agent"`
 }
 
 type FileParserConfig struct {
@@ -149,6 +150,37 @@ type RateLimitConfig struct {
 	Whitelist  []uint `mapstructure:"whitelist"`
 }
 
+type AgentConfig struct {
+	Model              string              `mapstructure:"model"`
+	MaxSteps           int                 `mapstructure:"max_steps"`
+	MessageMaxChars    int                 `mapstructure:"message_max_chars"`
+	RequestTimeoutSec  int                 `mapstructure:"request_timeout_sec"`
+	ToolTimeoutSec     int                 `mapstructure:"tool_timeout_sec"`
+	ContextWindow      int                 `mapstructure:"context_window"`
+	HistoryBudgetRatio float64             `mapstructure:"history_budget_ratio"`
+	PlanningEnabled    bool                `mapstructure:"planning_enabled"`
+	PlanningModel      string              `mapstructure:"planning_model"`
+	PublicSSETypes     []string            `mapstructure:"public_sse_types"` // 允许暴露给前端的 SSE 事件类型
+	TokenEstimation    string              `mapstructure:"token_estimation"`
+	WorkingMemory      WorkingMemoryConfig `mapstructure:"working_memory"`
+	Memory             AgentMemoryConfig   `mapstructure:"memory"`
+	Reflect            ReflectConfig       `mapstructure:"reflect"`
+}
+
+type WorkingMemoryConfig struct {
+	PageSize int `mapstructure:"page_size"` // 分页加载每页条数
+}
+
+type AgentMemoryConfig struct {
+	SemanticLimit       int     `mapstructure:"semantic_limit"`
+	EpisodicLimit       int     `mapstructure:"episodic_limit"`        // 情景记忆检索条数
+	EpisodicDecayFactor float64 `mapstructure:"episodic_decay_factor"` // 时间衰减因子，0 表示不衰减（默认 0）
+}
+
+type ReflectConfig struct {
+	SimilarityThreshold float64 `mapstructure:"similarity_threshold"`
+}
+
 func (c *RateLimitConfig) IsWhitelisted(userID uint) bool {
 	return slices.Contains(c.Whitelist, userID)
 }
@@ -238,7 +270,22 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("upload.dir", "./uploads")
 	v.SetDefault("upload.allowed_extensions", []string{".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".png"})
 	v.SetDefault("server.rbac_enabled", true)
-
+	v.SetDefault("agent.model", "")
+	v.SetDefault("agent.max_steps", 10)
+	v.SetDefault("agent.message_max_chars", 2000)
+	v.SetDefault("agent.request_timeout_sec", 120)
+	v.SetDefault("agent.tool_timeout_sec", 10)
+	v.SetDefault("agent.context_window", 512000)
+	v.SetDefault("agent.history_budget_ratio", 0.7)
+	v.SetDefault("agent.planning_enabled", false)
+	v.SetDefault("agent.planning_model", "")
+	v.SetDefault("agent.public_sse_types", []string{"reply", "done", "thinking", "error"})
+	v.SetDefault("agent.token_estimation", "better")
+	v.SetDefault("agent.working_memory.page_size", 10)
+	v.SetDefault("agent.memory.semantic_limit", 3)
+	v.SetDefault("agent.memory.episodic_limit", 3)
+	v.SetDefault("agent.memory.episodic_decay_factor", 0.0)
+	v.SetDefault("agent.reflect.similarity_threshold", 0.3)
 
 	if err := v.ReadConfig(bytes.NewReader([]byte(expanded))); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)

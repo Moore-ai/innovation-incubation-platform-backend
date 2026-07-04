@@ -66,6 +66,7 @@ func main() {
 		FileController:         ctl.file,
 		NotificationController: ctl.notif,
 		TestController:         ctl.test,
+		ChatController:         ctl.chat,
 	})
 
 	slog.Info("server starting", "port", cfg.Server.Port)

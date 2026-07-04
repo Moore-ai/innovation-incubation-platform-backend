@@ -76,6 +76,47 @@ func (c *Client) ChatWithMaxTokens(ctx context.Context, system, user string, max
 	})
 }
 
+// ChatCompletion 支持完整多轮对话 + 工具调用
+func (c *Client) ChatCompletion(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+	if req.Model == "" {
+		req.Model = c.model
+	}
+	var resp openai.ChatCompletionResponse
+	var lastErr error
+	for attempt := 0; attempt <= defaultRetries; attempt++ {
+		if attempt > 0 {
+			slog.Warn("AI ChatCompletion 重试", "attempt", attempt, "max", defaultRetries)
+		}
+		var err error
+		resp, err = c.inner.CreateChatCompletion(ctx, req)
+		if err == nil {
+			return resp, nil
+		}
+		lastErr = err
+		if ctx.Err() != nil {
+			break
+		}
+	}
+	if ctx.Err() == context.DeadlineExceeded {
+		return resp, fmt.Errorf("AI服务超时")
+	}
+	slog.Error("AI ChatCompletion 失败", "error", lastErr)
+	return resp, fmt.Errorf("AI服务暂不可用")
+}
+
+// CreateChatCompletionStream 流式调用
+func (c *Client) CreateChatCompletionStream(ctx context.Context, req openai.ChatCompletionRequest) (*openai.ChatCompletionStream, error) {
+	if req.Model == "" {
+		req.Model = c.model
+	}
+	return c.inner.CreateChatCompletionStream(ctx, req)
+}
+
+// Model 返回当前使用的模型名
+func (c *Client) Model() string {
+	return c.model
+}
+
 func retry(ctx context.Context, op string, fn func() (string, error)) (string, error) {
 	var lastErr error
 	for attempt := 0; attempt <= defaultRetries; attempt++ {
