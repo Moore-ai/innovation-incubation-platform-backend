@@ -150,3 +150,49 @@ func TestBuildWorkingContext_MultiPage(t *testing.T) {
 		t.Errorf("expected 2 page loads, got %d", callCount)
 	}
 }
+
+func TestBuildWorkingContext_ExcludeByID(t *testing.T) {
+	now := time.Now()
+	mock := &mockWorkingRepo{
+		fn: func(sessionID uint, cursorID uint, limit int) ([]model.ChatMessage, uint, bool, error) {
+			return []model.ChatMessage{
+				{BaseModel: model.BaseModel{ID: 1, CreatedAt: now}, Role: "user", Content: "keep"},
+				{BaseModel: model.BaseModel{ID: 2, CreatedAt: now}, Role: "assistant", Content: "keep-r"},
+				{BaseModel: model.BaseModel{ID: 3, CreatedAt: now}, Role: "user", Content: "drop"},
+				{BaseModel: model.BaseModel{ID: 4, CreatedAt: now}, Role: "assistant", Content: "drop-r"},
+			}, 0, false, nil
+		},
+	}
+	wm := &WorkingMemory{repo: mock, pageSize: 10}
+
+	result, err := wm.BuildWorkingContext(1, 1000, 3) // exclude ID >= 3
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result, "keep") {
+		t.Error("message with ID < excludeID should be kept")
+	}
+	if strings.Contains(result, "drop") {
+		t.Error("message with ID >= excludeID should be excluded")
+	}
+}
+
+func TestBuildWorkingContext_ExcludeZero(t *testing.T) {
+	now := time.Now()
+	mock := &mockWorkingRepo{
+		fn: func(sessionID uint, cursorID uint, limit int) ([]model.ChatMessage, uint, bool, error) {
+			return []model.ChatMessage{
+				{BaseModel: model.BaseModel{ID: 1, CreatedAt: now}, Role: "user", Content: "msg"},
+			}, 0, false, nil
+		},
+	}
+	wm := &WorkingMemory{repo: mock, pageSize: 10}
+
+	result, err := wm.BuildWorkingContext(1, 1000, 0) // excludeID=0 keeps all
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result, "msg") {
+		t.Error("excludeID=0 should keep all messages")
+	}
+}
