@@ -209,8 +209,30 @@ func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw 
 				return fmt.Errorf("查询失败[%s]: %w", spec.Title, err)
 			}
 
-			// Step 3: 提取数据
-			labels, data := extractChartData(qr, plan.DataMapping)
+			// Step 3: 构建 MCP 参数（按图表类型差异化）
+			mcpParams := map[string]any{
+				"type":  spec.Type,
+				"title": spec.Title,
+			}
+			switch spec.Type {
+			case "bar", "line":
+				labels, data := extractChartData(qr, plan.DataMapping)
+				mcpParams["xlabel"] = spec.XLabel
+				mcpParams["ylabel"] = spec.YLabel
+				mcpParams["colors"] = spec.Colors
+				mcpParams["labels"] = labels
+				mcpParams["data"] = []any{data}
+			case "pie":
+				labels, data := extractChartData(qr, plan.DataMapping)
+				mcpParams["colors"] = spec.Colors
+				mcpParams["labels"] = labels
+				mcpParams["data"] = []any{data}
+			case "table":
+				mcpParams["xlabel"] = spec.XLabel
+				mcpParams["ylabel"] = spec.YLabel
+				mcpParams["data"] = qr.Rows
+				mcpParams["labels"] = qr.Columns
+			}
 
 			// Step 4: 调用 MCP 生成图表
 			mcpClient, err := mcpchart.NewClient()
@@ -219,15 +241,7 @@ func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw 
 			}
 			defer mcpClient.Close()
 
-			chartResult, err := mcpClient.Render(map[string]any{
-				"type":   spec.Type,
-				"title":  spec.Title,
-				"xlabel": spec.XLabel,
-				"ylabel": spec.YLabel,
-				"colors": spec.Colors,
-				"labels": labels,
-				"data":   []any{data},
-			})
+			chartResult, err := mcpClient.Render(mcpParams)
 			if err != nil {
 				return fmt.Errorf("图表生成失败[%s]: %w", spec.Title, err)
 			}
