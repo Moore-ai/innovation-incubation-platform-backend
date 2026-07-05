@@ -67,7 +67,7 @@ func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) err
 		`{"policy_name":"政策名称","policy_summary":"政策概括，200字以内","applicable_industries":["适用行业列表"],"applicable_scales":["适用企业规模，如大型、中型、小型、微型"],"applicable_status":"适用企业状态，如：初创期、成长期","subsidy_type":"补贴类型","subsidies":[{"condition":"补贴条件","amount":"补贴金额","amount_min":数值(纯数字,省略单位万),"amount_max":数值(纯数字,省略单位万)}],"applicable_region":"适用区域","required_documents":["所需材料清单"]}`,
 	)
 
-	fields, err := chatAndParse[model.ExtractedPolicy](s, ctx, "extract", s.prompts.extract, msg, "AI提取结果解析失败")
+	fields, err := ChatAndParse[model.ExtractedPolicy](s, ctx, "extract", s.prompts.extract, msg, "AI提取结果解析失败")
 	if err != nil {
 		return err
 	}
