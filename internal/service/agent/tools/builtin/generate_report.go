@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"gorm.io/gorm"
@@ -13,6 +15,9 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 	"golang.org/x/sync/errgroup"
 
+	"innovation-incubation-platform-backend/internal/model"
+	"innovation-incubation-platform-backend/internal/repository"
+	"innovation-incubation-platform-backend/internal/storage"
 	"innovation-incubation-platform-backend/pkg/aiclient"
 	"innovation-incubation-platform-backend/pkg/mcpchart"
 
@@ -27,10 +32,12 @@ type GenerateReport struct {
 	db      *gorm.DB
 	engine  *QueryEngine
 	configs []*TableConfig
+	fileRepo    *repository.FileRepo
+	fileStorage storage.Storage
 }
 
-func NewGenerateReport(ai *aiclient.Client, db *gorm.DB) *GenerateReport {
-	return &GenerateReport{ai: ai, db: db, engine: &QueryEngine{}, configs: TableConfigs}
+func NewGenerateReport(ai *aiclient.Client, db *gorm.DB, fileRepo *repository.FileRepo, fileStorage storage.Storage) *GenerateReport {
+	return &GenerateReport{ai: ai, db: db, engine: &QueryEngine{}, configs: TableConfigs, fileRepo: fileRepo, fileStorage: fileStorage}
 }
 
 func (t *GenerateReport) Name() string           { return "generate_report" }
@@ -246,9 +253,15 @@ func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw 
 				return fmt.Errorf("图表生成失败[%s]: %w", spec.Title, err)
 			}
 
+			imageURL, err := t.saveChartFile(chartResult, spec.Title)
+			if err != nil {
+				slog.Warn("保存图表文件失败", "title", spec.Title, "error", err)
+				imageURL = fmt.Sprintf("/api/v1/files/chart/%s", chartResult.FileName) // fallback
+			}
+
 			results[i] = ReportChart{
 				Spec:     spec,
-				ImageURL: fmt.Sprintf("/api/v1/files/chart/%s", chartResult.FileName),
+				ImageURL: imageURL,
 			}
 
 			progressCh <- prog{idx: i, title: spec.Title}
@@ -307,6 +320,36 @@ func (t *GenerateReport) runSummarizer(ctx context.Context, prompt string, chart
 		return "", fmt.Errorf("AI 返回为空")
 	}
 	return *md, nil
+}
+
+// saveChartFile 将 MCP 生成的图表 PNG 存入正式文件系统，返回下载 URL。
+func (t *GenerateReport) saveChartFile(result *mcpchart.ChartResult, _ string) (string, error) {
+	f, err := os.Open(result.FilePath)
+	if err != nil {
+		return "", fmt.Errorf("open chart file: %w", err)
+	}
+	defer f.Close()
+
+	storagePath := "charts/" + result.FileName
+	if err := t.fileStorage.Save(context.Background(), storagePath, f); err != nil {
+		return "", fmt.Errorf("save to storage: %w", err)
+	}
+	if _, err := f.Seek(0, 0); err != nil {
+		return "", err
+	}
+
+	fileRecord := &model.File{
+		Filename:    result.FileName,
+		MimeType:    "image/png",
+		Size:        int64(result.Size),
+		StoragePath: filepath.ToSlash(storagePath),
+		UploadedBy:  0,
+	}
+	if err := t.fileRepo.Create(fileRecord); err != nil {
+		return "", fmt.Errorf("create file record: %w", err)
+	}
+
+	return fmt.Sprintf("/api/v1/files/%d/download", fileRecord.ID), nil
 }
 
 // --- helpers ---
