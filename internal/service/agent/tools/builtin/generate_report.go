@@ -33,7 +33,7 @@ func NewGenerateReport(ai *aiclient.Client, db *gorm.DB) *GenerateReport {
 	return &GenerateReport{ai: ai, db: db, engine: &QueryEngine{}, configs: TableConfigs}
 }
 
-func (t *GenerateReport) Name() string          { return "generate_report" }
+func (t *GenerateReport) Name() string           { return "generate_report" }
 func (t *GenerateReport) AllowedRoles() []string { return []string{"government"} }
 func (t *GenerateReport) Description() string {
 	return "根据政务要求，生成数据分析报告（Markdown 格式，含图表）。"
@@ -89,13 +89,15 @@ func (t *GenerateReport) Execute(ctx context.Context, args json.RawMessage) (jso
 
 var analystSystemPrompt = `你是一个数据分析师。根据用户需求，规划需要哪些图表。
 你只能输出以下图表类型：
-- bar: 柱状图，需 x_label（横轴）、y_label（纵轴）、colors（可选配色列表，如 ["#2196F3","#FF9800"]）
-- line: 折线图，需 x_label、y_label、colors
-- pie: 饼图，需 colors
-- table: 表格，需 x_label（表头）、y_label（数据列）
 
-输出 JSON 数组格式：
-[{"type":"bar","title":"各行业企业数","x_label":"行业","y_label":"数量","colors":["#2196F3","#FF9800","#4CAF50"]}]
+- bar: 柱状图，字段：type="bar", title, x_label（横轴标签）, y_label（纵轴标签）, colors（可选，如 ["#2196F3"]）
+- line: 折线图，字段：type="line", title, x_label, y_label, colors
+- pie: 饼图，字段：type="pie", title, colors（x_label/y_label 不需要）
+- table: 表格，字段：type="table", title, x_label（表头说明）, y_label（数据列说明）
+
+输出 JSON 数组格式示例：
+[{"type":"bar","title":"各行业企业数","x_label":"行业","y_label":"数量","colors":["#2196F3"]},
+ {"type":"pie","title":"载体规模分布","colors":["#FF9800","#4CAF50"]}]
 
 只输出 JSON 数组，不要其他内容。`
 
@@ -112,16 +114,26 @@ func (t *GenerateReport) runAnalyst(ctx context.Context, prompt string) ([]Chart
 
 // --- Phase 2: Executor ---
 
-var executorSystemPrompt = `你是一个数据工程师。为图表规划数据查询方案。可用工具及查询参数如下：
-%s
+// executorPrompts 每种图表类型的 Executor 提示词。
+var executorPrompts = map[string]string{
+	"bar": `你需要为柱状图准备数据。每根柱子代表一个类别，高度代表数值。
+你需要提供 labels（字符串数组）和 data（数字数组）。
+可用查询参数包括 group_by、aggregate、group_by_period、filters 等，请根据图表需求选择合适的方案。`,
 
-输出 JSON：
-{"table":"query_xxx","params":{"group_by":"...","aggregate":"count"},"data_mapping":{"x_field":"...","y_field":"count"}}
+	"line": `你需要为折线图准备数据。x轴通常为时间序列或类别，y轴为数值。
+你需要提供 labels（字符串数组）和 data（数字数组）。
+可用查询参数包括 group_by、group_by_period（推荐用于趋势）、aggregate、filters 等。`,
 
-其中 table 必须是上述可用表之一，x_field 映射为横轴，y_field 映射为纵轴。
-只输出 JSON，不要其他内容。`
+	"pie": `你需要为饼图准备数据。每一扇代表一个类别的占比或计数。
+你需要提供 labels（字符串数组）和 data（数字数组）。
+可用查询参数包括 group_by、aggregate、filters 等。`,
 
-func (t *GenerateReport) buildExecutorPrompt() string {
+	"table": `你需要为表格准备数据，展示明细记录。
+你需要提供 columns（表头数组）和 rows（行数据数组）。
+通常不需要聚合，直接查询原始记录，可设置 limit 控制行数。`,
+}
+
+func (t *GenerateReport) buildTableList() string {
 	var sb strings.Builder
 	for _, c := range t.configs {
 		sb.WriteString("- ")
@@ -130,23 +142,33 @@ func (t *GenerateReport) buildExecutorPrompt() string {
 		sb.WriteString(c.Description)
 		sb.WriteString("\n")
 	}
-	return fmt.Sprintf(executorSystemPrompt, sb.String())
+	return sb.String()
 }
 
 func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw agent.ProgressWriter) ([]ReportChart, error) {
 	results := make([]ReportChart, len(specs))
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(4)
-	execPrompt := t.buildExecutorPrompt()
+	tableList := t.buildTableList()
 
 	for i, spec := range specs {
-		i, spec := i, spec
 		g.Go(func() error {
+			// 根据图表类型选择提示词
+			typePrompt := executorPrompts[spec.Type]
+			if typePrompt == "" {
+				typePrompt = executorPrompts["bar"] // fallback
+			}
+			execPrompt := typePrompt + "\n\n可用表及查询参数：\n" + tableList + "\n输出 JSON：{\"table\":\"query_xxx\",\"params\":{...},\"data_mapping\":{\"x_field\":\"...\",\"y_field\":\"...\"}}。只输出 JSON。"
+
 			// Step 1: AI 决定查询方案
-			plan, err := chatAndParse[QueryPlan](t.ai, ctx, "executor-plan",
-				execPrompt,
-				fmt.Sprintf("图表类型：%s，标题：%s，横轴：%s，纵轴：%s", spec.Type, spec.Title, spec.XLabel, spec.YLabel),
-				"执行阶段解析查询方案失败")
+			chartDesc := fmt.Sprintf("图表类型：%s，标题：%s", spec.Type, spec.Title)
+			if spec.XLabel != "" {
+				chartDesc += fmt.Sprintf("，横轴：%s", spec.XLabel)
+			}
+			if spec.YLabel != "" {
+				chartDesc += fmt.Sprintf("，纵轴：%s", spec.YLabel)
+			}
+			plan, err := chatAndParse[QueryPlan](t.ai, ctx, "executor-plan", execPrompt, chartDesc, "执行阶段解析查询方案失败")
 			if err != nil {
 				return fmt.Errorf("规划查询失败[%s]: %w", spec.Title, err)
 			}
@@ -270,8 +292,8 @@ func (t *GenerateReport) runSummarizer(ctx context.Context, prompt string, chart
 	sb.WriteString(prompt)
 	sb.WriteString("\n\n")
 	for i, c := range charts {
-		sb.WriteString(fmt.Sprintf("## 图表 %d: %s\n\n", i+1, c.Spec.Title))
-		sb.WriteString(fmt.Sprintf("![](%s)\n\n", c.ImageURL))
+		fmt.Fprintf(&sb, "## 图表 %d: %s\n\n", i+1, c.Spec.Title)
+		fmt.Fprintf(&sb, "![](%s)\n\n", c.ImageURL)
 		if c.Data != "" {
 			sb.WriteString("**数据明细：**\n\n")
 			sb.WriteString(c.Data)
