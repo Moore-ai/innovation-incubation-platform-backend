@@ -19,8 +19,10 @@ func NewQueryEnterpriseInfo(entRepo *repository.EnterpriseRepo) *QueryEnterprise
 	return &QueryEnterpriseInfo{entRepo: entRepo}
 }
 
-func (t *QueryEnterpriseInfo) Name() string          { return "query_enterprise_info" }
-func (t *QueryEnterpriseInfo) Description() string   { return "查询当前企业的入驻信息、入驻状态、申报进度等。仅企业用户可用" }
+func (t *QueryEnterpriseInfo) Name() string { return "query_enterprise_info" }
+func (t *QueryEnterpriseInfo) Description() string {
+	return "查询当前企业的入驻信息、入驻状态、申报进度等。仅企业用户可用"
+}
 func (t *QueryEnterpriseInfo) AllowedRoles() []string { return []string{"enterprise"} }
 
 func (t *QueryEnterpriseInfo) InputSchema() json.RawMessage {
@@ -28,7 +30,31 @@ func (t *QueryEnterpriseInfo) InputSchema() json.RawMessage {
 }
 
 func (t *QueryEnterpriseInfo) OutputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"enterprise":{"type":"object","properties":{"id":{"type":"integer"},"name":{"type":"string"},"industry":{"type":"string"},"scale":{"type":"string"}},"required":["id","name"]}},"required":["enterprise"]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"enterprise":{
+				"type":"object",
+				"properties":{
+					"id":{
+						"type":"integer"
+					},
+					"name":{
+						"type":"string"
+					},
+					"industry":{
+						"type":"string"
+					},
+					"scale":{
+						"type":"string"
+					}
+				},
+				"required":["id","name"]
+			}
+		},
+		"required":["enterprise"]
+	}`)
 }
 
 func (t *QueryEnterpriseInfo) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {

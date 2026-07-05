@@ -18,8 +18,10 @@ func NewQueryPolicyDetail(govRepo *repository.GovernmentRepo) *QueryPolicyDetail
 	return &QueryPolicyDetail{govRepo: govRepo}
 }
 
-func (t *QueryPolicyDetail) Name() string          { return "query_policy_detail" }
-func (t *QueryPolicyDetail) Description() string   { return "根据政策ID获取政策完整信息（含申报条件、补贴详情、所需材料、办理流程）" }
+func (t *QueryPolicyDetail) Name() string { return "query_policy_detail" }
+func (t *QueryPolicyDetail) Description() string {
+	return "根据政策ID获取政策完整信息（含申报条件、补贴详情、所需材料、办理流程）"
+}
 func (t *QueryPolicyDetail) AllowedRoles() []string { return []string{"enterprise", "carrier"} }
 
 func (t *QueryPolicyDetail) InputSchema() json.RawMessage {
@@ -27,7 +29,16 @@ func (t *QueryPolicyDetail) InputSchema() json.RawMessage {
 }
 
 func (t *QueryPolicyDetail) OutputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"policy":{"type":"object"}},"required":["policy"]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"policy":{
+				"type":"object"
+			}
+		},
+		"required":["policy"]
+	}`)
 }
 
 func (t *QueryPolicyDetail) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {

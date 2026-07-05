@@ -23,16 +23,46 @@ func NewQueryPerformanceCampaigns(carrierRepo *repository.CarrierRepo) *QueryPer
 	return &QueryPerformanceCampaigns{carrierRepo: carrierRepo}
 }
 
-func (t *QueryPerformanceCampaigns) Name() string          { return "query_performance_campaigns" }
-func (t *QueryPerformanceCampaigns) Description() string   { return "查询当前可参与的绩效评估活动列表，支持分页" }
+func (t *QueryPerformanceCampaigns) Name() string { return "query_performance_campaigns" }
+func (t *QueryPerformanceCampaigns) Description() string {
+	return "查询当前可参与的绩效评估活动列表，支持分页"
+}
 func (t *QueryPerformanceCampaigns) AllowedRoles() []string { return []string{"carrier"} }
 
 func (t *QueryPerformanceCampaigns) InputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"page":{"type":"integer","description":"页码，默认1"},"page_size":{"type":"integer","description":"每页条数，默认10"}},"required":[]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"page":{
+				"type":"integer",
+				"description":"页码，默认1"
+			},
+			"page_size":{
+				"type":"integer",
+				"description":"每页条数，默认10"
+			}
+		},"required":[]
+	}`)
 }
 
 func (t *QueryPerformanceCampaigns) OutputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"campaigns":{"type":"array","items":{"type":"object"}},"total":{"type":"integer"}},"required":["campaigns","total"]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"campaigns":{
+				"type":"array",
+				"items":{
+					"type":"object"
+				}
+			},
+			"total":{
+				"type":"integer"
+			}
+		},
+		"required":["campaigns","total"]
+	}`)
 }
 
 func (t *QueryPerformanceCampaigns) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {

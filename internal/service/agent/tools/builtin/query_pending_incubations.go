@@ -23,16 +23,47 @@ func NewQueryPendingIncubations(carrierRepo *repository.CarrierRepo) *QueryPendi
 	return &QueryPendingIncubations{carrierRepo: carrierRepo}
 }
 
-func (t *QueryPendingIncubations) Name() string          { return "query_pending_incubations" }
-func (t *QueryPendingIncubations) Description() string   { return "查询待审核的企业入驻申请列表，支持分页" }
+func (t *QueryPendingIncubations) Name() string { return "query_pending_incubations" }
+func (t *QueryPendingIncubations) Description() string {
+	return "查询待审核的企业入驻申请列表，支持分页"
+}
 func (t *QueryPendingIncubations) AllowedRoles() []string { return []string{"carrier"} }
 
 func (t *QueryPendingIncubations) InputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"page":{"type":"integer","description":"页码，默认1"},"page_size":{"type":"integer","description":"每页条数，默认10"}},"required":[]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"page":{
+				"type":"integer",
+				"description":"页码，默认1"
+			},
+			"page_size":{
+				"type":"integer",
+				"description":"每页条数，默认10"
+			}
+		},
+		"required":[]
+	}`)
 }
 
 func (t *QueryPendingIncubations) OutputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"records":{"type":"array","items":{"type":"object"}},"total":{"type":"integer"}},"required":["records","total"]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"records":{
+				"type":"array",
+				"items":{
+					"type":"object"
+				}
+			},
+			"total":{
+				"type":"integer"
+			}
+		},
+		"required":["records","total"]
+	}`)
 }
 
 func (t *QueryPendingIncubations) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {

@@ -23,16 +23,47 @@ func NewQueryEnterpriseApplications(carrierRepo *repository.CarrierRepo) *QueryE
 	return &QueryEnterpriseApplications{carrierRepo: carrierRepo}
 }
 
-func (t *QueryEnterpriseApplications) Name() string          { return "query_enterprise_applications" }
-func (t *QueryEnterpriseApplications) Description() string   { return "查询待审核的企业政策申报记录，支持分页" }
+func (t *QueryEnterpriseApplications) Name() string { return "query_enterprise_applications" }
+func (t *QueryEnterpriseApplications) Description() string {
+	return "查询待审核的企业政策申报记录，支持分页"
+}
 func (t *QueryEnterpriseApplications) AllowedRoles() []string { return []string{"carrier"} }
 
 func (t *QueryEnterpriseApplications) InputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"page":{"type":"integer","description":"页码，默认1"},"page_size":{"type":"integer","description":"每页条数，默认10"}},"required":[]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"page":{
+				"type":"integer",
+				"description":"页码，默认1"
+			},
+			"page_size":{
+				"type":"integer",
+				"description":"每页条数，默认10"
+			}
+		},
+		"required":[]
+	}`)
 }
 
 func (t *QueryEnterpriseApplications) OutputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"applications":{"type":"array","items":{"type":"object"}},"total":{"type":"integer"}},"required":["applications","total"]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"applications":{
+				"type":"array",
+				"items":{
+					"type":"object"
+				}
+			},
+			"total":{
+				"type":"integer"
+			}
+		},
+		"required":["applications","total"]
+	}`)
 }
 
 func (t *QueryEnterpriseApplications) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {

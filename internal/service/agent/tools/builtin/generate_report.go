@@ -283,7 +283,7 @@ func (t *GenerateReport) runSummarizer(ctx context.Context, prompt string, chart
 	for i, c := range charts {
 		fmt.Fprintf(&sb, "## 图表 %d: %s\n\n", i+1, c.Spec.Title)
 		fmt.Fprintf(&sb, "![](%s)\n\n", c.ImageURL)
-}
+	}
 
 	md, err := chatAndParse[string](t.ai, ctx, "summarizer", summarizerSystemPrompt, sb.String(), "汇总阶段解析失败")
 	if err != nil {

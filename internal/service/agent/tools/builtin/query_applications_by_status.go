@@ -30,11 +30,41 @@ func (t *QueryApplicationsByStatus) Description() string {
 func (t *QueryApplicationsByStatus) AllowedRoles() []string { return []string{"carrier"} }
 
 func (t *QueryApplicationsByStatus) InputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"status":{"type":"string","description":"审核状态：pending、approved、rejected"},"page":{"type":"integer"},"page_size":{"type":"integer"}},"required":["status"]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"status":{
+				"type":"string",
+				"description":"审核状态：pending、approved、rejected"
+			},
+			"page":{
+				"type":"integer"
+			},
+			"page_size":{
+				"type":"integer"
+			}
+		},"required":["status"]
+	}`)
 }
 
 func (t *QueryApplicationsByStatus) OutputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"applications":{"type":"array","items":{"type":"object"}},"total":{"type":"integer"}},"required":["applications","total"]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"applications":{
+				"type":"array",
+				"items":{
+					"type":"object"
+				}
+			},
+			"total":{
+				"type":"integer"
+			}
+		},
+		"required":["applications","total"]
+	}`)
 }
 
 func (t *QueryApplicationsByStatus) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {

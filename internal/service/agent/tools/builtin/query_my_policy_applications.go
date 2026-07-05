@@ -23,16 +23,46 @@ func NewQueryMyPolicyApplications(entRepo *repository.EnterpriseRepo) *QueryMyPo
 	return &QueryMyPolicyApplications{entRepo: entRepo}
 }
 
-func (t *QueryMyPolicyApplications) Name() string          { return "query_my_policy_applications" }
-func (t *QueryMyPolicyApplications) Description() string   { return "查询当前企业已审批通过的政策申报记录" }
+func (t *QueryMyPolicyApplications) Name() string { return "query_my_policy_applications" }
+func (t *QueryMyPolicyApplications) Description() string {
+	return "查询当前企业已审批通过的政策申报记录"
+}
 func (t *QueryMyPolicyApplications) AllowedRoles() []string { return []string{"enterprise"} }
 
 func (t *QueryMyPolicyApplications) InputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"page":{"type":"integer","description":"页码，默认1"},"page_size":{"type":"integer","description":"每页条数，默认10"}},"required":[]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"page":{
+				"type":"integer",
+				"description":"页码，默认1"
+			},
+			"page_size":{
+				"type":"integer",
+				"description":"每页条数，默认10"
+			}
+		},"required":[]
+	}`)
 }
 
 func (t *QueryMyPolicyApplications) OutputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"applications":{"type":"array","items":{"type":"object"}},"total":{"type":"integer"}},"required":["applications","total"]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"applications":{
+				"type":"array",
+				"items":{
+					"type":"object"
+				}
+			},
+			"total":{
+				"type":"integer"
+			}
+		},
+		"required":["applications","total"]
+	}`)
 }
 
 func (t *QueryMyPolicyApplications) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {

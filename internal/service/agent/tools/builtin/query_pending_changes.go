@@ -23,16 +23,46 @@ func NewQueryPendingChanges(carrierRepo *repository.CarrierRepo) *QueryPendingCh
 	return &QueryPendingChanges{carrierRepo: carrierRepo}
 }
 
-func (t *QueryPendingChanges) Name() string          { return "query_pending_changes" }
-func (t *QueryPendingChanges) Description() string   { return "查询待审核的企业变更申请列表，支持分页" }
+func (t *QueryPendingChanges) Name() string { return "query_pending_changes" }
+func (t *QueryPendingChanges) Description() string {
+	return "查询待审核的企业变更申请列表，支持分页"
+}
 func (t *QueryPendingChanges) AllowedRoles() []string { return []string{"carrier"} }
 
 func (t *QueryPendingChanges) InputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"page":{"type":"integer","description":"页码，默认1"},"page_size":{"type":"integer","description":"每页条数，默认10"}},"required":[]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"page":{
+				"type":"integer",
+				"description":"页码，默认1"
+			},
+			"page_size":{
+				"type":"integer",
+				"description":"每页条数，默认10"
+			}
+		},"required":[]
+	}`)
 }
 
 func (t *QueryPendingChanges) OutputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"changes":{"type":"array","items":{"type":"object"}},"total":{"type":"integer"}},"required":["changes","total"]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"changes":{
+				"type":"array",
+				"items":{
+					"type":"object"
+				}
+			},
+			"total":{
+				"type":"integer"
+			}
+		},
+		"required":["changes","total"]
+	}`)
 }
 
 func (t *QueryPendingChanges) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {

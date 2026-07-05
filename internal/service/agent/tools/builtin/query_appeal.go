@@ -19,16 +19,61 @@ func NewQueryAppeal(appealRepo *repository.AppealRepo) *QueryAppeal {
 	return &QueryAppeal{appealRepo: appealRepo}
 }
 
-func (t *QueryAppeal) Name() string          { return "query_appeal" }
-func (t *QueryAppeal) Description() string   { return "查询当前用户提交的诉求（反馈/建议）的处理状态和结果" }
+func (t *QueryAppeal) Name() string { return "query_appeal" }
+func (t *QueryAppeal) Description() string {
+	return "查询当前用户提交的诉求（反馈/建议）的处理状态和结果"
+}
 func (t *QueryAppeal) AllowedRoles() []string { return []string{"enterprise", "carrier"} }
 
 func (t *QueryAppeal) InputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"page":{"type":"integer","description":"页码，默认1"},"page_size":{"type":"integer","description":"每页条数，默认10"}},"required":[]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"page":{
+				"type":"integer",
+				"description":"页码，默认1"
+			},
+			"page_size":{
+				"type":"integer",
+				"description":"每页条数，默认10"
+			}
+		},"required":[]
+	}`)
 }
 
 func (t *QueryAppeal) OutputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"appeals":{"type":"array","items":{"type":"object","properties":{"id":{"type":"integer"},"problem_type":{"type":"string"},"content":{"type":"string"},"status":{"type":"string"}},"required":["id","status"]}},"total":{"type":"integer"}},"required":["appeals","total"]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"appeals":{
+				"type":"array",
+				"items":{
+					"type":"object",
+					"properties":{
+						"id":{
+							"type":"integer"
+						},
+						"problem_type":{
+							"type":"string"
+						},
+						"content":{
+							"type":"string"
+						},
+						"status":{
+							"type":"string"
+						}
+					},
+					"required":["id","status"]
+				}
+			},
+			"total":{
+				"type":"integer"
+			}
+		},
+		"required":["appeals","total"]
+	}`)
 }
 
 func (t *QueryAppeal) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
