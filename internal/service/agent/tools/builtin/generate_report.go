@@ -278,20 +278,31 @@ func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw 
 	return results, nil
 }
 
-// extractChartData 从查询结果中提取图表需要的 labels 和 data。
+// extractChartData 从查询结果中提取图表需要的 labels 和 data，跳过空值行。
 func extractChartData(qr *QueryResult, dm DataMapping) ([]string, []float64) {
 	var labels []string
 	var data []float64
 	for _, row := range qr.Rows {
+		if len(row) == 0 {
+			continue
+		}
+		var label string
+		var val float64
+		hasVal := false
 		for j, col := range qr.Columns {
-			if col == dm.XField && j < len(row) {
-				labels = append(labels, fmt.Sprintf("%v", row[j]))
+			if col == dm.XField && j < len(row) && row[j] != nil {
+				label = fmt.Sprintf("%v", row[j])
 			}
-			if col == dm.YField && j < len(row) {
-				var v float64
-				fmt.Sscanf(fmt.Sprintf("%v", row[j]), "%f", &v)
-				data = append(data, v)
+			if col == dm.YField && j < len(row) && row[j] != nil {
+				n, err := fmt.Sscanf(fmt.Sprintf("%v", row[j]), "%f", &val)
+				if err == nil && n == 1 {
+					hasVal = true
+				}
 			}
+		}
+		if label != "" && hasVal {
+			labels = append(labels, label)
+			data = append(data, val)
 		}
 	}
 	return labels, data

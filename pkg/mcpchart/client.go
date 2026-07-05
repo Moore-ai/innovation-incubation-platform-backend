@@ -34,6 +34,24 @@ type Client struct {
 	stdout *bufio.Scanner
 }
 
+// findProjectRoot 向上查找包含 go.mod 的目录。
+func findProjectRoot() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "."
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return dir
+		}
+		dir = parent
+	}
+}
+
 // NewClient 启动 Python render.py 子进程，使用指定的 venv。
 func NewClient(venvPath string) (*Client, error) {
 	python := filepath.Join(venvPath, "Scripts", "python.exe") // Windows
@@ -44,11 +62,8 @@ func NewClient(venvPath string) (*Client, error) {
 		return nil, fmt.Errorf("venv python not found: %s", venvPath)
 	}
 
-	scriptDir, err := os.Getwd()
-	if err != nil {
-		scriptDir = "."
-	}
-	scriptPath := filepath.Join(scriptDir, "pkg", "mcpchart", "render.py")
+	root := findProjectRoot()
+	scriptPath := filepath.Join(root, "pkg", "mcpchart", "render.py")
 	cmd := exec.Command(python, scriptPath)
 	cmd.Stderr = os.Stderr
 
