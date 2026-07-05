@@ -211,6 +211,10 @@ func (ctl *EnterpriseController) ListChangeTypes(c *gin.Context) {
 	response.Success(c, service.ListChangeTypes())
 }
 
+func (ctl *EnterpriseController) ListDicts(c *gin.Context) {
+	response.Success(c, service.ListDicts())
+}
+
 func (ctl *EnterpriseController) RecommendPolicy(c *gin.Context) {
 	policyID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {

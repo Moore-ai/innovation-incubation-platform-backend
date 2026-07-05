@@ -61,6 +61,36 @@ func (s *EnterpriseService) ApplyIncubation(userID uint, req *dto.IncubationAppl
 	if err != nil {
 		return nil, errcode.ErrNotFound.WithMsg("企业信息未找到")
 	}
+	// 校验：上一次入驻未结束，不允许再次申请
+	active, actErr := s.repo.FindActiveIncubation(ent.ID)
+	if actErr == nil && active != nil {
+		return nil, errcode.ErrInvalidParams.WithMsg(
+			fmt.Sprintf("您当前仍有未结束的入驻记录（结束时间：%s），请等待结束后再申请", active.IncubateEnd),
+		)
+	}
+	// 若企业表尚未填写统一社会信用代码，则从入驻申请中补齐（18位）
+	if ent.CreditCode == "" && req.CreditCode != "" {
+		if len(req.CreditCode) != 18 {
+			return nil, errcode.ErrInvalidParams.WithMsg("统一社会信用代码必须为 18 位")
+		}
+		if err := s.db.Model(&model.Enterprise{}).
+			Where("id = ?", ent.ID).
+			Updates(map[string]any{
+				"credit_code": req.CreditCode,
+			}).Error; err != nil {
+			return nil, errcode.ErrInternal.WithMsg("写入统一社会信用代码失败")
+		}
+		ent.CreditCode = req.CreditCode
+	}
+	// 同样地，若企业表的企业名称为空，也从申请中补齐
+	if ent.Name == "" && req.EnterpriseName != "" {
+		if err := s.db.Model(&model.Enterprise{}).
+			Where("id = ?", ent.ID).
+			Update("name", req.EnterpriseName).Error; err != nil {
+			return nil, errcode.ErrInternal.WithMsg("写入企业名称失败")
+		}
+		ent.Name = req.EnterpriseName
+	}
 	record := &model.IncubationRecord{
 		EnterpriseID:    ent.ID,
 		CarrierID:       req.CarrierID,
@@ -131,6 +161,77 @@ func ListChangeTypes() []string {
 	r := make([]string, len(allowedChangeTypes))
 	copy(r, allowedChangeTypes)
 	return r
+}
+
+// ListDicts 返回入驻申请表单所需的全部字典数据
+func ListDicts() dto.DictResponse {
+	makeItems := func(pairs ...string) []dto.DictItem {
+		items := make([]dto.DictItem, 0, len(pairs)/2)
+		for i := 0; i < len(pairs); i += 2 {
+			items = append(items, dto.DictItem{Value: pairs[i], Label: pairs[i+1]})
+		}
+		return items
+	}
+
+	return dto.DictResponse{
+		EnterpriseNatures: makeItems(
+			"国有企业", "国有企业",
+			"集体企业", "集体企业",
+			"有限责任公司", "有限责任公司",
+			"股份有限公司", "股份有限公司",
+			"私营企业", "私营企业",
+			"港澳台投资企业", "港澳台投资企业",
+			"外商投资企业", "外商投资企业",
+			"其他", "其他",
+		),
+		FoundingCategories: makeItems(
+			"科研人员创业", "科研人员创业",
+			"大学生创业", "大学生创业",
+			"海归人员创业", "海归人员创业",
+			"企业衍生", "企业衍生",
+			"引进转化", "引进转化",
+			"其他", "其他",
+		),
+		IndustryCategories: makeItems(
+			"农、林、牧、渔业", "农、林、牧、渔业",
+			"采矿业", "采矿业",
+			"制造业", "制造业",
+			"电力、热力、燃气及水生产和供应业", "电力、热力、燃气及水生产和供应业",
+			"建筑业", "建筑业",
+			"批发和零售业", "批发和零售业",
+			"交通运输、仓储和邮政业", "交通运输、仓储和邮政业",
+			"住宿和餐饮业", "住宿和餐饮业",
+			"信息传输、软件和信息技术服务业", "信息传输、软件和信息技术服务业",
+			"金融业", "金融业",
+			"房地产业", "房地产业",
+			"租赁和商务服务业", "租赁和商务服务业",
+			"科学研究和技术服务业", "科学研究和技术服务业",
+			"水利、环境和公共设施管理业", "水利、环境和公共设施管理业",
+			"居民服务、修理和其他服务业", "居民服务、修理和其他服务业",
+			"教育", "教育",
+			"卫生和社会工作", "卫生和社会工作",
+			"文化、体育和娱乐业", "文化、体育和娱乐业",
+			"公共管理、社会保障和社会组织", "公共管理、社会保障和社会组织",
+			"国际组织", "国际组织",
+		),
+		HighTechFields: makeItems(
+			"电子信息技术", "电子信息技术",
+			"软件和信息技术服务业", "软件和信息技术服务业",
+			"生物与新医药技术", "生物与新医药技术",
+			"航空航天技术", "航空航天技术",
+			"新材料技术", "新材料技术",
+			"高技术服务业", "高技术服务业",
+			"新能源及节能技术", "新能源及节能技术",
+			"资源与环境技术", "资源与环境技术",
+			"高新技术改造传统产业", "高新技术改造传统产业",
+			"其他", "其他",
+		),
+		IncubateStatuses: makeItems(
+			"在孵", "在孵企业",
+			"毕业", "毕业企业",
+			"退出", "退出企业",
+		),
+	}
 }
 
 func (s *EnterpriseService) ApplyChange(userID uint, req *dto.ChangeApplyReq) (*model.MajorChange, error) {

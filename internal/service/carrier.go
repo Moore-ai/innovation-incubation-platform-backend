@@ -109,6 +109,82 @@ func (s *CarrierService) ListPendingIncubations(userID uint, page, pageSize int)
 	return s.repo.ListPendingIncubations(carrier.ID, page, pageSize)
 }
 
+// ListMyIncubations 列出本载体下所有入驻记录（不限状态）
+func (s *CarrierService) ListMyIncubations(userID uint, page, pageSize int) ([]model.IncubationRecord, int64, error) {
+	carrier, err := s.repo.FindCarrierByUserID(userID)
+	if err != nil {
+		return nil, 0, errcode.ErrForbidden
+	}
+	return s.repo.ListAllIncubationsByCarrier(carrier.ID, page, pageSize)
+}
+
+// TerminateIncubation 载体提前结束某企业的入驻（in_incubation -> exited）
+func (s *CarrierService) TerminateIncubation(carrierUserID uint, incubationID uint, reason string) error {
+	carrier, err := s.repo.FindCarrierByUserID(carrierUserID)
+	if err != nil {
+		return errcode.ErrForbidden
+	}
+	record, err := s.repo.FindIncubationByID(incubationID)
+	if err != nil {
+		return errcode.ErrNotFound
+	}
+	if record.CarrierID != carrier.ID {
+		return errcode.ErrForbidden
+	}
+	if record.Status != model.ApprovalApproved {
+		return errcode.ErrStatusInvalid.WithMsg("仅已通过的入驻记录可提前结束")
+	}
+	if record.IncubateStatus != model.IncubateInIncubation {
+		return errcode.ErrStatusInvalid.WithMsg("该入驻记录当前状态不可提前结束")
+	}
+
+	now := time.Now().Format("2006-01-02")
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&model.IncubationRecord{}).
+			Where("id = ? AND incubate_status = ?", incubationID, model.IncubateInIncubation).
+			Updates(map[string]any{
+				"incubate_status": model.IncubateExited,
+				"incubate_end":    now,
+			})
+		if res.Error != nil {
+			return errcode.ErrInternal
+		}
+		if res.RowsAffected == 0 {
+			return errcode.ErrStatusInvalid.WithMsg("该入驻记录状态已变更，请刷新后重试")
+		}
+
+		if err := tx.Create(&model.Approval{
+			TargetType: model.TargetIncubation,
+			TargetID:   incubationID,
+			Step:       model.StepCarrierReview,
+			Action:     model.ActionReturn,
+			Comment:    "载体提前结束入驻：" + reason,
+			ReviewerID: carrierUserID,
+		}).Error; err != nil {
+			return err
+		}
+
+		// 减少在孵企业数
+		if err := tx.Model(&model.Carrier{}).Where("id = ?", carrier.ID).
+			UpdateColumn("incubation_count", gorm.Expr("incubation_count - ?", 1)).Error; err != nil {
+			return err
+		}
+
+		// 通知企业
+		var entUserID uint
+		tx.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", record.EnterpriseID).Take(&entUserID)
+		if entUserID > 0 {
+			if err := s.notifSvc.Send(entUserID, model.NotifIncubationReviewed,
+				"入驻已被载体提前结束",
+				fmt.Sprintf("原因：%s。如需继续入驻，请重新提交入驻申请。", reason),
+				model.TargetIncubation, incubationID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 func (s *CarrierService) CompleteIncubation(carrierUserID uint, incubationID uint) error {
 	carrier, err := s.repo.FindCarrierByUserID(carrierUserID)
 	if err != nil {

@@ -45,11 +45,12 @@ type IncubateStatus string
 const (
 	IncubateInIncubation IncubateStatus = "in_incubation"
 	IncubateGraduated    IncubateStatus = "graduated"
+	IncubateExited       IncubateStatus = "exited"
 )
 
 func (t IncubateStatus) IsValid() bool {
 	switch t {
-	case IncubateInIncubation, IncubateGraduated:
+	case IncubateInIncubation, IncubateGraduated, IncubateExited:
 		return true
 	default:
 		return false

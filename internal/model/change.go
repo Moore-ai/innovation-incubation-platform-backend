@@ -24,7 +24,7 @@ type MajorChange struct {
 	OldValue      JSONMap        `gorm:"type:jsonb" json:"old_value"`
 	NewValue      JSONMap        `gorm:"type:jsonb" json:"new_value"`
 	Status        ApprovalStatus `gorm:"size:16;default:draft" json:"status"` // draft, pending, approved, rejected, returned
-	Enterprise    Enterprise     `gorm:"foreignKey:EnterpriseID" json:"-"`
+	Enterprise    Enterprise     `gorm:"foreignKey:EnterpriseID" json:"enterprise"`
 }
 
 func (MajorChange) TableName() string { return "major_changes" }

@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"innovation-incubation-platform-backend/internal/model"
 	"gorm.io/gorm"
 )
@@ -34,6 +36,21 @@ func (r *EnterpriseRepo) ListIncubationByEnterprise(enterpriseID uint, page, pag
 	err := q.Preload("Carrier").Order("created_at DESC").
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&records).Error
 	return records, total, err
+}
+
+// FindActiveIncubation 查找该企业当前仍处于在孵/未结束状态的入驻记录
+// "未结束"定义为：状态为已通过且孵化状态为在孵，且入驻结束日期晚于今天
+func (r *EnterpriseRepo) FindActiveIncubation(enterpriseID uint) (*model.IncubationRecord, error) {
+	var record model.IncubationRecord
+	today := time.Now().Format("2006-01-02")
+	err := r.db.Where(
+		"enterprise_id = ? AND status = ? AND incubate_status = ? AND incubate_end >= ?",
+		enterpriseID, model.ApprovalApproved, model.IncubateInIncubation, today,
+	).Order("incubate_end DESC").First(&record).Error
+	if err != nil {
+		return nil, err
+	}
+	return &record, nil
 }
 
 func (r *EnterpriseRepo) FindEnterpriseByUserID(userID uint) (*model.Enterprise, error) {

@@ -1,8 +1,10 @@
 p, carrier, /carrier/changes, GET
 p, carrier, /carrier/changes/:id/review, POST
 p, carrier, /carrier/incubations/pending, GET
+p, carrier, /carrier/incubations, GET
 p, carrier, /carrier/incubations/:id/review, POST
 p, carrier, /carrier/incubations/:id/complete, POST
+p, carrier, /carrier/incubations/:id/terminate, POST
 p, carrier, /carrier/info, GET
 p, carrier, /carrier/info, PUT
 p, carrier, /carrier/policies, GET
@@ -18,6 +20,7 @@ p, carrier, /carrier/account/deletion, POST
 p, enterprise, /enterprise/incubations, GET
 p, enterprise, /enterprise/incubations, POST
 p, enterprise, /enterprise/incubations/:id, GET
+p, enterprise, /enterprise/dicts, GET
 p, enterprise, /enterprise/changes, GET
 p, enterprise, /enterprise/changes, POST
 p, enterprise, /enterprise/changes/:id, GET
@@ -33,6 +36,18 @@ p, enterprise, /enterprise/policies/:id/recommend, GET
 p, enterprise, /enterprise/policies/:id/prefill, POST
 p, enterprise, /enterprise/appeals, GET
 p, enterprise, /enterprise/appeals, POST
+
+p, enterprise, /notifications/*, GET
+p, enterprise, /notifications/read, PATCH
+p, enterprise, /notifications/stream, GET
+
+p, carrier, /notifications/*, GET
+p, carrier, /notifications/read, PATCH
+p, carrier, /notifications/stream, GET
+
+p, government, /notifications/*, GET
+p, government, /notifications/read, PATCH
+p, government, /notifications/stream, GET
 
 p, government, /gov/enterprises, GET
 p, government, /gov/enterprises/:id, GET

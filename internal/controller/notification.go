@@ -37,12 +37,18 @@ func (ctl *NotificationController) List(c *gin.Context) {
 	if err != nil || pageSize < 1 {
 		pageSize = 20
 	}
-	list, total, err := ctl.repo.ListByUser(userID, page, pageSize)
+	list, total, unreadCount, err := ctl.repo.ListByUser(userID, page, pageSize)
 	if err != nil {
 		response.Error(c, errcode.ErrInternal)
 		return
 	}
-	response.SuccessPage(c, list, total, page, pageSize)
+	response.Success(c, gin.H{
+		"list":          list,
+		"total":         total,
+		"page":          page,
+		"page_size":     pageSize,
+		"unread_count":  unreadCount,
+	})
 }
 
 func (ctl *NotificationController) Subscribe(c *gin.Context) {

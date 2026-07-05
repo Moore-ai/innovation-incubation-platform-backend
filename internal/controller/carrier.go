@@ -60,6 +60,39 @@ func (ctl *CarrierController) ListPendingIncubations(c *gin.Context) {
 	response.SuccessPage(c, records, total, page, pageSize)
 }
 
+// ListMyIncubations 载体查看本载体下所有入驻记录
+func (ctl *CarrierController) ListMyIncubations(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	records, total, err := ctl.svc.ListMyIncubations(middleware.GetUserID(c), page, pageSize)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.SuccessPage(c, records, total, page, pageSize)
+}
+
+// TerminateIncubation 载体提前结束某企业的入驻
+func (ctl *CarrierController) TerminateIncubation(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, errcode.ErrInvalidParams)
+		return
+	}
+	var req struct {
+		Reason string `json:"reason" binding:"required,min=1,max=200"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg("请填写提前结束的原因（1-200字）"))
+		return
+	}
+	if err := ctl.svc.TerminateIncubation(middleware.GetUserID(c), uint(id), req.Reason); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
 func (ctl *CarrierController) ReviewChange(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	var req dto.ReviewReq

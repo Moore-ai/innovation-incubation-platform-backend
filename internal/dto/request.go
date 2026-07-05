@@ -30,6 +30,8 @@ type IncubationApplyReq struct {
 	IncubateStart   string `json:"incubate_start"`
 	IncubateEnd     string `json:"incubate_end"`
 	AgreementFileID *uint  `json:"agreement_file_id"`
+	CreditCode      string `json:"credit_code"`
+	EnterpriseName  string `json:"enterprise_name"`
 }
 
 type ChangeApplyReq struct {

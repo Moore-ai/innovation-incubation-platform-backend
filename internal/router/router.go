@@ -89,6 +89,7 @@ func registerEnterpriseRoutes(r *gin.Engine, deps *Deps) {
 	e.POST("/account/deletion", deps.EnterpriseController.ApplyDeletion)
 	e.GET("/carriers", deps.EnterpriseController.ListCarriers)
 	e.GET("/carriers/:id", deps.EnterpriseController.GetCarrier)
+	e.GET("/dicts", deps.EnterpriseController.ListDicts)
 	e.POST("/policies/:id/follow", deps.EnterpriseController.FollowPolicy)
 	e.DELETE("/policies/:id/follow", deps.EnterpriseController.UnfollowPolicy)
 	e.GET("/policies/follows", deps.EnterpriseController.ListFollowedPolicies)
@@ -112,8 +113,10 @@ func registerCarrierRoutes(r *gin.Engine, deps *Deps) {
 	}
 	c := protectedGroup(r, "/carrier", deps)
 	c.GET("/incubations/pending", deps.CarrierController.ListPendingIncubations)
+	c.GET("/incubations", deps.CarrierController.ListMyIncubations)
 	c.POST("/incubations/:id/review", deps.CarrierController.ReviewIncubation)
 	c.POST("/incubations/:id/complete", deps.CarrierController.CompleteIncubation)
+	c.POST("/incubations/:id/terminate", deps.CarrierController.TerminateIncubation)
 	c.GET("/changes", deps.CarrierController.ListPendingChanges)
 	c.POST("/changes/:id/review", deps.CarrierController.ReviewChange)
 	c.PUT("/info", deps.CarrierController.UpdateInfo)

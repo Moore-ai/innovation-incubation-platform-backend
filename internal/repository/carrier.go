@@ -57,6 +57,17 @@ func (r *CarrierRepo) ListPendingIncubations(carrierID uint, page, pageSize int)
 	return records, total, err
 }
 
+// ListAllIncubationsByCarrier 列出本载体下所有入驻记录（不限状态）
+func (r *CarrierRepo) ListAllIncubationsByCarrier(carrierID uint, page, pageSize int) ([]model.IncubationRecord, int64, error) {
+	var records []model.IncubationRecord
+	var total int64
+	q := r.db.Model(&model.IncubationRecord{}).Where("carrier_id = ?", carrierID)
+	q.Count(&total)
+	err := q.Preload("Enterprise").Order("created_at DESC").
+		Offset((page-1)*pageSize).Limit(pageSize).Find(&records).Error
+	return records, total, err
+}
+
 func (r *CarrierRepo) FindIncubationByID(id uint) (*model.IncubationRecord, error) {
 	var record model.IncubationRecord
 	err := r.db.Preload("Enterprise").First(&record, id).Error

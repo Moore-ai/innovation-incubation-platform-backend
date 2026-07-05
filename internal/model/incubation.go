@@ -9,8 +9,8 @@ type IncubationRecord struct {
 	IncubateEnd     string `gorm:"size:32" json:"incubate_end"`
 	AgreementFileID *uint  `json:"agreement_file_id"`
 	Status          ApprovalStatus `gorm:"size:16;default:draft" json:"status"`
-	Enterprise      Enterprise `gorm:"foreignKey:EnterpriseID" json:"-"`
-	Carrier         Carrier    `gorm:"foreignKey:CarrierID" json:"-"`
+	Enterprise      Enterprise `gorm:"foreignKey:EnterpriseID" json:"enterprise"`
+	Carrier         Carrier    `gorm:"foreignKey:CarrierID" json:"carrier"`
 }
 
 func (IncubationRecord) TableName() string { return "incubation_records" }
