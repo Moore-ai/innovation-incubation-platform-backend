@@ -35,10 +35,11 @@ type GenerateReport struct {
 	fileRepo    *repository.FileRepo
 	fileStorage storage.Storage
 	venvPath    string
+	chartDir    string
 }
 
-func NewGenerateReport(ai *aiclient.Client, db *gorm.DB, fileRepo *repository.FileRepo, fileStorage storage.Storage, venvPath string) *GenerateReport {
-	return &GenerateReport{ai: ai, db: db, engine: &QueryEngine{}, configs: TableConfigs, fileRepo: fileRepo, fileStorage: fileStorage, venvPath: venvPath}
+func NewGenerateReport(ai *aiclient.Client, db *gorm.DB, fileRepo *repository.FileRepo, fileStorage storage.Storage, venvPath, chartDir string) *GenerateReport {
+	return &GenerateReport{ai: ai, db: db, engine: &QueryEngine{}, configs: TableConfigs, fileRepo: fileRepo, fileStorage: fileStorage, venvPath: venvPath, chartDir: chartDir}
 }
 
 func (t *GenerateReport) Name() string           { return "generate_report" }
@@ -243,7 +244,7 @@ func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw 
 			}
 
 			// Step 4: 调用 MCP 生成图表
-			mcpClient, err := mcpchart.NewClient(t.venvPath)
+			mcpClient, err := mcpchart.NewClient(t.venvPath, t.chartDir)
 			if err != nil {
 				return fmt.Errorf("启动图表服务失败[%s]: %w", spec.Title, err)
 			}
@@ -324,14 +325,20 @@ func (t *GenerateReport) runSummarizer(ctx context.Context, prompt string, chart
 		fmt.Fprintf(&sb, "![](%s)\n\n", c.ImageURL)
 	}
 
-	md, err := chatAndParse[string](t.ai, ctx, "summarizer", summarizerSystemPrompt, sb.String(), "汇总阶段解析失败")
+	resp, err := t.ai.ChatCompletion(ctx, openai.ChatCompletionRequest{
+		Messages: []openai.ChatCompletionMessage{
+			{Role: openai.ChatMessageRoleSystem, Content: summarizerSystemPrompt},
+			{Role: openai.ChatMessageRoleUser, Content: sb.String()},
+		},
+	})
 	if err != nil {
-		return "", err
+		slog.Warn("summarizer AI failed", "error", err)
+		return "", fmt.Errorf("汇总阶段 AI 调用失败")
 	}
-	if md == nil {
+	if len(resp.Choices) == 0 {
 		return "", fmt.Errorf("AI 返回为空")
 	}
-	return *md, nil
+	return resp.Choices[0].Message.Content, nil
 }
 
 // saveChartFile 将 MCP 生成的图表 PNG 存入正式文件系统，返回下载 URL。

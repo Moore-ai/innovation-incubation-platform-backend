@@ -52,8 +52,8 @@ func findProjectRoot() string {
 	}
 }
 
-// NewClient 启动 Python render.py 子进程，使用指定的 venv。
-func NewClient(venvPath string) (*Client, error) {
+// NewClient 启动 Python render.py 子进程，使用指定的 venv 和 chartDir。
+func NewClient(venvPath, chartDir string) (*Client, error) {
 	python := filepath.Join(venvPath, "Scripts", "python.exe") // Windows
 	if _, err := os.Stat(python); err != nil {
 		python = filepath.Join(venvPath, "bin", "python") // Linux/Mac
@@ -65,6 +65,7 @@ func NewClient(venvPath string) (*Client, error) {
 	root := findProjectRoot()
 	scriptPath := filepath.Join(root, "pkg", "mcpchart", "render.py")
 	cmd := exec.Command(python, scriptPath)
+	cmd.Env = append(os.Environ(), "MCP_CHART_OUTPUT="+chartDir)
 	cmd.Stderr = os.Stderr
 
 	stdin, err := cmd.StdinPipe()

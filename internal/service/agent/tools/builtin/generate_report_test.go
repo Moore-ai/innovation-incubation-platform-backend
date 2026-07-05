@@ -64,7 +64,7 @@ func buildReportEngine(t *testing.T, ai *aiclient.Client, db *gorm.DB, extraTool
 
 	chartStorage, _ := storage.NewLocalFileStorage(os.TempDir())
 	venvPath := findProjectRoot() + "/sidecar/file-parser/venv"
-	reg.Register(NewGenerateReport(ai, db, repository.NewFileRepo(db), chartStorage, venvPath))
+	reg.Register(NewGenerateReport(ai, db, repository.NewFileRepo(db), chartStorage, venvPath, os.TempDir()))
 
 	cfg := config.AgentConfig{
 		PublicSSETypes:     []string{"reply", "done", "thinking", "error", "tool_call", "tool_result", "report_start", "report_progress", "report_done"},
@@ -248,7 +248,7 @@ func TestGenerateReport_ChartOutput(t *testing.T) {
 
 	venvPath := findProjectRoot() + "/sidecar/file-parser/venv"
 	chartStorage, _ := storage.NewLocalFileStorage(os.TempDir())
-	report := NewGenerateReport(ai, db, repository.NewFileRepo(db), chartStorage, venvPath)
+	report := NewGenerateReport(ai, db, repository.NewFileRepo(db), chartStorage, venvPath, os.TempDir())
 	report.configs = []*TableConfig{{
 		Table:       "query_enterprises",
 		Description: "查询企业",

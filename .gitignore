@@ -12,3 +12,5 @@ uploads/
 # test
 test/node_modules/
 test/src/*.js
+
+__pycache__/
