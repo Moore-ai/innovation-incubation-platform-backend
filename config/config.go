@@ -139,7 +139,8 @@ type RedisConfig struct {
 
 type UploadConfig struct {
 	MaxSizeMB         int64    `mapstructure:"max_size_mb"`
-	Dir               string   `mapstructure:"dir"`
+	FileDir           string   `mapstructure:"file_dir"`
+	ChartDir          string   `mapstructure:"chart_dir"`
 	AllowedExtensions []string `mapstructure:"allowed_extensions"`
 }
 
@@ -267,7 +268,8 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("ai.use_legal_raw_for_summary", true)
 	v.SetDefault("ai.use_legal_raw_for_embedding", false)
 	v.SetDefault("upload.max_size_mb", 20)
-	v.SetDefault("upload.dir", "./uploads")
+	v.SetDefault("upload.file_dir", "./uploads")
+	v.SetDefault("upload.chart_dir", "./uploads-png")
 	v.SetDefault("upload.allowed_extensions", []string{".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".png"})
 	v.SetDefault("server.rbac_enabled", true)
 	v.SetDefault("agent.model", "")

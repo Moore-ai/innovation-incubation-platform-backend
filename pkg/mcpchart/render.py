@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 plt.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei", "DejaVu Sans"]
 plt.rcParams["axes.unicode_minus"] = False
 
-OUTPUT_DIR = os.environ.get("MCP_CHART_OUTPUT", os.path.join(os.getcwd(), "internal", "storage", "charts"))
+OUTPUT_DIR = os.environ.get("MCP_CHART_OUTPUT", os.path.join(os.path.dirname(__file__), "output"))
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 for line in sys.stdin:

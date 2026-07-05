@@ -69,7 +69,8 @@ redis:
 
 upload:
   max_size_mb: 20
-  dir: uploads
+  file_dir: uploads
+  chart_dir: uploads-png
   allowed_extensions: [".docx", ".pdf", ".xlsx", ".txt"]
 
 rate_limit:

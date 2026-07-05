@@ -111,10 +111,7 @@ func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, e
 	for _, tcfg := range agentbuiltin.TableConfigs {
 		registry.Register(agentbuiltin.NewGenericQueryTool(tcfg, db))
 	}
-	chartStorage, _ := storage.NewLocalFileStorage(cfg.Upload.Dir)
-	if chartStorage == nil {
-		chartStorage, _ = storage.NewLocalFileStorage("./internal/storage")
-	}
+	chartStorage, _ := storage.NewLocalFileStorage(cfg.Upload.ChartDir)
 	registry.Register(agentbuiltin.NewGenerateReport(aiClient, db, r.file, chartStorage))
 
 	workingMem := agentmemory.NewWorkingMemory(r.chat, cfg.Agent.WorkingMemory.PageSize)
@@ -134,7 +131,7 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 	notifSvc := service.NewNotificationService(r.notif, hub)
 	assigner := service.NewAssigner(r.common)
 
-	fileStorage, err := storage.NewLocalFileStorage(cfg.Upload.Dir)
+	fileStorage, err := storage.NewLocalFileStorage(cfg.Upload.FileDir)
 	if err != nil {
 		slog.Error("failed to init file storage", "error", err)
 		os.Exit(1)
