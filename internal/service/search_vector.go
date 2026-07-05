@@ -17,7 +17,6 @@ import (
 	"innovation-incubation-platform-backend/pkg/errcode"
 )
 
-// VectorSearch implements PolicySearch via embedding vector similarity matching.
 type VectorSearch struct {
 	embedClient *aiclient.EmbeddingClient
 	aiSvc       *AIService
@@ -146,11 +145,22 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string, us
 	}
 
 	// AI 分析
+	if s.cfg.Vector.Rerank {
+		ranked, analysisResult, err := s.aiSvc.AnalyzeAndRankResults(ctx, query, profile, embedded)
+		if err != nil {
+			return nil, err
+		}
+		return &SearchResult{
+			Policies: ranked,
+			Analysis: analysisResult.Text,
+			Found:    analysisResult.Found,
+			Effect:   analysisResult.Effect,
+		}, nil
+	}
 	analysisResult, err := s.aiSvc.AnalyzeResults(ctx, query, profile, embedded)
 	if err != nil {
 		return nil, err
 	}
-
 	return &SearchResult{
 		Policies: embedded,
 		Analysis: analysisResult.Text,
@@ -159,8 +169,6 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string, us
 	}, nil
 }
 
-// rrfFusion performs Reciprocal Rank Fusion on multiple ranked lists.
-// k is the RRF constant (typically 60), topK limits the final output.
 func rrfFusion(results [][]model.Policy, k float64, topK int) []model.Policy {
 	scores := make(map[uint]float64)
 	firstSeen := make(map[uint]model.Policy)

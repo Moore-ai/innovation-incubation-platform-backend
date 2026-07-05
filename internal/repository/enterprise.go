@@ -94,6 +94,17 @@ func (r *EnterpriseRepo) FindUserIDByEnterpriseID(entID uint) (uint, error) {
 	return ent.UserID, err
 }
 
+func (r *EnterpriseRepo) FindApprovedApplicationsPaginated(entID uint, page, pageSize int) ([]model.PolicyApplication, int64, error) {
+	var apps []model.PolicyApplication
+	var total int64
+	q := r.db.Model(&model.PolicyApplication{}).
+		Where("applicant_id = ? AND applicant_type = ? AND status = ?", entID, string(model.ApplicantEnterprise), string(model.ApprovalApproved))
+	q.Count(&total)
+	err := q.Preload("Policy").Order("created_at DESC").
+		Offset((page-1)*pageSize).Limit(pageSize).Find(&apps).Error
+	return apps, total, err
+}
+
 func (r *EnterpriseRepo) FindApprovedApplications(entID uint) ([]model.PolicyApplication, error) {
 	var apps []model.PolicyApplication
 	err := r.db.Where("applicant_type = ? AND applicant_id = ? AND status IN ?", string(model.ApplicantEnterprise), entID, []string{string(model.ApprovalApproved)}).

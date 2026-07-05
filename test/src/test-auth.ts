@@ -1,4 +1,4 @@
-// 认证模块测试 — 注册 → 登录 → 获取用户信息
+// 认证模块测试 - 注册 -> 登录 -> 获取用户信息
 // 运行: npx tsx src/test-auth.ts
 // 需要先启动后端: go run ./cmd/server/
 
@@ -8,7 +8,7 @@ const api = new ApiClient();
 const ts = Date.now();
 
 async function assert(label: string, ok: boolean) {
-  console.log(`  ${ok ? "✅" : "❌"} ${label}`);
+  console.log(`  ${ok ? "[PASS]" : "[FAIL]"} ${label}`);
   if (!ok) process.exitCode = 1;
 }
 
@@ -43,9 +43,9 @@ async function main() {
 
   console.log("\n--- 登录测试 ---");
 
-  // 4. 企业用信用代码登录
+  // 3. 企业用信用代码登录
   const loginEnt = await api.post("/auth/login", {
-    credential: `CRED${ts}`,
+    credit_code: `CRED${ts}`,
     password: "test123456",
     role: "enterprise",
   });
@@ -53,17 +53,17 @@ async function main() {
   assert("返回 token", !!loginEnt.data?.token);
   assert("返回 credit_code", loginEnt.data?.user?.credit_code === `CRED${ts}`);
 
-  // 5. 错误密码
+  // 4. 错误密码
   const badPwd = await api.post("/auth/login", {
-    credential: `CRED${ts}`,
+    credit_code: `CRED${ts}`,
     password: "wrongpassword",
     role: "enterprise",
   });
   assert("错误密码被拒绝", badPwd.code !== 0);
 
-  // 6. 不存在的用户
+  // 5. 不存在的用户
   const noUser = await api.post("/auth/login", {
-    credential: "NOTEXIST",
+    credit_code: "NOTEXIST",
     password: "test123456",
     role: "enterprise",
   });
@@ -71,7 +71,7 @@ async function main() {
 
   console.log("\n--- /me 测试 ---");
 
-  // 7. 用企业 token 获取用户信息
+  // 6. 用企业 token 获取用户信息
   api.setToken(loginEnt.data?.token);
   const me = await api.get("/auth/me");
   assert("获取用户信息成功", me.code === 0);
@@ -79,11 +79,11 @@ async function main() {
   assert("包含 credit_code", !!me.data?.credit_code);
 
   api.setToken("");
-  // 8. 无 token 访问 /me
+  // 7. 无 token 访问 /me
   const anon = await api.get("/auth/me");
   assert("未认证请求被拒绝", anon.code !== 0);
 
-  console.log("\n" + (process.exitCode ? "❌ 有测试失败" : "✅ 全部通过"));
+  console.log("\n" + (process.exitCode ? "[FAIL] 有测试失败" : "[PASS] 全部通过"));
 }
 
 main().catch(console.error);

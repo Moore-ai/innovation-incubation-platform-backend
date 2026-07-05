@@ -6,7 +6,7 @@ async function main() {
   // 1. 政务登录 → 发布政策（确保有可搜索的数据）
   console.log("=== 政务登录 ===");
   const login = await api.post("/auth/login", {
-    credential: process.env.GOV_USER || "13800138000",
+    phone: process.env.GOV_USER || "13800138000",
     password: process.env.GOV_PASS || "admin123",
     role: "government",
   });
@@ -20,7 +20,7 @@ async function main() {
   // 2. 企业登录 → 搜索
   console.log("\n=== 企业登录 ===");
   const entLogin = await api.post("/auth/login", {
-    credential: process.env.ENT_USER || "13800138001",
+    credit_code: process.env.ENT_USER || "13800138001",
     password: process.env.ENT_PASS || "admin123",
     role: "enterprise",
   });

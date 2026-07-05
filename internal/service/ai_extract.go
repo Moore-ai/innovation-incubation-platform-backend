@@ -22,27 +22,30 @@ func (s *AIService) collectFileSummaries(ctx context.Context, policy *model.Poli
 	g, ctx := errgroup.WithContext(ctx)
 	for _, basis := range policy.Requirements.LegalBasis {
 		g.Go(func() error {
-			file, err := s.fileRepo.FindByID(basis.FileID)
-			if err != nil {
-				return nil // 文件不存在，跳过
+			// 文件名 + 条款始终参与
+			line := "- " + basis.Title
+			if basis.SpecificClause != "" {
+				line += "\n  依据条款：" + basis.SpecificClause
 			}
-			// 如果没有摘要但有原始文字，先并发生成
-			if file.Summary == "" && file.RawText != "" {
-				if err := s.SummarizeFile(ctx, file); err != nil {
-					slog.Warn("summarize file failed", "file_id", basis.FileID, "error", err)
-					return nil // 摘要失败不阻断
+			// 文件解析后的原始文本（RawText）仅在配置开启时用于生成/获取摘要
+			if s.useLegalRawForSummary {
+				file, err := s.fileRepo.FindByID(basis.FileID)
+				if err == nil {
+					if file.Summary == "" && file.RawText != "" {
+						if err := s.SummarizeFile(ctx, file); err != nil {
+							slog.Warn("summarize file failed", "file_id", basis.FileID, "error", err)
+						} else {
+							file, _ = s.fileRepo.FindByID(basis.FileID)
+						}
+					}
+					if file.Summary != "" {
+						line += "\n  文件摘要：" + file.Summary
+					}
 				}
-				// 重新从 DB 获取最新的 summary
-				file, err = s.fileRepo.FindByID(basis.FileID)
-				if err != nil {
-					return nil
-				}
 			}
-			if file.Summary != "" {
-				mu.Lock()
-				summaries = append(summaries, fmt.Sprintf("- %s：%s", basis.Title, file.Summary))
-				mu.Unlock()
-			}
+			mu.Lock()
+			summaries = append(summaries, line)
+			mu.Unlock()
 			return nil
 		})
 	}
@@ -51,7 +54,6 @@ func (s *AIService) collectFileSummaries(ctx context.Context, policy *model.Poli
 }
 
 func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) error {
-	// 构建 userMsg（并发生成缺失的摘要 + 收集已有摘要）
 	var msg string
 	msg += fmt.Sprintf("政策标题：%s\n", policy.Title)
 	msg += fmt.Sprintf("政策内容：%s\n", toJSONString(policy.Requirements))
@@ -73,8 +75,8 @@ func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) err
 	return nil
 }
 
-// cleanLLMOutput extracts JSON content from markdown code block wrapping.
 func cleanLLMOutput(s string) string {
+	s = strings.TrimPrefix(s, "\ufeff")
 	s = strings.TrimSpace(s)
 	for _, prefix := range []string{"```json", "```"} {
 		if idx := strings.Index(s, prefix); idx >= 0 {
@@ -85,7 +87,13 @@ func cleanLLMOutput(s string) string {
 	if idx := strings.LastIndex(s, "```"); idx >= 0 {
 		s = s[:idx]
 	}
-	return strings.TrimSpace(s)
+	s = strings.TrimSpace(s)
+	if start := strings.IndexByte(s, '{'); start >= 0 {
+		if end := strings.LastIndexByte(s, '}'); end >= start {
+			s = s[start : end+1]
+		}
+	}
+	return s
 }
 
 func toJSONString(v any) string {
@@ -99,8 +107,7 @@ func toJSONString(v any) string {
 	return string(b)
 }
 
-// buildEmbeddingText 从政策结构和法律依据文件摘要拼接 embedding 文本。
-func buildEmbeddingText(p *model.Policy, legalFiles []model.File) string {
+func (s *AIService) buildEmbeddingText(p *model.Policy, legalFiles []model.File) string {
 	var parts []string
 	parts = append(parts, p.Title)
 	if p.ExtractedFields != nil {
@@ -121,10 +128,24 @@ func buildEmbeddingText(p *model.Policy, legalFiles []model.File) string {
 		if p.Requirements.Process != nil {
 			parts = append(parts, *p.Requirements.Process)
 		}
-	}
-	for _, f := range legalFiles {
-		if f.Summary != "" {
-			parts = append(parts, f.Summary)
+		// 文件名称 + 具体条款始终参与向量化
+		summaries := make(map[uint]string, len(legalFiles))
+		if s.useLegalRawForEmbedding {
+			for _, f := range legalFiles {
+				if f.Summary != "" {
+					summaries[f.ID] = f.Summary
+				}
+			}
+		}
+		for _, basis := range p.Requirements.LegalBasis {
+			text := basis.Title
+			if basis.SpecificClause != "" {
+				text += "：" + basis.SpecificClause
+			}
+			if s, ok := summaries[basis.FileID]; ok {
+				text += "。" + s
+			}
+			parts = append(parts, text)
 		}
 	}
 	return strings.Join(parts, "。")

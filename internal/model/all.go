@@ -14,9 +14,13 @@ func AllModels() []any {
 		&PerformanceCampaign{},
 		&PerformanceSubmission{},
 		&File{},
+		&Government{},
 		&Notification{},
 		&AccountDeletionRequest{},
 		&PolicyFollow{},
 		&Appeal{},
+		&ChatSession{},
+		&ChatMessage{},
+		&SemanticMemory{},
 	}
 }

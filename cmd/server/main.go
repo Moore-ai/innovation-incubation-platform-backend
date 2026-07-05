@@ -13,6 +13,7 @@ import (
 	"innovation-incubation-platform-backend/internal/service"
 	"innovation-incubation-platform-backend/pkg/fileparser"
 
+	"github.com/casbin/casbin/v2"
 	"github.com/gin-gonic/gin"
 )
 
@@ -35,8 +36,10 @@ func main() {
 	db := database.MustInit(cfg)
 	database.MustNewRedisClient(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
 	middleware.InitRateLimit(&cfg.RateLimit)
-	cfg.Upload.Init()
-	enforcer, _ := middleware.NewEnforcer(db) // 临时禁用 RBAC
+	var enforcer *casbin.Enforcer
+	if cfg.Server.RBACEnabled {
+		enforcer = middleware.MustInitEnforcer(db)
+	}
 
 	hub := service.NewSSEHub(cfg.Notification.MaxConnsPerUser)
 	repo := initRepositories(db)
@@ -63,6 +66,7 @@ func main() {
 		FileController:         ctl.file,
 		NotificationController: ctl.notif,
 		TestController:         ctl.test,
+		ChatController:         ctl.chat,
 	})
 
 	slog.Info("server starting", "port", cfg.Server.Port)

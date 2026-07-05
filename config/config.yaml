@@ -1,6 +1,7 @@
 server:
   port: ${SERVER_PORT}
   mode: ${SERVER_MODE}
+  rbac_enabled: true
 
 db:
   host: ${DB_HOST}
@@ -9,6 +10,7 @@ db:
   password: ${DB_PASSWORD}
   name: ${DB_NAME}
   sslmode: disable
+  log_level: WARN    # INFO | WARN
 
 jwt:
   secret: ${JWT_SECRET}
@@ -26,6 +28,8 @@ ai:
     model: ${EMBEDDING_MODEL}
     dimensions: 1024
     timeout_seconds: 30
+  use_legal_raw_for_summary: true
+  use_legal_raw_for_embedding: false
 
 filematch:
   weight_jaro: 0.4
@@ -43,13 +47,13 @@ filematch:
     - 扫描
 
 search:
-  method: vector
+  method: vector      # structured | vector
   max_results: 10
   vector:
     dimensions: 1024
     top_k: 8
-    min_score: 0.7
-    max_analysis: 5
+    min_score: 0.3
+    rerank: true
     mqe:
       enabled: false
       n_queries: 3
@@ -64,9 +68,9 @@ redis:
   db: ${REDIS_DB}
 
 upload:
-  max_size_mb: 2
+  max_size_mb: 20
   dir: uploads
-  allowed_extensions: []
+  allowed_extensions: [".docx", ".pdf", ".xlsx", ".txt"]
 
 rate_limit:
   enabled: true
@@ -87,3 +91,24 @@ file_parser:
   venv_path: "sidecar/file-parser/venv"
   script_path: "sidecar/file-parser/server.py"
   timeout_sec: 30
+
+agent:
+  model: ""               # 空字符串表示沿用 ai.openai.model
+  max_steps: 10
+  message_max_chars: 2000
+  request_timeout_sec: 120
+  planning_enabled: false
+  planning_model: ""
+  public_sse_types: [reply, done, thinking, error]  # 允许暴露给前端的 SSE 事件
+  tool_timeout_sec: 10
+  context_window: 512000
+  history_budget_ratio: 0.7
+  token_estimation: better     # simple | better
+  working_memory:
+    page_size: 10
+  memory:
+    semantic_limit: 3
+    episodic_limit: 3
+    episodic_decay_factor: 0.95   # 情景记忆每个月的保存能力
+  reflect:
+    similarity_threshold: 0.3

@@ -97,14 +97,14 @@ func (t ApprovalAction) IsValid() bool {
 type TargetRole string
 
 const (
-	RoleEnterprise TargetRole = "enterprise"
-	RoleCarrier    TargetRole = "carrier"
-	RoleBoth       TargetRole = "both"
+	TargetRoleEnterprise TargetRole = "enterprise"
+	TargetRoleCarrier    TargetRole = "carrier"
+	TargetRoleBoth       TargetRole = "both"
 )
 
 func (t TargetRole) IsValid() bool {
 	switch t {
-	case RoleEnterprise, RoleCarrier, RoleBoth:
+	case TargetRoleEnterprise, TargetRoleCarrier, TargetRoleBoth:
 		return true
 	default:
 		return false
@@ -172,17 +172,17 @@ type UserRole string
 const (
 	UserRoleEnterprise UserRole = "enterprise"
 	UserRoleCarrier    UserRole = "carrier"
+	UserRoleGovernment UserRole = "government"
 )
 
 func (r UserRole) IsValid() bool {
 	switch r {
-	case UserRoleEnterprise, UserRoleCarrier:
+	case UserRoleEnterprise, UserRoleCarrier, UserRoleGovernment:
 		return true
 	default:
 		return false
 	}
 }
-
 
 // NecessityType — ApplicationMaterial.Necessity
 type NecessityType string

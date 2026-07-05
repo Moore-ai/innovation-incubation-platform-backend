@@ -23,4 +23,7 @@ if __name__ == "__main__":
     port = int(sys.argv[1])
     config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="info")
     server = uvicorn.Server(config)
-    server.run()
+    try:
+        server.run()
+    except KeyboardInterrupt:
+        pass

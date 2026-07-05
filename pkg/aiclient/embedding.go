@@ -3,6 +3,8 @@ package aiclient
 import (
 	"context"
 	"fmt"
+	"log/slog"
+
 	openai "github.com/sashabaranov/go-openai"
 
 	"innovation-incubation-platform-backend/config"
@@ -23,15 +25,28 @@ func NewEmbeddingClient(cfg config.EmbeddingConfig) *EmbeddingClient {
 }
 
 func (c *EmbeddingClient) Embed(ctx context.Context, text string) ([]float32, error) {
-	resp, err := c.inner.CreateEmbeddings(ctx, openai.EmbeddingRequest{
-		Input: []string{text},
-		Model: openai.EmbeddingModel(c.model),
-	})
-	if err != nil {
-		return nil, err
+	var lastErr error
+	for attempt := 0; attempt <= defaultRetries; attempt++ {
+		if attempt > 0 {
+			slog.Warn("Embedding 重试", "attempt", attempt, "max", defaultRetries)
+		}
+		resp, err := c.inner.CreateEmbeddings(ctx, openai.EmbeddingRequest{
+			Input: []string{text},
+			Model: openai.EmbeddingModel(c.model),
+		})
+		if err != nil {
+			lastErr = err
+			if ctx.Err() != nil {
+				break
+			}
+			continue
+		}
+		if len(resp.Data) == 0 {
+			lastErr = fmt.Errorf("embedding API returned empty data")
+			continue
+		}
+		return resp.Data[0].Embedding, nil
 	}
-	if len(resp.Data) == 0 {
-		return nil, fmt.Errorf("embedding API returned empty data")
-	}
-	return resp.Data[0].Embedding, nil
+	slog.Error("embedding failed", "error", lastErr)
+	return nil, lastErr
 }

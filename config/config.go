@@ -1,4 +1,4 @@
-package config
+﻿package config
 
 import (
 	"bytes"
@@ -24,6 +24,7 @@ type Config struct {
 	FileMatch    FileMatchConfig    `mapstructure:"filematch"`
 	Search       SearchConfig       `mapstructure:"search"`
 	FileParser   FileParserConfig   `mapstructure:"file_parser"`
+	Agent        AgentConfig        `mapstructure:"agent"`
 }
 
 type FileParserConfig struct {
@@ -54,11 +55,11 @@ type SearchConfig struct {
 }
 
 type VectorSearchConfig struct {
-	TopK        int        `mapstructure:"top_k"`
-	MinScore    float64    `mapstructure:"min_score"`
-	MaxAnalysis int        `mapstructure:"max_analysis"`
-	MQE         MQEConfig  `mapstructure:"mqe"`
-	HyDE        HyDEConfig `mapstructure:"hyde"`
+	TopK     int        `mapstructure:"top_k"`
+	MinScore float64    `mapstructure:"min_score"`
+	Rerank   bool       `mapstructure:"rerank"`
+	MQE      MQEConfig  `mapstructure:"mqe"`
+	HyDE     HyDEConfig `mapstructure:"hyde"`
 }
 
 type MQEConfig struct {
@@ -77,8 +78,9 @@ type LogConfig struct {
 }
 
 type ServerConfig struct {
-	Port int    `mapstructure:"port"`
-	Mode string `mapstructure:"mode"`
+	Port        int    `mapstructure:"port"`
+	Mode        string `mapstructure:"mode"`
+	RBACEnabled bool   `mapstructure:"rbac_enabled"`
 }
 
 type DBConfig struct {
@@ -88,6 +90,7 @@ type DBConfig struct {
 	Password string `mapstructure:"password"`
 	Name     string `mapstructure:"name"`
 	SSLMode  string `mapstructure:"sslmode"`
+	LogLevel string `mapstructure:"log_level"`
 }
 
 type JWTConfig struct {
@@ -96,10 +99,12 @@ type JWTConfig struct {
 }
 
 type AIConfig struct {
-	OpenAI       OpenAICompatibleConfig `mapstructure:"openai"`
-	Prompts      PromptsConfig          `mapstructure:"prompts"`
-	MaxFileChars int                    `mapstructure:"max_file_chars"`
-	Embedding    EmbeddingConfig        `mapstructure:"embedding"`
+	OpenAI                  OpenAICompatibleConfig `mapstructure:"openai"`
+	Prompts                 PromptsConfig          `mapstructure:"prompts"`
+	MaxFileChars            int                    `mapstructure:"max_file_chars"`
+	Embedding               EmbeddingConfig        `mapstructure:"embedding"`
+	UseLegalRawForSummary   bool                   `mapstructure:"use_legal_raw_for_summary"`
+	UseLegalRawForEmbedding bool                   `mapstructure:"use_legal_raw_for_embedding"`
 }
 
 type EmbeddingConfig struct {
@@ -138,23 +143,42 @@ type UploadConfig struct {
 	AllowedExtensions []string `mapstructure:"allowed_extensions"`
 }
 
-func (c *UploadConfig) Init() {
-	if c.MaxSizeMB == 0 {
-		c.MaxSizeMB = 20
-	}
-	if c.Dir == "" {
-		c.Dir = "./uploads"
-	}
-	if len(c.AllowedExtensions) == 0 {
-		c.AllowedExtensions = []string{".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".png"}
-	}
-}
-
 type RateLimitConfig struct {
 	Enabled    bool   `mapstructure:"enabled"`
 	Algorithm  string `mapstructure:"algorithm"`
 	DefaultRPM int    `mapstructure:"default_rpm"`
 	Whitelist  []uint `mapstructure:"whitelist"`
+}
+
+type AgentConfig struct {
+	Model              string              `mapstructure:"model"`
+	MaxSteps           int                 `mapstructure:"max_steps"`
+	MessageMaxChars    int                 `mapstructure:"message_max_chars"`
+	RequestTimeoutSec  int                 `mapstructure:"request_timeout_sec"`
+	ToolTimeoutSec     int                 `mapstructure:"tool_timeout_sec"`
+	ContextWindow      int                 `mapstructure:"context_window"`
+	HistoryBudgetRatio float64             `mapstructure:"history_budget_ratio"`
+	PlanningEnabled    bool                `mapstructure:"planning_enabled"`
+	PlanningModel      string              `mapstructure:"planning_model"`
+	PublicSSETypes     []string            `mapstructure:"public_sse_types"` // 允许暴露给前端的 SSE 事件类型
+	TokenEstimation    string              `mapstructure:"token_estimation"`
+	WorkingMemory      WorkingMemoryConfig `mapstructure:"working_memory"`
+	Memory             AgentMemoryConfig   `mapstructure:"memory"`
+	Reflect            ReflectConfig       `mapstructure:"reflect"`
+}
+
+type WorkingMemoryConfig struct {
+	PageSize int `mapstructure:"page_size"` // 分页加载每页条数
+}
+
+type AgentMemoryConfig struct {
+	SemanticLimit       int     `mapstructure:"semantic_limit"`
+	EpisodicLimit       int     `mapstructure:"episodic_limit"`        // 情景记忆检索条数
+	EpisodicDecayFactor float64 `mapstructure:"episodic_decay_factor"` // 时间衰减因子，0 表示不衰减（默认 0）
+}
+
+type ReflectConfig struct {
+	SimilarityThreshold float64 `mapstructure:"similarity_threshold"`
 }
 
 func (c *RateLimitConfig) IsWhitelisted(userID uint) bool {
@@ -223,11 +247,12 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("filematch.weight_prefix", 0.2)
 	v.SetDefault("filematch.threshold", 0.6)
 	v.SetDefault("filematch.stop_words", []string{"复印件", "原件", "扫描件", "照片", "图片", "副本", "电子版", "扫描"})
+	v.SetDefault("db.log_level", "warn")
 	v.SetDefault("search.method", "structured")
 	v.SetDefault("search.max_results", 10)
 	v.SetDefault("search.vector.top_k", 20)
 	v.SetDefault("search.vector.min_score", 0.7)
-	v.SetDefault("search.vector.max_analysis", 5)
+	v.SetDefault("search.vector.rerank", true)
 	v.SetDefault("search.vector.mqe.enabled", true)
 	v.SetDefault("search.vector.mqe.n_queries", 3)
 	v.SetDefault("search.vector.mqe.rrf_k", 60.0)
@@ -238,6 +263,29 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("file_parser.venv_path", "sidecar/file-parser/venv")
 	v.SetDefault("file_parser.script_path", "sidecar/file-parser/server.py")
 	v.SetDefault("file_parser.timeout_sec", 30)
+
+	v.SetDefault("ai.use_legal_raw_for_summary", true)
+	v.SetDefault("ai.use_legal_raw_for_embedding", false)
+	v.SetDefault("upload.max_size_mb", 20)
+	v.SetDefault("upload.dir", "./uploads")
+	v.SetDefault("upload.allowed_extensions", []string{".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".png"})
+	v.SetDefault("server.rbac_enabled", true)
+	v.SetDefault("agent.model", "")
+	v.SetDefault("agent.max_steps", 10)
+	v.SetDefault("agent.message_max_chars", 2000)
+	v.SetDefault("agent.request_timeout_sec", 120)
+	v.SetDefault("agent.tool_timeout_sec", 10)
+	v.SetDefault("agent.context_window", 512000)
+	v.SetDefault("agent.history_budget_ratio", 0.7)
+	v.SetDefault("agent.planning_enabled", false)
+	v.SetDefault("agent.planning_model", "")
+	v.SetDefault("agent.public_sse_types", []string{"reply", "done", "thinking", "error"})
+	v.SetDefault("agent.token_estimation", "better")
+	v.SetDefault("agent.working_memory.page_size", 10)
+	v.SetDefault("agent.memory.semantic_limit", 3)
+	v.SetDefault("agent.memory.episodic_limit", 3)
+	v.SetDefault("agent.memory.episodic_decay_factor", 0.0)
+	v.SetDefault("agent.reflect.similarity_threshold", 0.3)
 
 	if err := v.ReadConfig(bytes.NewReader([]byte(expanded))); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
