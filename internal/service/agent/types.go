@@ -35,6 +35,7 @@ const (
 	ctxKeyRole             ctxKey = "role"
 	ctxKeyState            ctxKey = "state"
 	ctxKeyExcludeFromMsgID ctxKey = "exclude_from_msg_id"
+	ctxKeyProgressWriter   ctxKey = "progress_writer"
 )
 
 func UserIDFromCtx(ctx context.Context) uint {
@@ -80,4 +81,18 @@ func WriteSSEEvent(w io.Writer, f http.Flusher, evt SSEEvent) {
 	data, _ := json.Marshal(evt)
 	fmt.Fprintf(w, "data: %s\n\n", data)
 	f.Flush()
+}
+
+// ProgressWriter SSE 进度推送回调。
+type ProgressWriter func(typ string, data map[string]any)
+
+// ProgressWriterFromCtx 从 context 获取 SSE 进度推送器。
+func ProgressWriterFromCtx(ctx context.Context) ProgressWriter {
+	v, _ := ctx.Value(ctxKeyProgressWriter).(ProgressWriter)
+	return v
+}
+
+// WithProgressWriter 注入 SSE 进度推送器。
+func WithProgressWriter(ctx context.Context, w ProgressWriter) context.Context {
+	return context.WithValue(ctx, ctxKeyProgressWriter, w)
 }
