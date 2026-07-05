@@ -84,7 +84,7 @@ func (e *QueryEngine) Query(db *gorm.DB, cfg *TableConfig, params map[string]any
 		q = q.Group(periodExpr)
 	}
 	switch agg {
-	case "count", "":
+	case "count":
 		selectCols = append(selectCols, "COUNT(*) AS count")
 	case "avg":
 		selectCols = append(selectCols, "AVG("+aggField+") AS avg")
@@ -108,6 +108,10 @@ func (e *QueryEngine) Query(db *gorm.DB, cfg *TableConfig, params map[string]any
 	q = q.Limit(limit)
 
 	orderBy, _ := params["order_by"].(string)
+	// 聚合查询（无 group_by 时单行结果）跳过排序，避免 ORDER BY 非聚合列报错
+	if orderBy != "" && agg != "" && gby == "" {
+		orderBy = ""
+	}
 	if orderBy != "" {
 		dir := "ASC"
 		if orderBy[0] == '-' {
@@ -142,7 +146,7 @@ func extractColumns(gby, period, agg string) []string {
 		cols = append(cols, period)
 	}
 	switch agg {
-	case "count", "":
+	case "count":
 		cols = append(cols, "count")
 	default:
 		cols = append(cols, agg)
