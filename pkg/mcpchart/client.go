@@ -33,14 +33,18 @@ type Client struct {
 	stdout *bufio.Scanner
 }
 
-// NewClient 启动 Python render.py 子进程。
+// NewClient 启动 Python render.py 子进程，复用 file-parser 的 venv。
 func NewClient() (*Client, error) {
 	scriptDir, err := os.Getwd()
 	if err != nil {
 		scriptDir = "."
 	}
 	scriptPath := scriptDir + "/pkg/mcpchart/render.py"
-	cmd := exec.Command("python3", scriptPath)
+	python := scriptDir + "/sidecar/file-parser/venv/Scripts/python.exe"
+	if _, err := os.Stat(python); err != nil {
+		python = "python3" // fallback
+	}
+	cmd := exec.Command(python, scriptPath)
 	cmd.Stderr = os.Stderr
 
 	stdin, err := cmd.StdinPipe()
