@@ -43,9 +43,7 @@ func (t *QueryMyCarrierInfo) OutputSchema() json.RawMessage {
 	{
 		"type":"object",
 		"properties":{
-			"carrier":{
-				"type":"object"
-			}
+			"carrier": {"type":"object","properties":{"id":{"type":"integer"},"name":{"type":"string"},"type":{"type":"string"},"address":{"type":"string"},"area":{"type":"string"},"manager_name":{"type":"string"},"contact_phone":{"type":"string"},"scale":{"type":"string"},"incubation_count":{"type":"integer"},"created_at":{"type":"string"}}}
 		},
 		"required":["carrier"]
 	}`)

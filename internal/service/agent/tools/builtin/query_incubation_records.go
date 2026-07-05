@@ -52,12 +52,7 @@ func (t *QueryIncubationRecords) OutputSchema() json.RawMessage {
 	{
 		"type":"object",
 		"properties":{
-			"records":{
-				"type":"array",
-				"items":{
-					"type":"object"
-				}
-			},
+			"records":{"type":"array","items":{"type":"object","properties":{"id":{"type":"integer"},"enterprise_id":{"type":"integer"},"carrier_id":{"type":"integer"},"incubate_status":{"type":"string"},"incubate_start":{"type":"string"},"incubate_end":{"type":"string"},"status":{"type":"string"},"created_at":{"type":"string"}}}}},
 			"total":{
 				"type":"integer"
 			}

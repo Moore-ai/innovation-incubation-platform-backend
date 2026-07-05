@@ -33,9 +33,7 @@ func (t *QueryPolicyDetail) OutputSchema() json.RawMessage {
 	{
 		"type":"object",
 		"properties":{
-			"policy":{
-				"type":"object"
-			}
+			"policy": {"type":"object","properties":{"id":{"type":"integer"},"title":{"type":"string"},"department":{"type":"string"},"target_role":{"type":"string"},"status":{"type":"string"},"start_date":{"type":"string"},"end_date":{"type":"string"},"published_at":{"type":"string"},"requirements":{"type":"object"},"extracted_fields":{"type":"object"}}}
 		},
 		"required":["policy"]
 	}`)

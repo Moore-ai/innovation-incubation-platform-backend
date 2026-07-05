@@ -47,12 +47,7 @@ func (t *QueryMyFiles) OutputSchema() json.RawMessage {
 	{
 		"type":"object",
 		"properties":{
-			"files":{
-				"type":"array",
-				"items":{
-					"type":"object"
-				}
-			},
+			"files":{"type":"array","items":{"type":"object","properties":{"id":{"type":"integer"},"filename":{"type":"string"},"mime_type":{"type":"string"},"size":{"type":"integer"},"summary":{"type":"string"},"created_at":{"type":"string"}}}}},
 			"total":{
 				"type":"integer"
 			}

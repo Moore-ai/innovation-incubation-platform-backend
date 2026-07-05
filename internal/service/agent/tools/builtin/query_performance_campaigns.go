@@ -51,12 +51,7 @@ func (t *QueryPerformanceCampaigns) OutputSchema() json.RawMessage {
 	{
 		"type":"object",
 		"properties":{
-			"campaigns":{
-				"type":"array",
-				"items":{
-					"type":"object"
-				}
-			},
+			"campaigns":{"type":"array","items":{"type":"object","properties":{"id":{"type":"integer"},"name":{"type":"string"},"year":{"type":"integer"},"start_date":{"type":"string"},"end_date":{"type":"string"},"is_active":{"type":"boolean"}}}}},
 			"total":{
 				"type":"integer"
 			}

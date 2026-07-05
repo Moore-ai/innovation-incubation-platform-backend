@@ -51,12 +51,7 @@ func (t *QueryMyPolicyApplications) OutputSchema() json.RawMessage {
 	{
 		"type":"object",
 		"properties":{
-			"applications":{
-				"type":"array",
-				"items":{
-					"type":"object"
-				}
-			},
+			"applications":{"type":"array","items":{"type":"object","properties":{"id":{"type":"integer"},"policy_id":{"type":"integer"},"applicant_id":{"type":"integer"},"applicant_type":{"type":"string"},"status":{"type":"string"},"created_at":{"type":"string"}}}}},
 			"total":{
 				"type":"integer"
 			}

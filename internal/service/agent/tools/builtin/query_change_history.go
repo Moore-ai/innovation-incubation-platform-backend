@@ -51,12 +51,7 @@ func (t *QueryChangeHistory) OutputSchema() json.RawMessage {
 	{
 		"type":"object",
 		"properties":{
-			"changes":{
-				"type":"array",
-				"items":{
-					"type":"object"
-				}
-			},
+			"changes":{"type":"array","items":{"type":"object","properties":{"id":{"type":"integer"},"enterprise_id":{"type":"integer"},"change_type":{"type":"string"},"change_content":{"type":"string"},"status":{"type":"string"},"created_at":{"type":"string"}}}}},
 			"total":{
 				"type":"integer"
 			}
