@@ -1,19 +1,33 @@
 package builtin
 
-import "gorm.io/gorm"
+import (
+	"strings"
+
+	"gorm.io/gorm"
+)
 
 // TableConfig 定义一张表的查询配置。
 type TableConfig struct {
 	Table       string      // 工具名（如 query_enterprises）
+	DBTable     string      // 数据库表名（如 enterprises），空则去掉 Table 的 query_ 前缀
 	Description string      // 工具 Description
 	Columns     []ColumnDef // 可筛选/分组字段
 	TimeColumn  string      // group_by_period 使用的日期列，默认 "created_at"
 	Aggregates  []string    // 支持的聚合方式，默认 ["count"]
 }
 
-// TblName 返回实际数据库表名（去掉 query_ 前缀）。
+// TblName 返回工具名，用于 Executor 匹配 LLM 选择的表。
 func (c *TableConfig) TblName() string {
 	return c.Table
+}
+
+// dbTable 返回实际数据库表名。
+func (c *TableConfig) dbTable() string {
+	if c.DBTable != "" {
+		return c.DBTable
+	}
+	// fallback: 去掉 "query_" 前缀
+	return strings.TrimPrefix(c.Table, "query_")
 }
 
 // ColumnDef 定义列。
@@ -40,7 +54,7 @@ func (e *QueryEngine) Query(db *gorm.DB, cfg *TableConfig, params map[string]any
 		timeCol = "created_at"
 	}
 
-	q := db.Table(cfg.Table)
+	q := db.Table(cfg.dbTable())
 
 	// 应用等值过滤
 	for _, col := range cfg.Columns {
