@@ -26,5 +26,4 @@ type DataMapping struct {
 type ReportChart struct {
 	Spec     ChartSpec // 原始图表需求
 	ImageURL string    // PNG 图表 URL
-	Data     string    // Markdown 表格（查询结果）
 }

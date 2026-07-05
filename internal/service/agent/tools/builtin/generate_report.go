@@ -213,13 +213,9 @@ func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw 
 				return fmt.Errorf("图表生成失败[%s]: %w", spec.Title, err)
 			}
 
-			// Step 5: 生成 Markdown 表格（数据展示）
-			dataTable := buildMarkdownTable(qr)
-
 			results[i] = ReportChart{
 				Spec:     spec,
 				ImageURL: fmt.Sprintf("/api/v1/files/chart/%s", chartResult.FileName),
-				Data:     dataTable,
 			}
 
 			sendProgress(pw, "report_progress", map[string]any{
@@ -257,29 +253,6 @@ func extractChartData(qr *QueryResult, dm DataMapping) ([]string, []float64) {
 	return labels, data
 }
 
-// buildMarkdownTable 将查询结果转为 Markdown 表格。
-func buildMarkdownTable(qr *QueryResult) string {
-	if len(qr.Columns) == 0 {
-		return ""
-	}
-	var sb strings.Builder
-	sb.WriteString("| ")
-	sb.WriteString(strings.Join(qr.Columns, " | "))
-	sb.WriteString(" |\n|")
-	sb.WriteString(strings.Repeat("---|", len(qr.Columns)))
-	sb.WriteString("\n")
-	for _, row := range qr.Rows {
-		cells := make([]string, len(row))
-		for i, v := range row {
-			cells[i] = fmt.Sprintf("%v", v)
-		}
-		sb.WriteString("| ")
-		sb.WriteString(strings.Join(cells, " | "))
-		sb.WriteString(" |\n")
-	}
-	return sb.String()
-}
-
 // --- Phase 3: Summarizer ---
 
 var summarizerSystemPrompt = `你是一个数据分析报告撰写助手。根据用户需求和已生成的图表，撰写一份完整的数据分析报告（Markdown 格式）。
@@ -294,12 +267,7 @@ func (t *GenerateReport) runSummarizer(ctx context.Context, prompt string, chart
 	for i, c := range charts {
 		fmt.Fprintf(&sb, "## 图表 %d: %s\n\n", i+1, c.Spec.Title)
 		fmt.Fprintf(&sb, "![](%s)\n\n", c.ImageURL)
-		if c.Data != "" {
-			sb.WriteString("**数据明细：**\n\n")
-			sb.WriteString(c.Data)
-			sb.WriteString("\n\n")
-		}
-	}
+}
 
 	md, err := chatAndParse[string](t.ai, ctx, "summarizer", summarizerSystemPrompt, sb.String(), "汇总阶段解析失败")
 	if err != nil {
