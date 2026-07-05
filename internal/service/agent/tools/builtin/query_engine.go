@@ -4,11 +4,16 @@ import "gorm.io/gorm"
 
 // TableConfig 定义一张表的查询配置。
 type TableConfig struct {
-	Table       string              // 表名
-	Description string              // 工具 Description
-	Columns     []ColumnDef         // 可筛选/分组字段
-	TimeColumn  string              // group_by_period 使用的日期列，默认 "created_at"
-	Aggregates  []string            // 支持的聚合方式，默认 ["count"]
+	Table       string      // 工具名（如 query_enterprises）
+	Description string      // 工具 Description
+	Columns     []ColumnDef // 可筛选/分组字段
+	TimeColumn  string      // group_by_period 使用的日期列，默认 "created_at"
+	Aggregates  []string    // 支持的聚合方式，默认 ["count"]
+}
+
+// TblName 返回实际数据库表名（去掉 query_ 前缀）。
+func (c *TableConfig) TblName() string {
+	return c.Table
 }
 
 // ColumnDef 定义列。
@@ -118,7 +123,7 @@ func (e *QueryEngine) Query(db *gorm.DB, cfg *TableConfig, params map[string]any
 		return nil, err
 	}
 
-	columns := extractColumns(selectCols, gby, period, agg)
+	columns := extractColumns(gby, period, agg)
 	result := &QueryResult{Columns: columns, Rows: make([][]any, len(rows)), RowCount: len(rows)}
 	for i, row := range rows {
 		for _, c := range columns {
@@ -128,7 +133,7 @@ func (e *QueryEngine) Query(db *gorm.DB, cfg *TableConfig, params map[string]any
 	return result, nil
 }
 
-func extractColumns(selectCols []string, gby, period, agg string) []string {
+func extractColumns(gby, period, agg string) []string {
 	var cols []string
 	if gby != "" {
 		cols = append(cols, gby)

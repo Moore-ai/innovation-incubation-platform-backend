@@ -22,8 +22,8 @@ func NewGenericQueryTool(cfg *TableConfig, db *gorm.DB) *GenericQueryTool {
 	return &GenericQueryTool{cfg: cfg, db: db, engine: &QueryEngine{}}
 }
 
-func (t *GenericQueryTool) Name() string          { return t.cfg.Table }
-func (t *GenericQueryTool) Description() string   { return t.cfg.Description }
+func (t *GenericQueryTool) Name() string           { return t.cfg.Table }
+func (t *GenericQueryTool) Description() string    { return t.cfg.Description }
 func (t *GenericQueryTool) AllowedRoles() []string { return []string{"government"} }
 
 func (t *GenericQueryTool) InputSchema() json.RawMessage {
@@ -80,7 +80,7 @@ func (t *GenericQueryTool) Execute(ctx context.Context, args json.RawMessage) (j
 
 var TableConfigs = []*TableConfig{
 	{
-		Table: "query_enterprises",
+		Table:       "query_enterprises",
 		Description: "查询企业列表。支持按名称/信用代码/行业/规模/地址/入驻时间筛选，支持分组统计。\n参数：name(模糊)/credit_code(精确)/industry(精确)/scale(精确)/address(模糊)/created_from/created_to/group_by(industry,scale)/group_by_period/aggregate/order_by/limit",
 		Columns: []ColumnDef{
 			{Name: "name", Type: "string", FilterMode: "like"},
@@ -93,7 +93,7 @@ var TableConfigs = []*TableConfig{
 		Aggregates: []string{"count"},
 	},
 	{
-		Table: "query_carriers",
+		Table:       "query_carriers",
 		Description: "查询载体列表。支持按名称/类型/区域/规模/创建时间筛选，支持分组统计。\n参数：name(模糊)/type(精确)/area(精确)/scale(small/medium/large)/created_from/created_to/group_by(area,type,scale)/group_by_period/aggregate/order_by(-incubation_count)/limit",
 		Columns: []ColumnDef{
 			{Name: "name", Type: "string", FilterMode: "like"},
@@ -105,9 +105,9 @@ var TableConfigs = []*TableConfig{
 		Aggregates: []string{"count"},
 	},
 	{
-		Table: "query_policies",
+		Table:       "query_policies",
 		Description: "查询政策列表。支持按标题/目标角色/部门/状态/有效期筛选，支持分组统计。\n参数：title(模糊)/target_role(enterprise/carrier/both)/department(精确)/status(draft/published/closed)/start_from/start_to/end_from/end_to/group_by(department,target_role,status)/group_by_period/aggregate/order_by(-published_at)/limit",
-		TimeColumn: "published_at",
+		TimeColumn:  "published_at",
 		Columns: []ColumnDef{
 			{Name: "title", Type: "string", FilterMode: "like"},
 			{Name: "target_role", Type: "string", FilterMode: "exact", EnumValues: []string{"enterprise", "carrier", "both"}},
@@ -119,7 +119,7 @@ var TableConfigs = []*TableConfig{
 		Aggregates: []string{"count"},
 	},
 	{
-		Table: "query_policy_applications",
+		Table:       "query_policy_applications",
 		Description: "查询政策申报记录。按政策/申请人类型/状态/提交时间筛选，支持分组统计。\n参数：policy_id(精确)/applicant_type(enterprise/carrier)/status(draft/pending/carrier_review/gov_review/approved/rejected/returned)/created_from/created_to/group_by(status,applicant_type)/group_by_period/aggregate/order_by/limit",
 		Columns: []ColumnDef{
 			{Name: "policy_id", Type: "integer", FilterMode: "exact"},
@@ -130,7 +130,7 @@ var TableConfigs = []*TableConfig{
 		Aggregates: []string{"count"},
 	},
 	{
-		Table: "query_incubation_records",
+		Table:       "query_incubation_records",
 		Description: "查询孵化记录。按企业/载体/孵化状态/审核状态/入驻时间筛选，支持分组统计。\n参数：enterprise_id/carrier_id/incubate_status(in_incubation/graduated)/status/start_from/start_to/group_by(carrier_id,incubate_status,status)/group_by_period/aggregate/order_by/limit",
 		Columns: []ColumnDef{
 			{Name: "enterprise_id", Type: "integer", FilterMode: "exact"},
@@ -142,7 +142,7 @@ var TableConfigs = []*TableConfig{
 		Aggregates: []string{"count"},
 	},
 	{
-		Table: "query_major_changes",
+		Table:       "query_major_changes",
 		Description: "查询重大变更记录。按企业/变更类型/状态/时间筛选，支持分组统计。\n参数：enterprise_id/change_type(模糊)/status/created_from/created_to/group_by(status,change_type)/group_by_period/aggregate/order_by/limit",
 		Columns: []ColumnDef{
 			{Name: "enterprise_id", Type: "integer", FilterMode: "exact"},
@@ -153,7 +153,7 @@ var TableConfigs = []*TableConfig{
 		Aggregates: []string{"count"},
 	},
 	{
-		Table: "query_performance_campaigns",
+		Table:       "query_performance_campaigns",
 		Description: "查询考核活动。按名称/年份/是否活跃筛选。\n参数：name(模糊)/year(精确)/is_active/created_from/created_to/group_by(year)/group_by_period/aggregate/order_by/limit",
 		Columns: []ColumnDef{
 			{Name: "name", Type: "string", FilterMode: "like"},
@@ -164,7 +164,7 @@ var TableConfigs = []*TableConfig{
 		Aggregates: []string{"count"},
 	},
 	{
-		Table: "query_performance_submissions",
+		Table:       "query_performance_submissions",
 		Description: "查询考核提交记录。按活动/载体/状态/评分/时间筛选，支持对 score 求平均/最大/最小。\n参数：campaign_id/carrier_id/status/has_score/created_from/created_to/group_by(status,campaign_id)/group_by_period/aggregate(count,avg,max,min)/order_by(-score)/limit",
 		Columns: []ColumnDef{
 			{Name: "campaign_id", Type: "integer", FilterMode: "exact"},
@@ -176,7 +176,7 @@ var TableConfigs = []*TableConfig{
 		Aggregates: []string{"count", "avg", "max", "min"},
 	},
 	{
-		Table: "query_appeals",
+		Table:       "query_appeals",
 		Description: "查询诉求记录。按问题类型/部门/状态/申请人类型/时间筛选，支持分组统计。\n参数：problem_type(tax/financing/property/utility/registration/labor/construction/supervision/reward/other)/department(精确)/status(pending/processed)/applicant_type(enterprise/carrier)/created_from/created_to/group_by(problem_type,department,status,applicant_type)/group_by_period/aggregate/order_by/limit",
 		Columns: []ColumnDef{
 			{Name: "problem_type", Type: "string", FilterMode: "exact", EnumValues: []string{"tax", "financing", "property", "utility", "registration", "labor", "construction", "supervision", "reward", "other"}},
@@ -188,7 +188,7 @@ var TableConfigs = []*TableConfig{
 		Aggregates: []string{"count"},
 	},
 	{
-		Table: "query_approvals",
+		Table:       "query_approvals",
 		Description: "查询审核操作记录。按目标类型/步骤/动作/审核人/时间筛选，支持分组统计。\n参数：target_type(incubation/major_change/policy/performance/account_deletion)/step(carrier_review/gov_review)/action(submit/approve/reject/return)/reviewer_id/created_from/created_to/group_by(target_type,step,action)/group_by_period/aggregate/order_by/limit",
 		Columns: []ColumnDef{
 			{Name: "target_type", Type: "string", FilterMode: "exact", EnumValues: []string{"incubation", "major_change", "policy", "performance", "account_deletion"}},

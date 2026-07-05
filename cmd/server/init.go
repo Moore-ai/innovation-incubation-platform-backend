@@ -111,6 +111,7 @@ func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, e
 	for _, tcfg := range agentbuiltin.TableConfigs {
 		registry.Register(agentbuiltin.NewGenericQueryTool(tcfg, db))
 	}
+	registry.Register(agentbuiltin.NewGenerateReport(aiClient, db))
 
 	workingMem := agentmemory.NewWorkingMemory(r.chat, cfg.Agent.WorkingMemory.PageSize)
 	semanticMem := agentmemory.NewSemanticMemory(r.chat, embedClient, cfg.Agent.Memory.SemanticLimit)

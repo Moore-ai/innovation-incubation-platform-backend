@@ -20,7 +20,7 @@ func NewBatchQuery(registry *agenttools.ToolRegistry) *BatchQuery {
 	return &BatchQuery{registry: registry}
 }
 
-func (t *BatchQuery) Name() string      { return "batch_query" }
+func (t *BatchQuery) Name() string { return "batch_query" }
 func (t *BatchQuery) Description() string {
 	return "批量并发查询多张表。queries 为数组，每项含 table（表名）及该表的查询参数。"
 }
@@ -52,7 +52,6 @@ func (t *BatchQuery) Execute(ctx context.Context, args json.RawMessage) (json.Ra
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(4) // 最多 4 并发
 	for i, q := range input.Queries {
-		i, q := i, q
 		g.Go(func() error {
 			table, _ := q["table"].(string)
 			tool, ok := t.registry.Get(table)
