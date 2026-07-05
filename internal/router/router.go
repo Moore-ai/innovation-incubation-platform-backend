@@ -58,7 +58,7 @@ func registerAuthRoutes(r *gin.Engine, deps *Deps) {
 		return
 	}
 	pub := r.Group("/api/v1/auth")
-	pub.Use(middleware.RouteRateLimit(10))
+	pub.Use(middleware.RouteRateLimit(60))
 	pub.POST("/register", deps.AuthController.Register)
 	pub.POST("/login", deps.AuthController.Login)
 }
