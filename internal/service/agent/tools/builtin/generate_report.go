@@ -34,10 +34,11 @@ type GenerateReport struct {
 	configs []*TableConfig
 	fileRepo    *repository.FileRepo
 	fileStorage storage.Storage
+	venvPath    string
 }
 
-func NewGenerateReport(ai *aiclient.Client, db *gorm.DB, fileRepo *repository.FileRepo, fileStorage storage.Storage) *GenerateReport {
-	return &GenerateReport{ai: ai, db: db, engine: &QueryEngine{}, configs: TableConfigs, fileRepo: fileRepo, fileStorage: fileStorage}
+func NewGenerateReport(ai *aiclient.Client, db *gorm.DB, fileRepo *repository.FileRepo, fileStorage storage.Storage, venvPath string) *GenerateReport {
+	return &GenerateReport{ai: ai, db: db, engine: &QueryEngine{}, configs: TableConfigs, fileRepo: fileRepo, fileStorage: fileStorage, venvPath: venvPath}
 }
 
 func (t *GenerateReport) Name() string           { return "generate_report" }
@@ -242,7 +243,7 @@ func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw 
 			}
 
 			// Step 4: 调用 MCP 生成图表
-			mcpClient, err := mcpchart.NewClient()
+			mcpClient, err := mcpchart.NewClient(t.venvPath)
 			if err != nil {
 				return fmt.Errorf("启动图表服务失败[%s]: %w", spec.Title, err)
 			}

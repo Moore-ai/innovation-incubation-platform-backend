@@ -112,7 +112,7 @@ func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, e
 		registry.Register(agentbuiltin.NewGenericQueryTool(tcfg, db))
 	}
 	chartStorage, _ := storage.NewLocalFileStorage(cfg.Upload.ChartDir)
-	registry.Register(agentbuiltin.NewGenerateReport(aiClient, db, r.file, chartStorage))
+	registry.Register(agentbuiltin.NewGenerateReport(aiClient, db, r.file, chartStorage, cfg.Upload.ChartVenvPath))
 
 	workingMem := agentmemory.NewWorkingMemory(r.chat, cfg.Agent.WorkingMemory.PageSize)
 	semanticMem := agentmemory.NewSemanticMemory(r.chat, embedClient, cfg.Agent.Memory.SemanticLimit)

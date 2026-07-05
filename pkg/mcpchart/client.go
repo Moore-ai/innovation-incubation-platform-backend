@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 )
 
@@ -33,17 +34,21 @@ type Client struct {
 	stdout *bufio.Scanner
 }
 
-// NewClient 启动 Python render.py 子进程，复用 file-parser 的 venv。
-func NewClient() (*Client, error) {
+// NewClient 启动 Python render.py 子进程，使用指定的 venv。
+func NewClient(venvPath string) (*Client, error) {
+	python := filepath.Join(venvPath, "Scripts", "python.exe") // Windows
+	if _, err := os.Stat(python); err != nil {
+		python = filepath.Join(venvPath, "bin", "python") // Linux/Mac
+	}
+	if _, err := os.Stat(python); err != nil {
+		return nil, fmt.Errorf("venv python not found: %s", venvPath)
+	}
+
 	scriptDir, err := os.Getwd()
 	if err != nil {
 		scriptDir = "."
 	}
-	scriptPath := scriptDir + "/pkg/mcpchart/render.py"
-	python := scriptDir + "/sidecar/file-parser/venv/Scripts/python.exe"
-	if _, err := os.Stat(python); err != nil {
-		python = "python3" // fallback
-	}
+	scriptPath := filepath.Join(scriptDir, "pkg", "mcpchart", "render.py")
 	cmd := exec.Command(python, scriptPath)
 	cmd.Stderr = os.Stderr
 

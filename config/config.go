@@ -141,6 +141,7 @@ type UploadConfig struct {
 	MaxSizeMB         int64    `mapstructure:"max_size_mb"`
 	FileDir           string   `mapstructure:"file_dir"`
 	ChartDir          string   `mapstructure:"chart_dir"`
+	ChartVenvPath     string   `mapstructure:"chart_venv_path"`
 	AllowedExtensions []string `mapstructure:"allowed_extensions"`
 }
 
@@ -270,6 +271,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("upload.max_size_mb", 20)
 	v.SetDefault("upload.file_dir", "./uploads")
 	v.SetDefault("upload.chart_dir", "./uploads-png")
+	v.SetDefault("upload.chart_venv_path", "sidecar/file-parser/venv")
 	v.SetDefault("upload.allowed_extensions", []string{".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".png"})
 	v.SetDefault("server.rbac_enabled", true)
 	v.SetDefault("agent.model", "")

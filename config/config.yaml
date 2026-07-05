@@ -71,6 +71,7 @@ upload:
   max_size_mb: 20
   file_dir: uploads
   chart_dir: uploads-png
+  chart_venv_path: "sidecar/file-parser/venv"
   allowed_extensions: [".docx", ".pdf", ".xlsx", ".txt"]
 
 rate_limit:
