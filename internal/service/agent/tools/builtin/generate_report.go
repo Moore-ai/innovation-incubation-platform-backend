@@ -151,6 +151,25 @@ func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw 
 	g.SetLimit(4)
 	tableList := t.buildTableList()
 
+	// 单 goroutine channel 串行化进度推送，避免并发写 SSE
+	type prog struct {
+		idx   int
+		title string
+	}
+	progressCh := make(chan prog, len(specs))
+	go func() {
+		done := 0
+		for p := range progressCh {
+			done++
+			sendProgress(pw, "report_progress", map[string]any{
+				"phase":   "executor",
+				"current": done,
+				"total":   len(specs),
+				"title":   p.title,
+			})
+		}
+	}()
+
 	for i, spec := range specs {
 		g.Go(func() error {
 			// 根据图表类型选择提示词
@@ -218,19 +237,16 @@ func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw 
 				ImageURL: fmt.Sprintf("/api/v1/files/chart/%s", chartResult.FileName),
 			}
 
-			sendProgress(pw, "report_progress", map[string]any{
-				"phase":   "executor",
-				"current": i + 1,
-				"total":   len(specs),
-				"title":   spec.Title,
-			})
+			progressCh <- prog{idx: i, title: spec.Title}
 			return nil
 		})
 	}
 
 	if err := g.Wait(); err != nil {
+		close(progressCh)
 		return nil, err
 	}
+	close(progressCh)
 	return results, nil
 }
 
