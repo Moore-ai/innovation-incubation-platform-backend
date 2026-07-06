@@ -122,7 +122,7 @@ func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, e
 	semanticMem := agentmemory.NewSemanticMemory(r.chat, embedClient, cfg.Agent.Memory.SemanticLimit)
 	memMgr := agentmemory.NewMemoryManager(workingMem, semanticMem, r.chat, embedClient, cfg.Agent)
 
-	reflect := agentpkg.NewReflectChecker(embedClient, registry, cfg.Agent.Reflect)
+	reflect := agentpkg.NewReflectChecker(registry)
 	engine := agentpkg.NewEngine(aiClient, registry, memMgr, reflect, cfg.Agent)
 
 	chatSvc := service.NewChatService(engine, r.chat, memMgr, aiClient, cfg.Agent)

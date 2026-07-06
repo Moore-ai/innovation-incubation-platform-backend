@@ -7,8 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"innovation-incubation-platform-backend/config"
-
 	agenttools "innovation-incubation-platform-backend/internal/service/agent/tools"
 )
 
@@ -16,7 +14,7 @@ type ReflectChecker struct {
 	outputSchemas map[string]json.RawMessage // 工具名 → OutputSchema
 }
 
-func NewReflectChecker(_ any, registry *agenttools.ToolRegistry, _ config.ReflectConfig) *ReflectChecker {
+func NewReflectChecker(registry *agenttools.ToolRegistry) *ReflectChecker {
 	rc := &ReflectChecker{
 		outputSchemas: make(map[string]json.RawMessage),
 	}

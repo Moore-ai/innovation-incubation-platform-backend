@@ -75,7 +75,7 @@ func buildReportEngine(t *testing.T, ai *aiclient.Client, db *gorm.DB, extraTool
 		Memory:             config.AgentMemoryConfig{SemanticLimit: 0, EpisodicLimit: 0},
 		RequestTimeoutSec:  300,
 	}
-	checker := agent.NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.99})
+	checker := agent.NewReflectChecker(reg)
 	return agent.NewEngine(ai, reg, agentmemory.NewMemoryManager(nil, nil, nil, nil, cfg), checker, cfg)
 }
 

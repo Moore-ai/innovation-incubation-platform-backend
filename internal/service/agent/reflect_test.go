@@ -7,7 +7,6 @@ import (
 
 	"fmt"
 
-	"innovation-incubation-platform-backend/config"
 	agenttools "innovation-incubation-platform-backend/internal/service/agent/tools"
 )
 
@@ -40,9 +39,7 @@ func TestReflectChecker_HardRules(t *testing.T) {
 		outputSchema: json.RawMessage(`{"type":"object"}`),
 	})
 
-	checker := NewReflectChecker(nil, reg, config.ReflectConfig{
-		SimilarityThreshold: 0.3,
-	})
+	checker := NewReflectChecker(reg)
 
 	ctx := context.Background()
 

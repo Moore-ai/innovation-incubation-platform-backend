@@ -248,7 +248,7 @@ func TestExecuteToolCalls_ToolNotFound(t *testing.T) {
 
 func TestObserveToolResults_ReflectOnError(t *testing.T) {
 	reg := agenttools.NewToolRegistry()
-	checker := NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3})
+	checker := NewReflectChecker(reg)
 	eng := NewEngine(nil, reg, nil, checker, config.AgentConfig{PublicSSETypes: sseAll})
 
 	results := []toolResult{
@@ -282,7 +282,7 @@ func TestObserveToolResults_ReflectOnError(t *testing.T) {
 
 func TestObserveToolResults_NoReflectOnSuccess(t *testing.T) {
 	reg := agenttools.NewToolRegistry()
-	checker := NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3})
+	checker := NewReflectChecker(reg)
 	eng := NewEngine(nil, reg, nil, checker, config.AgentConfig{PublicSSETypes: sseAll})
 
 	data, _ := json.Marshal(map[string]string{"result": "ok"})
@@ -427,7 +427,7 @@ func TestToolSelection_E2E(t *testing.T) {
 			})
 
 			mem := agentmemory.NewMemoryManager(nil, nil, nil, nil, config.AgentConfig{PublicSSETypes: sseAll})
-			checker := NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3})
+			checker := NewReflectChecker(reg)
 			eng := NewEngine(client, reg, mem, checker, config.AgentConfig{PublicSSETypes: sseAll,
 				MaxSteps: 3, ToolTimeoutSec: 5,
 			})
@@ -578,7 +578,7 @@ func TestToolSelection_RealAI(t *testing.T) {
 	})
 
 	mem := agentmemory.NewMemoryManager(nil, nil, nil, nil, config.AgentConfig{PublicSSETypes: sseAll})
-	checker := NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3})
+	checker := NewReflectChecker(reg)
 	eng := NewEngine(client, reg, mem, checker, config.AgentConfig{PublicSSETypes: sseAll, MaxSteps: 3, ToolTimeoutSec: 30})
 
 	for _, tt := range tests {
@@ -655,7 +655,7 @@ func TestMultiTurn_RealAI(t *testing.T) {
 	})
 
 	mem := agentmemory.NewMemoryManager(nil, nil, nil, nil, config.AgentConfig{PublicSSETypes: sseAll})
-	checker := NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3})
+	checker := NewReflectChecker(reg)
 	eng := NewEngine(client, reg, mem, checker, config.AgentConfig{PublicSSETypes: sseAll, MaxSteps: 6, ToolTimeoutSec: 30})
 
 	tests := []struct {
@@ -769,7 +769,7 @@ func TestReflectRecovery_RealAI(t *testing.T) {
 		},
 	})
 
-	checker := NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3})
+	checker := NewReflectChecker(reg)
 	eng := NewEngine(client, reg, agentmemory.NewMemoryManager(nil, nil, nil, nil, config.AgentConfig{PublicSSETypes: sseAll}), checker,
 		config.AgentConfig{PublicSSETypes: sseAll, MaxSteps: 8, ToolTimeoutSec: 30})
 
@@ -860,7 +860,7 @@ func TestChainToolCall_RealAI(t *testing.T) {
 	})
 
 	eng := NewEngine(client, reg, agentmemory.NewMemoryManager(nil, nil, nil, nil, config.AgentConfig{PublicSSETypes: sseAll}),
-		NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3}),
+		NewReflectChecker(reg),
 		config.AgentConfig{PublicSSETypes: sseAll, MaxSteps: 8, ToolTimeoutSec: 30})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
@@ -1014,7 +1014,7 @@ func TestEngineRun_E2E(t *testing.T) {
 	reg.Register(tool)
 
 	mem := agentmemory.NewMemoryManager(nil, nil, nil, nil, config.AgentConfig{PublicSSETypes: sseAll})
-	checker := NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3})
+	checker := NewReflectChecker(reg)
 
 	eng := NewEngine(client, reg, mem, checker, config.AgentConfig{PublicSSETypes: sseAll,
 		MaxSteps:       3,
