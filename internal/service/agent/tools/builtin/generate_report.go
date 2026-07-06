@@ -101,7 +101,7 @@ var analystSystemPrompt = `你是一个数据分析师。根据用户需求，�
 只输出 JSON 数组，不要其他内容。`
 
 func (t *GenerateReport) runAnalyst(ctx context.Context, prompt string) ([]ChartSpec, error) {
-	specs, err := chatAndParse[[]ChartSpec](t.ai, ctx, "analyst", analystSystemPrompt, prompt, "分析阶段解析失败")
+	specs, err := chatAndParse[[]ChartSpec](t.ai, ctx, analystSystemPrompt, prompt, "分析阶段解析失败")
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +186,7 @@ func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw 
 			if spec.YLabel != "" {
 				chartDesc += fmt.Sprintf("，纵轴：%s", spec.YLabel)
 			}
-			plan, err := chatAndParse[QueryPlan](t.ai, ctx, "executor-plan", execPrompt, chartDesc, "执行阶段解析查询方案失败")
+			plan, err := chatAndParse[QueryPlan](t.ai, ctx, execPrompt, chartDesc, "执行阶段解析查询方案失败")
 			if err != nil {
 				return fmt.Errorf("规划查询失败[%s]: %w", spec.Title, err)
 			}
@@ -419,7 +419,7 @@ func sendProgress(pw agent.ProgressWriter, typ string, data map[string]any) {
 }
 
 // chatAndParse 本地 AI 调用辅助函数（避免对 service 包的硬依赖）。
-func chatAndParse[T any](ai *aiclient.Client, ctx context.Context, op, system, user, parseErrMsg string) (*T, error) {
+func chatAndParse[T any](ai *aiclient.Client, ctx context.Context, system, user, parseErrMsg string) (*T, error) {
 	resp, err := ai.ChatCompletion(ctx, openai.ChatCompletionRequest{
 		Messages: []openai.ChatCompletionMessage{
 			{Role: openai.ChatMessageRoleSystem, Content: system},
