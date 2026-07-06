@@ -28,7 +28,11 @@ type SemanticMemory struct {
 }
 
 func NewSemanticMemory(repo *repository.ChatRepo, embedClient *aiclient.EmbeddingClient, limit int) *SemanticMemory {
-	return &SemanticMemory{repo: repo, embedClient: embedClient, semanticLimit: limit}
+	var embed embedder
+	if embedClient != nil {
+		embed = embedClient
+	}
+	return &SemanticMemory{repo: repo, embedClient: embed, semanticLimit: limit}
 }
 
 func (m *SemanticMemory) Add(ctx context.Context, item *MemoryItem) error {

@@ -46,6 +46,13 @@ func (m *mockEmbedder) Embed(ctx context.Context, text string) ([]float32, error
 
 // --- tests ---
 
+func TestNewSemanticMemory_NilEmbeddingClientStaysNil(t *testing.T) {
+	sm := NewSemanticMemory(nil, nil, 10)
+	if sm.embedClient != nil {
+		t.Fatal("nil embedding client should not be stored as a non-nil interface")
+	}
+}
+
 func TestSemanticRetrieve_CategoryAndVectorMerged(t *testing.T) {
 	repo := &mockSemanticRepo{
 		categoryFn: func(userID uint, categories []string, keyword string, limit int) ([]model.SemanticMemory, error) {

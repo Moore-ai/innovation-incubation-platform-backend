@@ -40,7 +40,11 @@ type MemoryManager struct {
 }
 
 func NewMemoryManager(working *WorkingMemory, semantic *SemanticMemory, repo *repository.ChatRepo, embedClient *aiclient.EmbeddingClient, cfg config.AgentConfig) *MemoryManager {
-	return &MemoryManager{working: working, semantic: semantic, repo: repo, embedClient: embedClient, cfg: cfg}
+	var embed embedder
+	if embedClient != nil {
+		embed = embedClient
+	}
+	return &MemoryManager{working: working, semantic: semantic, repo: repo, embedClient: embed, cfg: cfg}
 }
 
 // appendSegment 将 items 按 Token 预算追加到 parts，每条由 formatFn 转换为字符串。
