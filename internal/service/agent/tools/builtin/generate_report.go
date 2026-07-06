@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"gorm.io/gorm"
 
@@ -117,26 +118,8 @@ func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw 
 	g.SetLimit(4)
 	tableList := t.buildTableList()
 
-	// 单 goroutine channel 串行化进度推送，避免并发写 SSE
-	type prog struct {
-		idx   int
-		title string
-	}
-	progressCh := make(chan prog, len(specs))
-	progressDone := make(chan struct{})
-	go func() {
-		defer close(progressDone)
-		done := 0
-		for p := range progressCh {
-			done++
-			sendProgress(pw, "report_progress", map[string]any{
-				"phase":   "executor",
-				"current": done,
-				"total":   len(specs),
-				"title":   p.title,
-			})
-		}
-	}()
+	var mu sync.Mutex
+	doneCount := 0
 
 	dataMappingHint := "\n输出 JSON：{\"table\":\"query_xxx\",\"params\":{...},\"data_mapping\":{\"x_field\":\"...\",\"y_field\":\"...\""
 	dataMappingHint += ",\"z_field\"(quadrantChart/sankey),\"" + "start_field\"(gantt)," + "\"end_field\"(gantt)," + "\"source_field\"(sankey)," + "\"target_field\"(sankey)," + "\"group_field\"(gantt/timeline)}}\n按需填写扩展字段，不需要的不要填。只输出 JSON。"
@@ -192,18 +175,22 @@ func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw 
 				Mermaid: mermaid,
 			}
 
-			progressCh <- prog{idx: i, title: spec.Title}
+			mu.Lock()
+			doneCount++
+			sendProgress(pw, "report_progress", map[string]any{
+				"phase":   "executor",
+				"current": doneCount,
+				"total":   len(specs),
+				"title":   spec.Title,
+			})
+			mu.Unlock()
 			return nil
 		})
 	}
 
 	if err := g.Wait(); err != nil {
-		close(progressCh)
-		<-progressDone
 		return nil, err
 	}
-	close(progressCh)
-	<-progressDone
 	return results, nil
 }
 

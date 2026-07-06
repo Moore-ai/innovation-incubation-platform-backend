@@ -175,7 +175,7 @@ func buildMermaidGantt(spec ChartSpec, qr *QueryResult, dm DataMapping) string {
 	var sb strings.Builder
 	sb.WriteString("```mermaid\ngantt\n")
 	if spec.Title != "" {
-		fmt.Fprintf(&sb, "    title %s\n", spec.Title)
+		fmt.Fprintf(&sb, "    title \"%s\"\n", spec.Title)
 	}
 	sb.WriteString("    dateFormat YYYY-MM-DD\n")
 
@@ -252,7 +252,7 @@ func buildMermaidQuadrant(spec ChartSpec, qr *QueryResult, dm DataMapping) strin
 	var sb strings.Builder
 	sb.WriteString("```mermaid\nquadrantChart\n")
 	if spec.Title != "" {
-		fmt.Fprintf(&sb, "    title %s\n", spec.Title)
+		fmt.Fprintf(&sb, "    title \"%s\"\n", spec.Title)
 	}
 	xLabel := spec.XLabel
 	if xLabel == "" {
@@ -294,7 +294,7 @@ func buildMermaidTimeline(spec ChartSpec, qr *QueryResult, dm DataMapping) strin
 	var sb strings.Builder
 	sb.WriteString("```mermaid\ntimeline\n")
 	if spec.Title != "" {
-		fmt.Fprintf(&sb, "    title %s\n", spec.Title)
+		fmt.Fprintf(&sb, "    title \"%s\"\n", spec.Title)
 	}
 
 	// 按 section 分组
