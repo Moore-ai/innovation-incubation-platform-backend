@@ -24,6 +24,6 @@ type DataMapping struct {
 
 // ReportChart 执行器完成后的图表结果（传给 Summarizer）。
 type ReportChart struct {
-	Spec     ChartSpec // 原始图表需求
-	ImageURL string    // PNG 图表 URL
+	Spec    ChartSpec
+	Mermaid string // Mermaid 代码块（含 ```mermaid 围栏）
 }
