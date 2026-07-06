@@ -42,6 +42,7 @@ func main() {
 	fmt.Printf("\n=== 3. 发送请求: %q ===\n", prompt)
 
 	markdown, charts := sseStream(base, token, sessionID, prompt)
+	markdown = cleanBlank(markdown)
 
 	fname := fmt.Sprintf("report_%s.md", time.Now().Format("20060102_150405"))
 	os.WriteFile(fname, []byte(markdown), 0644)
@@ -208,11 +209,37 @@ func sseStream(base, token string, sessionID uint, prompt string) (string, []str
 		return "", nil
 	}
 	for _, line := range strings.Split(markdown.String(), "\n") {
-		if strings.HasPrefix(line, "![") {
+		if strings.HasPrefix(line, "```mermaid") {
 			charts = append(charts, line)
 		}
 	}
 	return markdown.String(), charts
+}
+
+func cleanBlank(md string) string {
+	md = strings.TrimSpace(md)
+	if idx := strings.Index(md, "# "); idx >= 0 {
+		md = md[idx:]
+	}
+	// 去掉末尾 --- 后的闲聊
+	lines := strings.Split(md, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if strings.TrimSpace(lines[i]) == "---" {
+			hasStructure := false
+			for _, l := range lines[i+1:] {
+				t := strings.TrimSpace(l)
+				if strings.HasPrefix(t, "#") || strings.HasPrefix(t, "```") || strings.HasPrefix(t, "|") {
+					hasStructure = true
+					break
+				}
+			}
+			if !hasStructure {
+				lines = lines[:i]
+			}
+			break
+		}
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n"))
 }
 
 func die(err error) {

@@ -2,10 +2,10 @@ package builtin
 
 // ChartSpec 图表需求描述（Analyst 输出）。
 type ChartSpec struct {
-	Type   string   `json:"type"`    // bar | line | pie | table
+	Type   string   `json:"type"`    // bar | line | pie | table | gantt | quadrantChart | timeline | flowchart | sankey-beta
 	Title  string   `json:"title"`   // 图表标题
-	XLabel string   `json:"x_label"` // 横轴标签（bar/line/table）
-	YLabel string   `json:"y_label"` // 纵轴标签（bar/line/table）
+	XLabel string   `json:"x_label"` // 横轴/分类标签
+	YLabel string   `json:"y_label"` // 纵轴/数值标签
 	Colors []string `json:"colors"`  // 可选配色
 }
 
@@ -18,8 +18,14 @@ type QueryPlan struct {
 
 // DataMapping 将查询结果的字段映射到图表坐标轴。
 type DataMapping struct {
-	XField string `json:"x_field"` // 结果中用作 x 轴的字段名
-	YField string `json:"y_field"` // 结果中用作 y 轴的字段名
+	XField      string `json:"x_field"`                // 通用标签/分类字段
+	YField      string `json:"y_field"`                // 通用数值字段
+	ZField      string `json:"z_field,omitempty"`      // quadrantChart y轴值 / sankey value
+	StartField  string `json:"start_field,omitempty"`  // gantt 开始日期
+	EndField    string `json:"end_field,omitempty"`    // gantt 结束日期
+	SourceField string `json:"source_field,omitempty"` // sankey 源节点
+	TargetField string `json:"target_field,omitempty"` // sankey 目标节点
+	GroupField  string `json:"group_field,omitempty"`  // gantt section / timeline section
 }
 
 // ReportChart 执行器完成后的图表结果（传给 Summarizer）。
