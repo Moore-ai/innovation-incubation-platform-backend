@@ -27,7 +27,7 @@ func (t *QueryApplicationsByStatus) Name() string { return "query_applications_b
 func (t *QueryApplicationsByStatus) Description() string {
 	return "根据审核状态（pending、approved、rejected）查询企业政策申报记录，支持分页"
 }
-func (t *QueryApplicationsByStatus) AllowedRoles() []string { return []string{"carrier"} }
+func (t *QueryApplicationsByStatus) AllowedRoles() []string { return []string{"carrier", "government"} }
 
 func (t *QueryApplicationsByStatus) InputSchema() json.RawMessage {
 	return json.RawMessage(`

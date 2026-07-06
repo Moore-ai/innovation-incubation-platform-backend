@@ -23,7 +23,7 @@ func (t *QueryMyFiles) Name() string { return "query_my_files" }
 func (t *QueryMyFiles) Description() string {
 	return "查询当前用户上传的文件列表，支持分页"
 }
-func (t *QueryMyFiles) AllowedRoles() []string { return []string{"enterprise", "carrier"} }
+func (t *QueryMyFiles) AllowedRoles() []string { return []string{"enterprise", "carrier", "government"} }
 
 func (t *QueryMyFiles) InputSchema() json.RawMessage {
 	return json.RawMessage(`

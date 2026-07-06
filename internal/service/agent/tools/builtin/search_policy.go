@@ -21,8 +21,10 @@ func NewSearchPolicy(search service.PolicySearch) *SearchPolicy {
 	return &SearchPolicy{search: search}
 }
 
-func (t *SearchPolicy) Name() string         { return "search_policy" }
-func (t *SearchPolicy) Description() string  { return "根据关键词、行业、企业规模等条件检索匹配的政策，返回政策列表（含标题、摘要、适用条件、补贴详情）" }
+func (t *SearchPolicy) Name() string { return "search_policy" }
+func (t *SearchPolicy) Description() string {
+	return "根据关键词、行业、企业规模等条件检索匹配的政策，返回政策列表（含标题、摘要、适用条件、补贴详情）"
+}
 func (t *SearchPolicy) AllowedRoles() []string { return []string{"enterprise", "carrier"} }
 
 func (t *SearchPolicy) InputSchema() json.RawMessage {

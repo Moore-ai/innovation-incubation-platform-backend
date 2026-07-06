@@ -21,7 +21,7 @@ func NewQueryPolicyFollow(followRepo *repository.PolicyFollowRepo) *QueryPolicyF
 
 func (t *QueryPolicyFollow) Name() string           { return "query_policy_follow" }
 func (t *QueryPolicyFollow) Description() string    { return "查询当前用户关注的政策列表" }
-func (t *QueryPolicyFollow) AllowedRoles() []string { return []string{"enterprise", "carrier"} }
+func (t *QueryPolicyFollow) AllowedRoles() []string { return []string{"enterprise"} }
 
 func (t *QueryPolicyFollow) InputSchema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"page":{"type":"integer","description":"页码，默认1"},"page_size":{"type":"integer","description":"每页条数，默认10"}},"required":[]}`)
