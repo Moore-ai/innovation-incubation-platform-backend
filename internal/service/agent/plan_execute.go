@@ -192,7 +192,10 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 		})
 		onEvent(SSEEvent{Type: "tool_call", Data: toolCalls})
 
-		results := e.executeToolCalls(ctx, toolCalls)
+		execCtx := WithProgressWriter(ctx, func(typ string, data map[string]any) {
+			onEvent(SSEEvent{Type: typ, Data: data})
+		})
+		results := e.executeToolCalls(execCtx, toolCalls)
 		var hit bool
 		messages, records, hit = e.observeToolResults(ctx, results, messages, records, onEvent)
 		completedSteps++
