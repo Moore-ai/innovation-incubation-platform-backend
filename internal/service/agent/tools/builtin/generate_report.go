@@ -5,21 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
-	"os"
-	"path/filepath"
 	"strings"
+	"sync"
 
 	"gorm.io/gorm"
 
 	openai "github.com/sashabaranov/go-openai"
 	"golang.org/x/sync/errgroup"
 
-	"innovation-incubation-platform-backend/internal/model"
-	"innovation-incubation-platform-backend/internal/repository"
-	"innovation-incubation-platform-backend/internal/storage"
 	"innovation-incubation-platform-backend/pkg/aiclient"
-	"innovation-incubation-platform-backend/pkg/mcpchart"
 
 	agent "innovation-incubation-platform-backend/internal/service/agent"
 	agenttools "innovation-incubation-platform-backend/internal/service/agent/tools"
@@ -32,14 +26,10 @@ type GenerateReport struct {
 	db      *gorm.DB
 	engine  *QueryEngine
 	configs []*TableConfig
-	fileRepo    *repository.FileRepo
-	fileStorage storage.Storage
-	venvPath    string
-	chartDir    string
 }
 
-func NewGenerateReport(ai *aiclient.Client, db *gorm.DB, fileRepo *repository.FileRepo, fileStorage storage.Storage, venvPath, chartDir string) *GenerateReport {
-	return &GenerateReport{ai: ai, db: db, engine: &QueryEngine{}, configs: TableConfigs, fileRepo: fileRepo, fileStorage: fileStorage, venvPath: venvPath, chartDir: chartDir}
+func NewGenerateReport(ai *aiclient.Client, db *gorm.DB) *GenerateReport {
+	return &GenerateReport{ai: ai, db: db, engine: &QueryEngine{}, configs: TableConfigs}
 }
 
 func (t *GenerateReport) Name() string           { return "generate_report" }
@@ -68,16 +58,16 @@ func (t *GenerateReport) Execute(ctx context.Context, args json.RawMessage) (jso
 
 	// Phase 1: Analyst
 	sendProgress(pw, "report_start", map[string]any{"phase": "analyst"})
-	specs, err := t.runAnalyst(ctx, input.Prompt)
+	plans, err := t.runAnalyst(ctx, input.Prompt)
 	if err != nil {
 		return nil, fmt.Errorf("分析阶段失败: %w", err)
 	}
-	if len(specs) == 0 {
+	if len(plans) == 0 {
 		return nil, fmt.Errorf("分析师未规划任何图表，请细化需求后重试")
 	}
 
 	// Phase 2: Executor (并发)
-	charts, err := t.runExecutor(ctx, specs, pw)
+	charts, err := t.runExecutor(ctx, plans, pw)
 	if err != nil {
 		return nil, fmt.Errorf("执行阶段失败: %w", err)
 	}
@@ -89,6 +79,7 @@ func (t *GenerateReport) Execute(ctx context.Context, args json.RawMessage) (jso
 		return nil, fmt.Errorf("汇总阶段失败: %w", err)
 	}
 
+	markdown = cleanMarkdown(markdown)
 	sendProgress(pw, "report_done", map[string]any{"markdown_size": len(markdown)})
 	result, _ := json.Marshal(map[string]string{"markdown": markdown})
 	return json.RawMessage(result), nil
@@ -96,50 +87,15 @@ func (t *GenerateReport) Execute(ctx context.Context, args json.RawMessage) (jso
 
 // --- Phase 1: Analyst ---
 
-var analystSystemPrompt = `你是一个数据分析师。根据用户需求，规划需要哪些图表。
-你只能输出以下图表类型：
-
-- bar: 柱状图，字段：type="bar", title, x_label（横轴标签）, y_label（纵轴标签）, colors（可选，如 ["#2196F3"]）
-- line: 折线图，字段：type="line", title, x_label, y_label, colors
-- pie: 饼图，字段：type="pie", title, colors（x_label/y_label 不需要）
-- table: 表格，字段：type="table", title, x_label（表头说明）, y_label（数据列说明）
-
-输出 JSON 数组格式示例：
-[{"type":"bar","title":"各行业企业数","x_label":"行业","y_label":"数量","colors":["#2196F3"]},
- {"type":"pie","title":"载体规模分布","colors":["#FF9800","#4CAF50"]}]
-
-只输出 JSON 数组，不要其他内容。`
-
-func (t *GenerateReport) runAnalyst(ctx context.Context, prompt string) ([]ChartSpec, error) {
-	specs, err := chatAndParse[[]ChartSpec](t.ai, ctx, "analyst", analystSystemPrompt, prompt, "分析阶段解析失败")
+func (t *GenerateReport) runAnalyst(ctx context.Context, prompt string) ([]ChartPlan, error) {
+	plans, err := chatAndParse[[]ChartPlan](t.ai, ctx, analystPrompt(t.buildTableList()), prompt, "分析阶段解析失败")
 	if err != nil {
 		return nil, err
 	}
-	if specs == nil {
+	if plans == nil {
 		return nil, nil
 	}
-	return *specs, nil
-}
-
-// --- Phase 2: Executor ---
-
-// executorPrompts 每种图表类型的 Executor 提示词。
-var executorPrompts = map[string]string{
-	"bar": `你需要为柱状图准备数据。每根柱子代表一个类别，高度代表数值。
-你需要提供 labels（字符串数组）和 data（数字数组）。
-可用查询参数包括 group_by、aggregate、group_by_period、filters 等，请根据图表需求选择合适的方案。`,
-
-	"line": `你需要为折线图准备数据。x轴通常为时间序列或类别，y轴为数值。
-你需要提供 labels（字符串数组）和 data（数字数组）。
-可用查询参数包括 group_by、group_by_period（推荐用于趋势）、aggregate、filters 等。`,
-
-	"pie": `你需要为饼图准备数据。每一扇代表一个类别的占比或计数。
-你需要提供 labels（字符串数组）和 data（数字数组）。
-可用查询参数包括 group_by、aggregate、filters 等。`,
-
-	"table": `你需要为表格准备数据，展示明细记录。
-你需要提供 columns（表头数组）和 rows（行数据数组）。
-通常不需要聚合，直接查询原始记录，可设置 limit 控制行数。`,
+	return *plans, nil
 }
 
 func (t *GenerateReport) buildTableList() string {
@@ -154,54 +110,18 @@ func (t *GenerateReport) buildTableList() string {
 	return sb.String()
 }
 
-func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw agent.ProgressWriter) ([]ReportChart, error) {
-	results := make([]ReportChart, len(specs))
+// --- Phase 2: Executor (并发，无 AI 调用) ---
+
+func (t *GenerateReport) runExecutor(ctx context.Context, plans []ChartPlan, pw agent.ProgressWriter) ([]ReportChart, error) {
+	results := make([]ReportChart, len(plans))
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(4)
-	tableList := t.buildTableList()
 
-	// 单 goroutine channel 串行化进度推送，避免并发写 SSE
-	type prog struct {
-		idx   int
-		title string
-	}
-	progressCh := make(chan prog, len(specs))
-	go func() {
-		done := 0
-		for p := range progressCh {
-			done++
-			sendProgress(pw, "report_progress", map[string]any{
-				"phase":   "executor",
-				"current": done,
-				"total":   len(specs),
-				"title":   p.title,
-			})
-		}
-	}()
+	var mu sync.Mutex
+	doneCount := 0
 
-	for i, spec := range specs {
+	for i, plan := range plans {
 		g.Go(func() error {
-			// 根据图表类型选择提示词
-			typePrompt := executorPrompts[spec.Type]
-			if typePrompt == "" {
-				typePrompt = executorPrompts["bar"] // fallback
-			}
-			execPrompt := typePrompt + "\n\n可用表及查询参数：\n" + tableList + "\n输出 JSON：{\"table\":\"query_xxx\",\"params\":{...},\"data_mapping\":{\"x_field\":\"...\",\"y_field\":\"...\"}}。只输出 JSON。"
-
-			// Step 1: AI 决定查询方案
-			chartDesc := fmt.Sprintf("图表类型：%s，标题：%s", spec.Type, spec.Title)
-			if spec.XLabel != "" {
-				chartDesc += fmt.Sprintf("，横轴：%s", spec.XLabel)
-			}
-			if spec.YLabel != "" {
-				chartDesc += fmt.Sprintf("，纵轴：%s", spec.YLabel)
-			}
-			plan, err := chatAndParse[QueryPlan](t.ai, ctx, "executor-plan", execPrompt, chartDesc, "执行阶段解析查询方案失败")
-			if err != nil {
-				return fmt.Errorf("规划查询失败[%s]: %w", spec.Title, err)
-			}
-
-			// Step 2: 执行查询
 			var cfg *TableConfig
 			for _, c := range t.configs {
 				if c.TblName() == plan.Table {
@@ -210,110 +130,47 @@ func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw 
 				}
 			}
 			if cfg == nil {
-				return fmt.Errorf("未知表[%s]: %s", spec.Title, plan.Table)
+				return fmt.Errorf("未知表[%s]: %s", plan.Title, plan.Table)
 			}
 
 			qr, err := t.engine.Query(t.db, cfg, plan.Params)
 			if err != nil {
-				return fmt.Errorf("查询失败[%s]: %w", spec.Title, err)
+				return fmt.Errorf("查询失败[%s]: %w", plan.Title, err)
 			}
 
-			// Step 3: 构建 MCP 参数（按图表类型差异化）
-			mcpParams := map[string]any{
-				"type":  spec.Type,
-				"title": spec.Title,
-			}
-			switch spec.Type {
-			case "bar", "line":
-				labels, data := extractChartData(qr, plan.DataMapping)
-				mcpParams["xlabel"] = spec.XLabel
-				mcpParams["ylabel"] = spec.YLabel
-				mcpParams["colors"] = spec.Colors
-				mcpParams["labels"] = labels
-				mcpParams["data"] = []any{data}
-			case "pie":
-				labels, data := extractChartData(qr, plan.DataMapping)
-				mcpParams["colors"] = spec.Colors
-				mcpParams["labels"] = labels
-				mcpParams["data"] = []any{data}
-			case "table":
-				mcpParams["xlabel"] = spec.XLabel
-				mcpParams["ylabel"] = spec.YLabel
-				mcpParams["data"] = qr.Rows
-				mcpParams["labels"] = qr.Columns
-			}
-
-			// Step 4: 调用 MCP 生成图表
-			mcpClient, err := mcpchart.NewClient(t.venvPath, t.chartDir)
-			if err != nil {
-				return fmt.Errorf("启动图表服务失败[%s]: %w", spec.Title, err)
-			}
-			defer mcpClient.Close()
-
-			chartResult, err := mcpClient.Render(mcpParams)
-			if err != nil {
-				return fmt.Errorf("图表生成失败[%s]: %w", spec.Title, err)
-			}
-
-			imageURL, err := t.saveChartFile(chartResult, spec.Title)
-			if err != nil {
-				slog.Warn("保存图表文件失败", "title", spec.Title, "error", err)
-				return fmt.Errorf("保存图表文件失败[%s]: %w", spec.Title, err)
+			var mermaid string
+			if plan.Type == "flowchart" {
+				spec := ChartSpec{Type: plan.Type, Title: plan.Title, XLabel: plan.XLabel, YLabel: plan.YLabel, Colors: plan.Colors}
+				mermaid, err = buildMermaidFlowchart(t.ai, ctx, spec, qr)
+				if err != nil {
+					return fmt.Errorf("流程图生成失败[%s]: %w", plan.Title, err)
+				}
+			} else {
+				mermaid = buildMermaidForPlan(plan, qr)
 			}
 
 			results[i] = ReportChart{
-				Spec:     spec,
-				ImageURL: imageURL,
+				Spec:    ChartSpec{Type: plan.Type, Title: plan.Title, XLabel: plan.XLabel, YLabel: plan.YLabel, Colors: plan.Colors},
+				Mermaid: mermaid,
 			}
 
-			progressCh <- prog{idx: i, title: spec.Title}
+			mu.Lock()
+			doneCount++
+			sendProgress(pw, "report_progress", map[string]any{
+				"phase": "executor", "current": doneCount, "total": len(plans), "title": plan.Title,
+			})
+			mu.Unlock()
 			return nil
 		})
 	}
 
 	if err := g.Wait(); err != nil {
-		close(progressCh)
 		return nil, err
 	}
-	close(progressCh)
 	return results, nil
 }
 
-// extractChartData 从查询结果中提取图表需要的 labels 和 data，跳过空值行。
-func extractChartData(qr *QueryResult, dm DataMapping) ([]string, []float64) {
-	var labels []string
-	var data []float64
-	for _, row := range qr.Rows {
-		if len(row) == 0 {
-			continue
-		}
-		var label string
-		var val float64
-		hasVal := false
-		for j, col := range qr.Columns {
-			if col == dm.XField && j < len(row) && row[j] != nil {
-				label = fmt.Sprintf("%v", row[j])
-			}
-			if col == dm.YField && j < len(row) && row[j] != nil {
-				n, err := fmt.Sscanf(fmt.Sprintf("%v", row[j]), "%f", &val)
-				if err == nil && n == 1 {
-					hasVal = true
-				}
-			}
-		}
-		if label != "" && hasVal {
-			labels = append(labels, label)
-			data = append(data, val)
-		}
-	}
-	return labels, data
-}
-
 // --- Phase 3: Summarizer ---
-
-var summarizerSystemPrompt = `你是一个数据分析报告撰写助手。根据用户需求和已生成的图表，撰写一份完整的数据分析报告（Markdown 格式）。
-要求：包含标题、摘要、各数据章节（每个图表单独一节并引用图片）、总结与建议。
-只输出 Markdown 报告，不要其他解释。`
 
 func (t *GenerateReport) runSummarizer(ctx context.Context, prompt string, charts []ReportChart) (string, error) {
 	var sb strings.Builder
@@ -322,7 +179,8 @@ func (t *GenerateReport) runSummarizer(ctx context.Context, prompt string, chart
 	sb.WriteString("\n\n")
 	for i, c := range charts {
 		fmt.Fprintf(&sb, "## 图表 %d: %s\n\n", i+1, c.Spec.Title)
-		fmt.Fprintf(&sb, "![](%s)\n\n", c.ImageURL)
+		sb.WriteString(c.Mermaid)
+		sb.WriteString("\n\n")
 	}
 
 	resp, err := t.ai.ChatCompletion(ctx, openai.ChatCompletionRequest{
@@ -332,43 +190,12 @@ func (t *GenerateReport) runSummarizer(ctx context.Context, prompt string, chart
 		},
 	})
 	if err != nil {
-		slog.Warn("summarizer AI failed", "error", err)
-		return "", fmt.Errorf("汇总阶段 AI 调用失败")
+		return "", fmt.Errorf("汇总阶段 AI 调用失败: %w", err)
 	}
 	if len(resp.Choices) == 0 {
 		return "", fmt.Errorf("AI 返回为空")
 	}
 	return resp.Choices[0].Message.Content, nil
-}
-
-// saveChartFile 将 MCP 生成的图表 PNG 存入正式文件系统，返回下载 URL。
-func (t *GenerateReport) saveChartFile(result *mcpchart.ChartResult, _ string) (string, error) {
-	f, err := os.Open(result.FilePath)
-	if err != nil {
-		return "", fmt.Errorf("open chart file: %w", err)
-	}
-	defer f.Close()
-
-	storagePath := "charts/" + result.FileName
-	if err := t.fileStorage.Save(context.Background(), storagePath, f); err != nil {
-		return "", fmt.Errorf("save to storage: %w", err)
-	}
-	if _, err := f.Seek(0, 0); err != nil {
-		return "", err
-	}
-
-	fileRecord := &model.File{
-		Filename:    result.FileName,
-		MimeType:    "image/png",
-		Size:        int64(result.Size),
-		StoragePath: filepath.ToSlash(storagePath),
-		UploadedBy:  0,
-	}
-	if err := t.fileRepo.Create(fileRecord); err != nil {
-		return "", fmt.Errorf("create file record: %w", err)
-	}
-
-	return fmt.Sprintf("/api/v1/files/%d/download", fileRecord.ID), nil
 }
 
 // --- helpers ---
@@ -380,7 +207,7 @@ func sendProgress(pw agent.ProgressWriter, typ string, data map[string]any) {
 }
 
 // chatAndParse 本地 AI 调用辅助函数（避免对 service 包的硬依赖）。
-func chatAndParse[T any](ai *aiclient.Client, ctx context.Context, op, system, user, parseErrMsg string) (*T, error) {
+func chatAndParse[T any](ai *aiclient.Client, ctx context.Context, system, user, parseErrMsg string) (*T, error) {
 	resp, err := ai.ChatCompletion(ctx, openai.ChatCompletionRequest{
 		Messages: []openai.ChatCompletionMessage{
 			{Role: openai.ChatMessageRoleSystem, Content: system},
@@ -388,7 +215,6 @@ func chatAndParse[T any](ai *aiclient.Client, ctx context.Context, op, system, u
 		},
 	})
 	if err != nil {
-		slog.Warn("AI chat failed", "op", op, "error", err)
 		return nil, fmt.Errorf("AI服务暂不可用")
 	}
 	if len(resp.Choices) == 0 {
@@ -419,7 +245,6 @@ func chatAndParse[T any](ai *aiclient.Client, ctx context.Context, op, system, u
 
 	var result T
 	if err := json.Unmarshal([]byte(text), &result); err != nil {
-		slog.Error("AI parse failed", "op", op, "error", err, "text", text[:min(len(text), 200)])
 		return nil, errors.New(parseErrMsg)
 	}
 	return &result, nil

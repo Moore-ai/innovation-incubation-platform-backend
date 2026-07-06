@@ -3,8 +3,6 @@ package builtin
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -14,8 +12,6 @@ import (
 
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/model"
-	"innovation-incubation-platform-backend/internal/repository"
-	"innovation-incubation-platform-backend/internal/storage"
 	agent "innovation-incubation-platform-backend/internal/service/agent"
 	agentmemory "innovation-incubation-platform-backend/internal/service/agent/memory"
 	agenttools "innovation-incubation-platform-backend/internal/service/agent/tools"
@@ -62,9 +58,7 @@ func buildReportEngine(t *testing.T, ai *aiclient.Client, db *gorm.DB, extraTool
 		reg.Register(tool)
 	}
 
-	chartStorage, _ := storage.NewLocalFileStorage(os.TempDir())
-	venvPath := findProjectRoot() + "/sidecar/file-parser/venv"
-	reg.Register(NewGenerateReport(ai, db, repository.NewFileRepo(db), chartStorage, venvPath, os.TempDir()))
+	reg.Register(NewGenerateReport(ai, db))
 
 	cfg := config.AgentConfig{
 		PublicSSETypes:     []string{"reply", "done", "thinking", "error", "tool_call", "tool_result", "report_start", "report_progress", "report_done"},
@@ -246,9 +240,7 @@ func TestGenerateReport_ChartOutput(t *testing.T) {
 	db.AutoMigrate(&model.Enterprise{}, &model.IncubationRecord{}, &model.File{})
 	seedReportData(t, db)
 
-	venvPath := findProjectRoot() + "/sidecar/file-parser/venv"
-	chartStorage, _ := storage.NewLocalFileStorage(os.TempDir())
-	report := NewGenerateReport(ai, db, repository.NewFileRepo(db), chartStorage, venvPath, os.TempDir())
+	report := NewGenerateReport(ai, db)
 	report.configs = []*TableConfig{{
 		Table:       "query_enterprises",
 		Description: "查询企业",
@@ -278,14 +270,11 @@ func TestGenerateReport_ChartOutput(t *testing.T) {
 	t.Logf("Markdown (first 500): %s", markdown[:min(500, len(markdown))])
 	t.Logf("Total length: %d", len(markdown))
 
-	if !strings.Contains(markdown, "![") {
-		t.Error("expected chart image references in markdown")
+	if !strings.Contains(markdown, "```mermaid") {
+		t.Error("expected mermaid code blocks in markdown")
 	}
 	if !strings.Contains(markdown, "#") {
 		t.Error("expected Markdown headings")
 	}
 }
 
-func init() {
-	_ = fmt.Sprintf
-}
