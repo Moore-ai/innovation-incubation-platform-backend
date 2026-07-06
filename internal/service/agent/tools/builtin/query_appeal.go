@@ -3,6 +3,7 @@ package builtin
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"innovation-incubation-platform-backend/internal/repository"
 	agent "innovation-incubation-platform-backend/internal/service/agent"
@@ -24,6 +25,7 @@ func (t *QueryAppeal) Description() string {
 	return "查询当前用户提交的诉求（反馈/建议）的处理状态和结果"
 }
 func (t *QueryAppeal) AllowedRoles() []string { return []string{"enterprise", "carrier"} }
+func (t *QueryAppeal) Timeout() time.Duration { return agenttools.DefaultTimeout() }
 
 func (t *QueryAppeal) InputSchema() json.RawMessage {
 	return json.RawMessage(`

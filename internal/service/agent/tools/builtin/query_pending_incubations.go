@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -28,6 +29,7 @@ func (t *QueryPendingIncubations) Description() string {
 	return "查询待审核的企业入驻申请列表，支持分页"
 }
 func (t *QueryPendingIncubations) AllowedRoles() []string { return []string{"carrier"} }
+func (t *QueryPendingIncubations) Timeout() time.Duration { return agenttools.DefaultTimeout() }
 
 func (t *QueryPendingIncubations) InputSchema() json.RawMessage {
 	return json.RawMessage(`

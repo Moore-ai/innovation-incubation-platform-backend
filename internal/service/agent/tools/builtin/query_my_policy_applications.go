@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -28,6 +29,7 @@ func (t *QueryMyPolicyApplications) Description() string {
 	return "查询当前企业已审批通过的政策申报记录"
 }
 func (t *QueryMyPolicyApplications) AllowedRoles() []string { return []string{"enterprise"} }
+func (t *QueryMyPolicyApplications) Timeout() time.Duration { return agenttools.DefaultTimeout() }
 
 func (t *QueryMyPolicyApplications) InputSchema() json.RawMessage {
 	return json.RawMessage(`

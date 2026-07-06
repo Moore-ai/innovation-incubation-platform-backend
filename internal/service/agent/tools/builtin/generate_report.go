@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -34,6 +35,7 @@ func NewGenerateReport(ai *aiclient.Client, db *gorm.DB) *GenerateReport {
 
 func (t *GenerateReport) Name() string           { return "generate_report" }
 func (t *GenerateReport) AllowedRoles() []string { return []string{"government"} }
+func (t *GenerateReport) Timeout() time.Duration { return 120 * time.Second }
 func (t *GenerateReport) Description() string {
 	return "根据政务要求，生成数据分析报告（Markdown 格式，含图表）。"
 }

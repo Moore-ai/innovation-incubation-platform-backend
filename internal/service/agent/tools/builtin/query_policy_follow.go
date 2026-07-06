@@ -3,6 +3,7 @@ package builtin
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"innovation-incubation-platform-backend/internal/repository"
 	agent "innovation-incubation-platform-backend/internal/service/agent"
@@ -22,6 +23,7 @@ func NewQueryPolicyFollow(followRepo *repository.PolicyFollowRepo) *QueryPolicyF
 func (t *QueryPolicyFollow) Name() string           { return "query_policy_follow" }
 func (t *QueryPolicyFollow) Description() string    { return "查询当前用户关注的政策列表" }
 func (t *QueryPolicyFollow) AllowedRoles() []string { return []string{"enterprise"} }
+func (t *QueryPolicyFollow) Timeout() time.Duration { return agenttools.DefaultTimeout() }
 
 func (t *QueryPolicyFollow) InputSchema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"page":{"type":"integer","description":"页码，默认1"},"page_size":{"type":"integer","description":"每页条数，默认10"}},"required":[]}`)

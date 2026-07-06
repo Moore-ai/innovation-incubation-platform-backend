@@ -3,6 +3,7 @@ package builtin
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"innovation-incubation-platform-backend/internal/repository"
 	agenttools "innovation-incubation-platform-backend/internal/service/agent/tools"
@@ -23,6 +24,7 @@ func (t *QueryPolicyDetail) Description() string {
 	return "根据政策ID获取政策完整信息（含申报条件、补贴详情、所需材料、办理流程）"
 }
 func (t *QueryPolicyDetail) AllowedRoles() []string { return []string{"enterprise", "carrier", "government"} }
+func (t *QueryPolicyDetail) Timeout() time.Duration { return agenttools.DefaultTimeout() }
 
 func (t *QueryPolicyDetail) InputSchema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"policy_id":{"type":"integer","description":"政策ID"}},"required":["policy_id"]}`)

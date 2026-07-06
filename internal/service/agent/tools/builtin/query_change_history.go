@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -28,6 +29,7 @@ func (t *QueryChangeHistory) Description() string {
 	return "查询当前企业的变更记录，支持分页"
 }
 func (t *QueryChangeHistory) AllowedRoles() []string { return []string{"enterprise"} }
+func (t *QueryChangeHistory) Timeout() time.Duration { return agenttools.DefaultTimeout() }
 
 func (t *QueryChangeHistory) InputSchema() json.RawMessage {
 	return json.RawMessage(`

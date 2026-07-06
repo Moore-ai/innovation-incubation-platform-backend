@@ -63,7 +63,6 @@ func buildReportEngine(t *testing.T, ai *aiclient.Client, db *gorm.DB, extraTool
 	cfg := config.AgentConfig{
 		PublicSSETypes:     []string{"reply", "done", "thinking", "error", "tool_call", "tool_result", "report_start", "report_progress", "report_done"},
 		MaxSteps:           5,
-		ToolTimeoutSec:     120,
 		ContextWindow:      1,
 		HistoryBudgetRatio: 0,
 		Memory:             config.AgentMemoryConfig{SemanticLimit: 0, EpisodicLimit: 0},
@@ -277,4 +276,3 @@ func TestGenerateReport_ChartOutput(t *testing.T) {
 		t.Error("expected Markdown headings")
 	}
 }
-

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -28,6 +29,7 @@ func (t *QueryMyCarrierInfo) Description() string {
 	return "查询当前载体用户的基本信息（名称、类型、地址等）"
 }
 func (t *QueryMyCarrierInfo) AllowedRoles() []string { return []string{"carrier"} }
+func (t *QueryMyCarrierInfo) Timeout() time.Duration { return agenttools.DefaultTimeout() }
 
 func (t *QueryMyCarrierInfo) InputSchema() json.RawMessage {
 	return json.RawMessage(`

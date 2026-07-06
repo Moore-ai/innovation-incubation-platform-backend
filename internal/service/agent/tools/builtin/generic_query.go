@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -25,6 +26,7 @@ func NewGenericQueryTool(cfg *TableConfig, db *gorm.DB) *GenericQueryTool {
 func (t *GenericQueryTool) Name() string           { return t.cfg.Table }
 func (t *GenericQueryTool) Description() string    { return t.cfg.Description }
 func (t *GenericQueryTool) AllowedRoles() []string { return []string{"government"} }
+func (t *GenericQueryTool) Timeout() time.Duration { return agenttools.DefaultTimeout() }
 
 func (t *GenericQueryTool) InputSchema() json.RawMessage {
 	var props []string

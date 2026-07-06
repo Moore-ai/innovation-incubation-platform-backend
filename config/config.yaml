@@ -100,7 +100,6 @@ agent:
   planning_enabled: false
   planning_model: ""
   public_sse_types: [reply, done, thinking, error, report_start, report_progress, report_done]  # 允许暴露给前端的 SSE 事件
-  tool_timeout_sec: 120
   context_window: 512000
   history_budget_ratio: 0.7
   token_estimation: better     # simple | better

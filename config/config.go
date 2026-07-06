@@ -155,7 +155,6 @@ type AgentConfig struct {
 	MaxSteps           int                 `mapstructure:"max_steps"`
 	MessageMaxChars    int                 `mapstructure:"message_max_chars"`
 	RequestTimeoutSec  int                 `mapstructure:"request_timeout_sec"`
-	ToolTimeoutSec     int                 `mapstructure:"tool_timeout_sec"`
 	ContextWindow      int                 `mapstructure:"context_window"`
 	HistoryBudgetRatio float64             `mapstructure:"history_budget_ratio"`
 	PlanningEnabled    bool                `mapstructure:"planning_enabled"`
@@ -270,7 +269,6 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("agent.max_steps", 10)
 	v.SetDefault("agent.message_max_chars", 2000)
 	v.SetDefault("agent.request_timeout_sec", 120)
-	v.SetDefault("agent.tool_timeout_sec", 10)
 	v.SetDefault("agent.context_window", 512000)
 	v.SetDefault("agent.history_budget_ratio", 0.7)
 	v.SetDefault("agent.planning_enabled", false)

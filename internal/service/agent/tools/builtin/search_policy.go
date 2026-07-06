@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"time"
 
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/service"
@@ -26,6 +27,7 @@ func (t *SearchPolicy) Description() string {
 	return "根据关键词、行业、企业规模等条件检索匹配的政策，返回政策列表（含标题、摘要、适用条件、补贴详情）"
 }
 func (t *SearchPolicy) AllowedRoles() []string { return []string{"enterprise", "carrier"} }
+func (t *SearchPolicy) Timeout() time.Duration { return agenttools.DefaultTimeout() }
 
 func (t *SearchPolicy) InputSchema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"query":{"type":"string","description":"搜索关键词或问题描述"},"industry":{"type":"string","description":"行业"},"scale":{"type":"string","description":"企业规模"},"region":{"type":"string","description":"区域"}},"required":["query"]}`)

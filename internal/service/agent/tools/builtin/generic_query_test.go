@@ -45,7 +45,6 @@ func buildEngine(t *testing.T, ai *aiclient.Client, _ *gorm.DB, tools []agenttoo
 	cfg := config.AgentConfig{
 		PublicSSETypes:     []string{"reply", "done", "thinking", "error", "tool_call", "tool_result"},
 		MaxSteps:           5,
-		ToolTimeoutSec:     30,
 		ContextWindow:      1,
 		HistoryBudgetRatio: 0,
 		Memory:             config.AgentMemoryConfig{SemanticLimit: 0, EpisodicLimit: 0},

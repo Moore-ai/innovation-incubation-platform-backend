@@ -3,6 +3,7 @@ package builtin
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"innovation-incubation-platform-backend/internal/repository"
 	agent "innovation-incubation-platform-backend/internal/service/agent"
@@ -24,6 +25,7 @@ func (t *QueryMyFiles) Description() string {
 	return "查询当前用户上传的文件列表，支持分页"
 }
 func (t *QueryMyFiles) AllowedRoles() []string { return []string{"enterprise", "carrier", "government"} }
+func (t *QueryMyFiles) Timeout() time.Duration { return agenttools.DefaultTimeout() }
 
 func (t *QueryMyFiles) InputSchema() json.RawMessage {
 	return json.RawMessage(`

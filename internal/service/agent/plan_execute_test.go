@@ -64,7 +64,6 @@ func TestPlanExecute_RealAI(t *testing.T) {
 			PublicSSETypes:  sseAll,
 			PlanningEnabled: true,
 			MaxSteps:        8,
-			ToolTimeoutSec:  30,
 		})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
@@ -167,7 +166,6 @@ func TestPlanExecute_Replan_RealAI(t *testing.T) {
 			PublicSSETypes:  sseAll,
 			PlanningEnabled: true,
 			MaxSteps:        10,
-			ToolTimeoutSec:  30,
 		})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)

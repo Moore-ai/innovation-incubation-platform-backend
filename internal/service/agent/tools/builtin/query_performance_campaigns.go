@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -28,6 +29,7 @@ func (t *QueryPerformanceCampaigns) Description() string {
 	return "查询当前可参与的绩效评估活动列表，支持分页"
 }
 func (t *QueryPerformanceCampaigns) AllowedRoles() []string { return []string{"carrier"} }
+func (t *QueryPerformanceCampaigns) Timeout() time.Duration { return agenttools.DefaultTimeout() }
 
 func (t *QueryPerformanceCampaigns) InputSchema() json.RawMessage {
 	return json.RawMessage(`

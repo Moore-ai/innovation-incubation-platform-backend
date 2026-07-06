@@ -3,9 +3,9 @@ package agent
 import (
 	"context"
 	"encoding/json"
-	"testing"
-
 	"fmt"
+	"testing"
+	"time"
 
 	agenttools "innovation-incubation-platform-backend/internal/service/agent/tools"
 )
@@ -25,6 +25,7 @@ func (m *mockTool) Description() string                 { return m.desc }
 func (m *mockTool) AllowedRoles() []string              { return m.allowedRoles }
 func (m *mockTool) InputSchema() json.RawMessage        { return m.inputSchema }
 func (m *mockTool) OutputSchema() json.RawMessage       { return m.outputSchema }
+func (m *mockTool) Timeout() time.Duration               { return agenttools.DefaultTimeout() }
 func (m *mockTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	return m.execFn(ctx, args)
 }

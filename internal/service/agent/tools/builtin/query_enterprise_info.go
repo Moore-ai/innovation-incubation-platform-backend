@@ -3,6 +3,7 @@ package builtin
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"innovation-incubation-platform-backend/internal/repository"
 	agent "innovation-incubation-platform-backend/internal/service/agent"
@@ -24,6 +25,7 @@ func (t *QueryEnterpriseInfo) Description() string {
 	return "查询当前企业的入驻信息、入驻状态、申报进度等。仅企业用户可用"
 }
 func (t *QueryEnterpriseInfo) AllowedRoles() []string { return []string{"enterprise"} }
+func (t *QueryEnterpriseInfo) Timeout() time.Duration { return agenttools.DefaultTimeout() }
 
 func (t *QueryEnterpriseInfo) InputSchema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{},"required":[]}`)
