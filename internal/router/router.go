@@ -97,15 +97,11 @@ func registerEnterpriseRoutes(r *gin.Engine, deps *Deps) {
 	e.POST("/appeals", deps.EnterpriseController.SubmitAppeal)
 	e.GET("/appeals", deps.EnterpriseController.ListMyAppeals)
 
-	ai := r.Group("/api/v1/enterprise")
-	ai.Use(middleware.AuthMiddleware(deps.Config.JWT))
-	if deps.Enforcer != nil {
-		ai.Use(middleware.RbacMiddleware(deps.Enforcer))
-	}
-	ai.Use(middleware.RouteRateLimit(5))
-	ai.POST("/policies/search", deps.EnterpriseController.SearchPolicies)
-	ai.GET("/policies/:id/recommend", deps.EnterpriseController.RecommendPolicy)
-	ai.POST("/policies/:id/prefill", deps.EnterpriseController.PrefillApplication)
+	ea := e.Group("/policies")
+	ea.Use(middleware.RouteRateLimit(5))
+	ea.POST("/search", deps.EnterpriseController.SearchPolicies)
+	ea.GET("/:id/recommend", deps.EnterpriseController.RecommendPolicy)
+	ea.POST("/:id/prefill", deps.EnterpriseController.PrefillApplication)
 }
 
 func registerCarrierRoutes(r *gin.Engine, deps *Deps) {
@@ -130,13 +126,9 @@ func registerCarrierRoutes(r *gin.Engine, deps *Deps) {
 	c.POST("/appeals", deps.CarrierController.SubmitAppeal)
 	c.GET("/appeals", deps.CarrierController.ListMyAppeals)
 
-	ai := r.Group("/api/v1/carrier")
-	ai.Use(middleware.AuthMiddleware(deps.Config.JWT))
-	if deps.Enforcer != nil {
-		ai.Use(middleware.RbacMiddleware(deps.Enforcer))
-	}
-	ai.Use(middleware.RouteRateLimit(5))
-	ai.POST("/policies/search", deps.CarrierController.SearchPolicies)
+	ca := c.Group("/policies")
+	ca.Use(middleware.RouteRateLimit(5))
+	ca.POST("/search", deps.CarrierController.SearchPolicies)
 }
 
 func registerGovernmentRoutes(r *gin.Engine, deps *Deps) {
