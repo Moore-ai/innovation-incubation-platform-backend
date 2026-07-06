@@ -283,7 +283,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("agent.history_budget_ratio", 0.7)
 	v.SetDefault("agent.planning_enabled", false)
 	v.SetDefault("agent.planning_model", "")
-	v.SetDefault("agent.public_sse_types", []string{"reply", "done", "thinking", "error"})
+	v.SetDefault("agent.public_sse_types", []string{"reply", "done", "thinking", "error", "report_start", "report_progress", "report_done"})
 	v.SetDefault("agent.token_estimation", "better")
 	v.SetDefault("agent.working_memory.page_size", 10)
 	v.SetDefault("agent.memory.semantic_limit", 3)

@@ -111,7 +111,11 @@ func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, e
 	for _, tcfg := range agentbuiltin.TableConfigs {
 		registry.Register(agentbuiltin.NewGenericQueryTool(tcfg, db))
 	}
-	chartStorage, _ := storage.NewLocalFileStorage(cfg.Upload.ChartDir)
+	chartStorage, err := storage.NewLocalFileStorage(cfg.Upload.ChartDir)
+	if err != nil {
+		slog.Error("failed to init chart storage", "error", err)
+		os.Exit(1)
+	}
 	registry.Register(agentbuiltin.NewGenerateReport(aiClient, db, r.file, chartStorage, cfg.Upload.ChartVenvPath, cfg.Upload.ChartDir))
 
 	workingMem := agentmemory.NewWorkingMemory(r.chat, cfg.Agent.WorkingMemory.PageSize)

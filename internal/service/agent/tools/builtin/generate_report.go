@@ -258,7 +258,7 @@ func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw 
 			imageURL, err := t.saveChartFile(chartResult, spec.Title)
 			if err != nil {
 				slog.Warn("保存图表文件失败", "title", spec.Title, "error", err)
-				imageURL = fmt.Sprintf("/api/v1/files/chart/%s", chartResult.FileName) // fallback
+				return fmt.Errorf("保存图表文件失败[%s]: %w", spec.Title, err)
 			}
 
 			results[i] = ReportChart{
@@ -395,10 +395,26 @@ func chatAndParse[T any](ai *aiclient.Client, ctx context.Context, op, system, u
 		return nil, fmt.Errorf("AI返回为空")
 	}
 	text := resp.Choices[0].Message.Content
-	text = strings.TrimSpace(text)
-	text = strings.TrimPrefix(text, "```json")
-	text = strings.TrimPrefix(text, "```")
-	text = strings.TrimSuffix(text, "```")
+	// 与 service.ChatAndParse 一致的清理逻辑：先搜代码围栏再兜底取 JSON 边界
+	for _, prefix := range []string{"```json", "```"} {
+		if idx := strings.Index(text, prefix); idx >= 0 {
+			text = text[idx+len(prefix):]
+			break
+		}
+	}
+	if idx := strings.LastIndex(text, "```"); idx >= 0 {
+		text = text[:idx]
+	}
+	// 兜底：取最外层的 JSON 边界
+	if trimmed := strings.TrimLeft(text, " \t\r\n"); len(trimmed) > 0 && trimmed[0] == '[' {
+		if end := strings.LastIndexByte(text, ']'); end >= 0 {
+			text = text[:end+1]
+		}
+	} else if start := strings.IndexByte(text, '{'); start >= 0 {
+		if end := strings.LastIndexByte(text, '}'); end >= start {
+			text = text[start : end+1]
+		}
+	}
 	text = strings.TrimSpace(text)
 
 	var result T

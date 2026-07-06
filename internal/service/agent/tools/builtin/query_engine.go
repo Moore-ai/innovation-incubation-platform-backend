@@ -1,6 +1,7 @@
 package builtin
 
 import (
+	"sort"
 	"strings"
 
 	"gorm.io/gorm"
@@ -26,8 +27,22 @@ func (c *TableConfig) dbTable() string {
 	if c.DBTable != "" {
 		return c.DBTable
 	}
-	// fallback: 去掉 "query_" 前缀
 	return strings.TrimPrefix(c.Table, "query_")
+}
+
+// validColumn 检查 col 是否为 cfg 中的合法列名。
+func (c *TableConfig) validColumn(col string) bool {
+	for _, def := range c.Columns {
+		if def.Name == col {
+			return true
+		}
+	}
+	return false
+}
+
+// validPeriods 白名单：group_by_period 的合法值。
+var validPeriods = map[string]bool{
+	"day": true, "week": true, "month": true, "quarter": true, "year": true,
 }
 
 // ColumnDef 定义列。
@@ -81,11 +96,20 @@ func (e *QueryEngine) Query(db *gorm.DB, cfg *TableConfig, params map[string]any
 		}
 	}
 
-	// group_by + aggregate
+	// group_by + aggregate（校验后使用）
 	gby, _ := params["group_by"].(string)
 	period, _ := params["group_by_period"].(string)
 	agg, _ := params["aggregate"].(string)
-	aggField := "score" // 仅 performance_submissions 需要用
+	aggField := "score"
+
+	// 校验 group_by（必须是合法列名）
+	if gby != "" && !cfg.validColumn(gby) {
+		gby = ""
+	}
+	// 校验 period（白名单）
+	if period != "" && !validPeriods[period] {
+		period = ""
+	}
 
 	var selectCols []string
 	if gby != "" {
@@ -122,17 +146,20 @@ func (e *QueryEngine) Query(db *gorm.DB, cfg *TableConfig, params map[string]any
 	q = q.Limit(limit)
 
 	orderBy, _ := params["order_by"].(string)
-	// 聚合查询（无 group_by 时单行结果）跳过排序，避免 ORDER BY 非聚合列报错
+	// 聚合查询（无 group_by 时单行结果）跳过排序
 	if orderBy != "" && agg != "" && gby == "" {
 		orderBy = ""
 	}
 	if orderBy != "" {
 		dir := "ASC"
-		if orderBy[0] == '-' {
+		if len(orderBy) > 0 && orderBy[0] == '-' {
 			dir = "DESC"
 			orderBy = orderBy[1:]
 		}
-		q = q.Order(orderBy + " " + dir)
+		// 校验 order_by 列名
+		if cfg.validColumn(orderBy) {
+			q = q.Order(orderBy + " " + dir)
+		}
 	}
 
 	// 执行
@@ -141,7 +168,7 @@ func (e *QueryEngine) Query(db *gorm.DB, cfg *TableConfig, params map[string]any
 		return nil, err
 	}
 
-	columns := extractColumns(gby, period, agg)
+	columns := extractColumns(gby, period, agg, rows)
 	result := &QueryResult{Columns: columns, Rows: make([][]any, len(rows)), RowCount: len(rows)}
 	for i, row := range rows {
 		for _, c := range columns {
@@ -151,7 +178,8 @@ func (e *QueryEngine) Query(db *gorm.DB, cfg *TableConfig, params map[string]any
 	return result, nil
 }
 
-func extractColumns(gby, period, agg string) []string {
+// extractColumns 从参数和结果行中提取列名。查询无聚合时从结果行中获取全部列名。
+func extractColumns(gby, period, agg string, rows []map[string]any) []string {
 	var cols []string
 	if gby != "" {
 		cols = append(cols, gby)
@@ -162,8 +190,16 @@ func extractColumns(gby, period, agg string) []string {
 	switch agg {
 	case "count":
 		cols = append(cols, "count")
-	default:
+	case "avg", "max", "min":
 		cols = append(cols, agg)
+	default:
+		// 无聚合：从结果行中提取所有列名
+		if len(rows) > 0 {
+			for k := range rows[0] {
+				cols = append(cols, k)
+			}
+			sort.Strings(cols)
+		}
 	}
 	return cols
 }
