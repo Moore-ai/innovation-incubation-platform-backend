@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
-	"os"
-	"path/filepath"
+	"math"
 	"strings"
 
 	"gorm.io/gorm"
@@ -15,11 +13,7 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 	"golang.org/x/sync/errgroup"
 
-	"innovation-incubation-platform-backend/internal/model"
-	"innovation-incubation-platform-backend/internal/repository"
-	"innovation-incubation-platform-backend/internal/storage"
 	"innovation-incubation-platform-backend/pkg/aiclient"
-	"innovation-incubation-platform-backend/pkg/mcpchart"
 
 	agent "innovation-incubation-platform-backend/internal/service/agent"
 	agenttools "innovation-incubation-platform-backend/internal/service/agent/tools"
@@ -32,14 +26,10 @@ type GenerateReport struct {
 	db      *gorm.DB
 	engine  *QueryEngine
 	configs []*TableConfig
-	fileRepo    *repository.FileRepo
-	fileStorage storage.Storage
-	venvPath    string
-	chartDir    string
 }
 
-func NewGenerateReport(ai *aiclient.Client, db *gorm.DB, fileRepo *repository.FileRepo, fileStorage storage.Storage, venvPath, chartDir string) *GenerateReport {
-	return &GenerateReport{ai: ai, db: db, engine: &QueryEngine{}, configs: TableConfigs, fileRepo: fileRepo, fileStorage: fileStorage, venvPath: venvPath, chartDir: chartDir}
+func NewGenerateReport(ai *aiclient.Client, db *gorm.DB) *GenerateReport {
+	return &GenerateReport{ai: ai, db: db, engine: &QueryEngine{}, configs: TableConfigs}
 }
 
 func (t *GenerateReport) Name() string           { return "generate_report" }
@@ -218,52 +208,9 @@ func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw 
 				return fmt.Errorf("查询失败[%s]: %w", spec.Title, err)
 			}
 
-			// Step 3: 构建 MCP 参数（按图表类型差异化）
-			mcpParams := map[string]any{
-				"type":  spec.Type,
-				"title": spec.Title,
-			}
-			switch spec.Type {
-			case "bar", "line":
-				labels, data := extractChartData(qr, plan.DataMapping)
-				mcpParams["xlabel"] = spec.XLabel
-				mcpParams["ylabel"] = spec.YLabel
-				mcpParams["colors"] = spec.Colors
-				mcpParams["labels"] = labels
-				mcpParams["data"] = []any{data}
-			case "pie":
-				labels, data := extractChartData(qr, plan.DataMapping)
-				mcpParams["colors"] = spec.Colors
-				mcpParams["labels"] = labels
-				mcpParams["data"] = []any{data}
-			case "table":
-				mcpParams["xlabel"] = spec.XLabel
-				mcpParams["ylabel"] = spec.YLabel
-				mcpParams["data"] = qr.Rows
-				mcpParams["labels"] = qr.Columns
-			}
-
-			// Step 4: 调用 MCP 生成图表
-			mcpClient, err := mcpchart.NewClient(t.venvPath, t.chartDir)
-			if err != nil {
-				return fmt.Errorf("启动图表服务失败[%s]: %w", spec.Title, err)
-			}
-			defer mcpClient.Close()
-
-			chartResult, err := mcpClient.Render(mcpParams)
-			if err != nil {
-				return fmt.Errorf("图表生成失败[%s]: %w", spec.Title, err)
-			}
-
-			imageURL, err := t.saveChartFile(chartResult, spec.Title)
-			if err != nil {
-				slog.Warn("保存图表文件失败", "title", spec.Title, "error", err)
-				return fmt.Errorf("保存图表文件失败[%s]: %w", spec.Title, err)
-			}
-
 			results[i] = ReportChart{
-				Spec:     spec,
-				ImageURL: imageURL,
+				Spec:    spec,
+				Mermaid: buildMermaid(spec, qr, plan.DataMapping),
 			}
 
 			progressCh <- prog{idx: i, title: spec.Title}
@@ -312,7 +259,7 @@ func extractChartData(qr *QueryResult, dm DataMapping) ([]string, []float64) {
 // --- Phase 3: Summarizer ---
 
 var summarizerSystemPrompt = `你是一个数据分析报告撰写助手。根据用户需求和已生成的图表，撰写一份完整的数据分析报告（Markdown 格式）。
-要求：包含标题、摘要、各数据章节（每个图表单独一节并引用图片）、总结与建议。
+要求：包含标题、摘要、各数据章节（每个图表单独一节，原样保留提供的 Mermaid 代码块）、总结与建议。
 只输出 Markdown 报告，不要其他解释。`
 
 func (t *GenerateReport) runSummarizer(ctx context.Context, prompt string, charts []ReportChart) (string, error) {
@@ -322,7 +269,8 @@ func (t *GenerateReport) runSummarizer(ctx context.Context, prompt string, chart
 	sb.WriteString("\n\n")
 	for i, c := range charts {
 		fmt.Fprintf(&sb, "## 图表 %d: %s\n\n", i+1, c.Spec.Title)
-		fmt.Fprintf(&sb, "![](%s)\n\n", c.ImageURL)
+		sb.WriteString(c.Mermaid)
+		sb.WriteString("\n\n")
 	}
 
 	resp, err := t.ai.ChatCompletion(ctx, openai.ChatCompletionRequest{
@@ -332,8 +280,7 @@ func (t *GenerateReport) runSummarizer(ctx context.Context, prompt string, chart
 		},
 	})
 	if err != nil {
-		slog.Warn("summarizer AI failed", "error", err)
-		return "", fmt.Errorf("汇总阶段 AI 调用失败")
+		return "", fmt.Errorf("汇总阶段 AI 调用失败: %w", err)
 	}
 	if len(resp.Choices) == 0 {
 		return "", fmt.Errorf("AI 返回为空")
@@ -341,34 +288,126 @@ func (t *GenerateReport) runSummarizer(ctx context.Context, prompt string, chart
 	return resp.Choices[0].Message.Content, nil
 }
 
-// saveChartFile 将 MCP 生成的图表 PNG 存入正式文件系统，返回下载 URL。
-func (t *GenerateReport) saveChartFile(result *mcpchart.ChartResult, _ string) (string, error) {
-	f, err := os.Open(result.FilePath)
-	if err != nil {
-		return "", fmt.Errorf("open chart file: %w", err)
+// buildMermaid 根据图表类型从查询结果构建 Mermaid 代码块。
+func buildMermaid(spec ChartSpec, qr *QueryResult, dm DataMapping) string {
+	switch spec.Type {
+	case "pie":
+		return buildMermaidPie(spec, qr, dm)
+	case "bar", "line":
+		return buildMermaidXYChart(spec, qr, dm)
+	case "table":
+		return buildMarkdownTable(spec, qr)
+	default:
+		return buildMermaidPie(spec, qr, dm)
 	}
-	defer f.Close()
+}
 
-	storagePath := "charts/" + result.FileName
-	if err := t.fileStorage.Save(context.Background(), storagePath, f); err != nil {
-		return "", fmt.Errorf("save to storage: %w", err)
+func buildMermaidPie(spec ChartSpec, qr *QueryResult, dm DataMapping) string {
+	labels, data := extractChartData(qr, dm)
+	var sb strings.Builder
+	sb.WriteString("```mermaid\npie")
+	if spec.Title != "" {
+		sb.WriteString(" title ")
+		sb.WriteString(spec.Title)
 	}
-	if _, err := f.Seek(0, 0); err != nil {
-		return "", err
+	sb.WriteString("\n")
+	for i, label := range labels {
+		var val float64
+		if i < len(data) {
+			val = data[i]
+		}
+		fmt.Fprintf(&sb, "    \"%s\" : %.0f\n", label, val)
+	}
+	sb.WriteString("```")
+	return sb.String()
+}
+
+func buildMermaidXYChart(spec ChartSpec, qr *QueryResult, dm DataMapping) string {
+	labels, data := extractChartData(qr, dm)
+	if len(data) == 0 {
+		return ""
+	}
+	maxVal := data[0]
+	for _, v := range data {
+		if v > maxVal {
+			maxVal = v
+		}
+	}
+	top := maxVal * 1.2
+	if top == 0 {
+		top = 10
 	}
 
-	fileRecord := &model.File{
-		Filename:    result.FileName,
-		MimeType:    "image/png",
-		Size:        int64(result.Size),
-		StoragePath: filepath.ToSlash(storagePath),
-		UploadedBy:  0,
+	var sb strings.Builder
+	sb.WriteString("```mermaid\nxychart-beta\n")
+	if spec.Title != "" {
+		fmt.Fprintf(&sb, "    title \"%s\"\n", spec.Title)
 	}
-	if err := t.fileRepo.Create(fileRecord); err != nil {
-		return "", fmt.Errorf("create file record: %w", err)
+	sb.WriteString("    x-axis [")
+	for i, l := range labels {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString("\"")
+		sb.WriteString(l)
+		sb.WriteString("\"")
 	}
+	sb.WriteString("]\n")
+	yLabel := spec.YLabel
+	if yLabel == "" {
+		yLabel = "数量"
+	}
+	fmt.Fprintf(&sb, "    y-axis \"%s\" 0 --> %.0f\n", yLabel, math.Ceil(top))
+	dataStr := make([]string, len(data))
+	for i, v := range data {
+		dataStr[i] = fmt.Sprintf("%.0f", v)
+	}
+	if spec.Type == "line" {
+		sb.WriteString("    line [")
+	} else {
+		sb.WriteString("    bar [")
+	}
+	sb.WriteString(strings.Join(dataStr, ", "))
+	sb.WriteString("]\n```")
+	return sb.String()
+}
 
-	return fmt.Sprintf("/api/v1/files/%d/download", fileRecord.ID), nil
+func buildMarkdownTable(spec ChartSpec, qr *QueryResult) string {
+	var sb strings.Builder
+	if spec.Title != "" {
+		sb.WriteString("**")
+		sb.WriteString(spec.Title)
+		sb.WriteString("**\n\n")
+	}
+	for i, col := range qr.Columns {
+		if i > 0 {
+			sb.WriteString(" | ")
+		}
+		sb.WriteString(col)
+	}
+	sb.WriteString("\n")
+	for i := range qr.Columns {
+		if i > 0 {
+			sb.WriteString(" | ")
+		}
+		sb.WriteString("---")
+	}
+	sb.WriteString("\n")
+	for _, row := range qr.Rows {
+		for i, cell := range row {
+			if i > 0 {
+				sb.WriteString(" | ")
+			}
+			if cell == nil {
+				sb.WriteString("-")
+			} else {
+				fmt.Fprintf(&sb, "%v", cell)
+			}
+		}
+		sb.WriteString("\n")
+	}
+	sb.WriteString("\n")
+	return sb.String()
 }
 
 // --- helpers ---
@@ -388,7 +427,6 @@ func chatAndParse[T any](ai *aiclient.Client, ctx context.Context, op, system, u
 		},
 	})
 	if err != nil {
-		slog.Warn("AI chat failed", "op", op, "error", err)
 		return nil, fmt.Errorf("AI服务暂不可用")
 	}
 	if len(resp.Choices) == 0 {
@@ -419,7 +457,6 @@ func chatAndParse[T any](ai *aiclient.Client, ctx context.Context, op, system, u
 
 	var result T
 	if err := json.Unmarshal([]byte(text), &result); err != nil {
-		slog.Error("AI parse failed", "op", op, "error", err, "text", text[:min(len(text), 200)])
 		return nil, errors.New(parseErrMsg)
 	}
 	return &result, nil
