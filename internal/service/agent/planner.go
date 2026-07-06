@@ -122,14 +122,13 @@ func parsePlan(text string, registry *agenttools.ToolRegistry) (*Plan, error) {
 
 // findFirstNumberedLine 找到文本中第一个编号行，返回其位置。
 func findFirstNumberedLine(text string) int {
-	for i, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		line = strings.TrimSpace(line)
 		line = strings.TrimPrefix(line, "- ")
 		line = strings.TrimPrefix(line, "* ")
 		if planLineRe.MatchString(line) {
 			return strings.Index(text, line)
 		}
-		_ = i
 	}
 	return -1
 }

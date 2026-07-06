@@ -4,45 +4,30 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
+	"slices"
 	"strings"
-	"time"
 
 	"innovation-incubation-platform-backend/config"
-	"innovation-incubation-platform-backend/pkg/aiclient"
 
 	agenttools "innovation-incubation-platform-backend/internal/service/agent/tools"
 )
 
 type ReflectChecker struct {
-	embedClient *aiclient.EmbeddingClient
-	threshold   float64
-	toolDescs   map[string][]float32 // 工具名 → 预缓存的静态描述 embedding
+	outputSchemas map[string]json.RawMessage // 工具名 → OutputSchema
 }
 
-func NewReflectChecker(embedClient *aiclient.EmbeddingClient, registry *agenttools.ToolRegistry, cfg config.ReflectConfig) *ReflectChecker {
+func NewReflectChecker(_ any, registry *agenttools.ToolRegistry, _ config.ReflectConfig) *ReflectChecker {
 	rc := &ReflectChecker{
-		embedClient: embedClient,
-		threshold:   cfg.SimilarityThreshold,
-		toolDescs:   make(map[string][]float32),
+		outputSchemas: make(map[string]json.RawMessage),
 	}
-	// 预计算每个工具的静态行为描述 embedding
 	for _, t := range registry.All() {
-		if embedClient != nil {
-			desc := fmt.Sprintf("工具 %s：%s。预期返回：%s", t.Name(), t.Description(), string(t.OutputSchema()))
-			ectx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			vec, err := embedClient.Embed(ectx, desc)
-			cancel()
-			if err == nil {
-				rc.toolDescs[t.Name()] = vec
-			}
-		}
+		rc.outputSchemas[t.Name()] = t.OutputSchema()
 	}
 	return rc
 }
 
 // Check 返回 (是否触发反思, 触发原因)
-func (r *ReflectChecker) Check(ctx context.Context, toolName string, result json.RawMessage, execErr error) (bool, string) {
+func (r *ReflectChecker) Check(_ context.Context, toolName string, result json.RawMessage, execErr error) (bool, string) {
 	// 第一层：硬规则
 	if execErr != nil {
 		return true, fmt.Sprintf("工具执行出错: %v", execErr)
@@ -58,41 +43,81 @@ func (r *ReflectChecker) Check(ctx context.Context, toolName string, result json
 		}
 	}
 
-	// 第二层：Output Schema 校验（若 OutputSchema 不为空）
-	// 注：此处做基础 JSON 格式校验，完整的 JSON Schema 校验可后续扩展
+	// 第二层：合法 JSON 校验
 	if !json.Valid(result) {
 		return true, "工具返回不是合法的 JSON"
 	}
 
-	// 第三层：Embedding 语义相似度
-	if r.embedClient != nil {
-		descVec, ok := r.toolDescs[toolName]
-		if ok {
-			obsVec, err := r.embedClient.Embed(ctx, s)
-			if err == nil {
-				sim := cosineSimilarity(descVec, obsVec)
-				if sim < r.threshold {
-					return true, fmt.Sprintf("语义相似度过低(%.4f < %.2f)", sim, r.threshold)
-				}
-			}
+	// 第三层：结构校验（OutputSchema declared key 存在且类型匹配）
+	schema, ok := r.outputSchemas[toolName]
+	if ok {
+		if reason := validateStructure(result, schema); reason != "" {
+			return true, reason
 		}
 	}
 
 	return false, ""
 }
 
-func cosineSimilarity(a, b []float32) float64 {
-	if len(a) != len(b) || len(a) == 0 {
-		return 0
+// validateStructure 校验 result JSON 中 declared 的 key 是否存在且类型匹配。
+func validateStructure(result, schema json.RawMessage) string {
+	var res map[string]any
+	if err := json.Unmarshal(result, &res); err != nil {
+		return fmt.Sprintf("结果 JSON 解析失败: %v", err)
 	}
-	var dot, normA, normB float64
-	for i := range a {
-		dot += float64(a[i]) * float64(b[i])
-		normA += float64(a[i]) * float64(a[i])
-		normB += float64(b[i]) * float64(b[i])
+
+	var sch struct {
+		Properties map[string]struct {
+			Type     string   `json:"type"`
+			Required []string `json:"required"`
+		} `json:"properties"`
+		Required []string `json:"required"`
 	}
-	if normA == 0 || normB == 0 {
-		return 0
+	if err := json.Unmarshal(schema, &sch); err != nil || len(sch.Properties) == 0 {
+		return "" // schema 不完整则跳过
 	}
-	return dot / (math.Sqrt(normA) * math.Sqrt(normB))
+
+	for key, prop := range sch.Properties {
+		v, exists := res[key]
+		if !exists {
+			// 只在 required 列表中才报错
+			if slices.Contains(sch.Required, key) {
+				return fmt.Sprintf("缺少必要字段: %s", key)
+			}
+			continue
+		}
+
+		propType := strings.ToLower(prop.Type)
+		if !matchType(v, propType) {
+			return fmt.Sprintf("字段 %s 类型不匹配: 期望 %s, 实际 %T", key, propType, v)
+		}
+	}
+	return ""
+}
+
+// matchType 检查值的 JSON 类型是否与 schema type 匹配。
+func matchType(v any, schematype string) bool {
+	switch schematype {
+	case "string":
+		_, ok := v.(string)
+		return ok
+	case "integer", "number":
+		switch v.(type) {
+		case float64, int, int64, json.Number:
+			return true
+		default:
+			return false
+		}
+	case "array":
+		_, ok := v.([]any)
+		return ok
+	case "object":
+		_, ok := v.(map[string]any)
+		return ok
+	case "boolean":
+		_, ok := v.(bool)
+		return ok
+	default:
+		return true
+	}
 }
