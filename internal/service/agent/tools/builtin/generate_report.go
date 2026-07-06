@@ -58,16 +58,16 @@ func (t *GenerateReport) Execute(ctx context.Context, args json.RawMessage) (jso
 
 	// Phase 1: Analyst
 	sendProgress(pw, "report_start", map[string]any{"phase": "analyst"})
-	specs, err := t.runAnalyst(ctx, input.Prompt)
+	plans, err := t.runAnalyst(ctx, input.Prompt)
 	if err != nil {
 		return nil, fmt.Errorf("分析阶段失败: %w", err)
 	}
-	if len(specs) == 0 {
+	if len(plans) == 0 {
 		return nil, fmt.Errorf("分析师未规划任何图表，请细化需求后重试")
 	}
 
 	// Phase 2: Executor (并发)
-	charts, err := t.runExecutor(ctx, specs, pw)
+	charts, err := t.runExecutor(ctx, plans, pw)
 	if err != nil {
 		return nil, fmt.Errorf("执行阶段失败: %w", err)
 	}
@@ -87,18 +87,16 @@ func (t *GenerateReport) Execute(ctx context.Context, args json.RawMessage) (jso
 
 // --- Phase 1: Analyst ---
 
-func (t *GenerateReport) runAnalyst(ctx context.Context, prompt string) ([]ChartSpec, error) {
-	specs, err := chatAndParse[[]ChartSpec](t.ai, ctx, analystSystemPrompt, prompt, "分析阶段解析失败")
+func (t *GenerateReport) runAnalyst(ctx context.Context, prompt string) ([]ChartPlan, error) {
+	plans, err := chatAndParse[[]ChartPlan](t.ai, ctx, analystPrompt(t.buildTableList()), prompt, "分析阶段解析失败")
 	if err != nil {
 		return nil, err
 	}
-	if specs == nil {
+	if plans == nil {
 		return nil, nil
 	}
-	return *specs, nil
+	return *plans, nil
 }
-
-// --- Phase 2: Executor ---
 
 func (t *GenerateReport) buildTableList() string {
 	var sb strings.Builder
@@ -112,38 +110,18 @@ func (t *GenerateReport) buildTableList() string {
 	return sb.String()
 }
 
-func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw agent.ProgressWriter) ([]ReportChart, error) {
-	results := make([]ReportChart, len(specs))
+// --- Phase 2: Executor (并发，无 AI 调用) ---
+
+func (t *GenerateReport) runExecutor(ctx context.Context, plans []ChartPlan, pw agent.ProgressWriter) ([]ReportChart, error) {
+	results := make([]ReportChart, len(plans))
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(4)
-	tableList := t.buildTableList()
 
 	var mu sync.Mutex
 	doneCount := 0
 
-	dataMappingHint := "\n输出 JSON：{\"table\":\"query_xxx\",\"params\":{...},\"data_mapping\":{\"x_field\":\"...\",\"y_field\":\"...\""
-	dataMappingHint += ",\"z_field\"(quadrantChart/sankey),\"" + "start_field\"(gantt)," + "\"end_field\"(gantt)," + "\"source_field\"(sankey)," + "\"target_field\"(sankey)," + "\"group_field\"(gantt/timeline)}}\n按需填写扩展字段，不需要的不要填。只输出 JSON。"
-
-	for i, spec := range specs {
+	for i, plan := range plans {
 		g.Go(func() error {
-			typePrompt := executorPrompts[spec.Type]
-			if typePrompt == "" {
-				typePrompt = executorPrompts["bar"]
-			}
-			execPrompt := typePrompt + "\n\n可用表及查询参数：\n" + tableList + dataMappingHint
-
-			chartDesc := fmt.Sprintf("图表类型：%s，标题：%s", spec.Type, spec.Title)
-			if spec.XLabel != "" {
-				chartDesc += fmt.Sprintf("，横轴：%s", spec.XLabel)
-			}
-			if spec.YLabel != "" {
-				chartDesc += fmt.Sprintf("，纵轴：%s", spec.YLabel)
-			}
-			plan, err := chatAndParse[QueryPlan](t.ai, ctx, execPrompt, chartDesc, "执行阶段解析查询方案失败")
-			if err != nil {
-				return fmt.Errorf("规划查询失败[%s]: %w", spec.Title, err)
-			}
-
 			var cfg *TableConfig
 			for _, c := range t.configs {
 				if c.TblName() == plan.Table {
@@ -152,36 +130,34 @@ func (t *GenerateReport) runExecutor(ctx context.Context, specs []ChartSpec, pw 
 				}
 			}
 			if cfg == nil {
-				return fmt.Errorf("未知表[%s]: %s", spec.Title, plan.Table)
+				return fmt.Errorf("未知表[%s]: %s", plan.Title, plan.Table)
 			}
 
 			qr, err := t.engine.Query(t.db, cfg, plan.Params)
 			if err != nil {
-				return fmt.Errorf("查询失败[%s]: %w", spec.Title, err)
+				return fmt.Errorf("查询失败[%s]: %w", plan.Title, err)
 			}
 
 			var mermaid string
-			if spec.Type == "flowchart" {
+			if plan.Type == "flowchart" {
+				spec := ChartSpec{Type: plan.Type, Title: plan.Title, XLabel: plan.XLabel, YLabel: plan.YLabel, Colors: plan.Colors}
 				mermaid, err = buildMermaidFlowchart(t.ai, ctx, spec, qr)
 				if err != nil {
-					return fmt.Errorf("流程图生成失败[%s]: %w", spec.Title, err)
+					return fmt.Errorf("流程图生成失败[%s]: %w", plan.Title, err)
 				}
 			} else {
-				mermaid = buildMermaid(spec, qr, plan.DataMapping)
+				mermaid = buildMermaidForPlan(plan, qr)
 			}
 
 			results[i] = ReportChart{
-				Spec:    spec,
+				Spec:    ChartSpec{Type: plan.Type, Title: plan.Title, XLabel: plan.XLabel, YLabel: plan.YLabel, Colors: plan.Colors},
 				Mermaid: mermaid,
 			}
 
 			mu.Lock()
 			doneCount++
 			sendProgress(pw, "report_progress", map[string]any{
-				"phase":   "executor",
-				"current": doneCount,
-				"total":   len(specs),
-				"title":   spec.Title,
+				"phase": "executor", "current": doneCount, "total": len(plans), "title": plan.Title,
 			})
 			mu.Unlock()
 			return nil

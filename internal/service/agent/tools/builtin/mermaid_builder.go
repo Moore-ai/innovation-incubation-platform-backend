@@ -368,6 +368,12 @@ func buildMermaidSankey(spec ChartSpec, qr *QueryResult, dm DataMapping) string 
 	return sb.String()
 }
 
+// buildMermaidForPlan 根据 ChartPlan 生成 Mermaid 代码块（不含 flowchart）。
+func buildMermaidForPlan(plan ChartPlan, qr *QueryResult) string {
+	spec := ChartSpec{Type: plan.Type, Title: plan.Title, XLabel: plan.XLabel, YLabel: plan.YLabel, Colors: plan.Colors}
+	return buildMermaid(spec, qr, plan.DataMapping)
+}
+
 // buildMermaidFlowchart 使用 AI 根据查询结果生成流程图 Mermaid。
 func buildMermaidFlowchart(ai *aiclient.Client, ctx context.Context, spec ChartSpec, qr *QueryResult) (string, error) {
 	var dataDesc strings.Builder

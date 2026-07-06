@@ -1,5 +1,17 @@
 package builtin
 
+// ChartPlan 分析师输出的完整图表计划（含查询方案）。
+type ChartPlan struct {
+	Type        string         `json:"type"`                  // bar | line | pie | table | gantt | quadrantChart | timeline | flowchart | sankey-beta
+	Title       string         `json:"title"`                 // 图表标题
+	XLabel      string         `json:"x_label,omitempty"`     // 横轴/分类标签
+	YLabel      string         `json:"y_label,omitempty"`     // 纵轴/数值标签
+	Colors      []string       `json:"colors,omitempty"`      // 可选配色
+	Table       string         `json:"table"`                 // 如 "query_enterprises"
+	Params      map[string]any `json:"params"`                // 如 {"group_by":"industry","aggregate":"count"}
+	DataMapping DataMapping    `json:"data_mapping"`          // 数据→图表轴的映射
+}
+
 // ChartSpec 图表需求描述（Analyst 输出）。
 type ChartSpec struct {
 	Type   string   `json:"type"`    // bar | line | pie | table | gantt | quadrantChart | timeline | flowchart | sankey-beta
