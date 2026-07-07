@@ -37,7 +37,9 @@ def convert_pdf(req: ConvertRequest):
         with open(md_path, "w", encoding="utf-8") as f:
             f.write(req.markdown)
         output = os.path.join(workdir, f"report_{uuid.uuid4().hex}.pdf")
-        subprocess.run([_MD2PDF, md_path, "-o", output, "--font", r"C:\Windows\Fonts\simhei.ttf"],
+        subprocess.run([_MD2PDF, md_path, "-o", output,
+                        "--font", r"C:\Windows\Fonts\simhei.ttf",
+                        "--mermaid-scale", "2"],
                       capture_output=True, timeout=120, check=True)
         return {"file_path": output}
     except Exception as e:
