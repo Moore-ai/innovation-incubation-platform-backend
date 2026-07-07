@@ -38,7 +38,7 @@ func main() {
 	sessionID := createSession(base, token, "数据分析报告测试")
 	fmt.Printf("Session ID: %d\n", sessionID)
 
-	prompt := "生成一份合肥地区企业行业分布和规模分布的数据分析报告，要求包含图表。"
+	prompt := "生成一份合肥地区企业行业分布和规模分布的数据分析报告，要求包含图表。格式：DOCX。"
 	fmt.Printf("\n=== 3. 发送请求: %q ===\n", prompt)
 
 	markdown, charts := sseStream(base, token, sessionID, prompt)
