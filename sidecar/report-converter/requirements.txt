@@ -1,0 +1,4 @@
+fastapi>=0.137.0
+uvicorn[standard]>=0.47.0
+md2pdf-mermaid>=1.4
+python-docx>=1.1.0

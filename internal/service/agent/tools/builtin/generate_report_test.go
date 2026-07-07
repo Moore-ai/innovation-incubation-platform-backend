@@ -58,7 +58,7 @@ func buildReportEngine(t *testing.T, ai *aiclient.Client, db *gorm.DB, extraTool
 		reg.Register(tool)
 	}
 
-	reg.Register(NewGenerateReport(ai, db))
+	reg.Register(NewGenerateReport(ai, db, nil, nil, nil, nil))
 
 	cfg := config.AgentConfig{
 		PublicSSETypes:     []string{"reply", "done", "thinking", "error", "tool_call", "tool_result", "report_start", "report_progress", "report_done"},
@@ -239,7 +239,7 @@ func TestGenerateReport_ChartOutput(t *testing.T) {
 	db.AutoMigrate(&model.Enterprise{}, &model.IncubationRecord{}, &model.File{})
 	seedReportData(t, db)
 
-	report := NewGenerateReport(ai, db)
+	report := NewGenerateReport(ai, db, nil, nil, nil, nil)
 	report.configs = []*TableConfig{{
 		Table:       "query_enterprises",
 		Description: "查询企业",
