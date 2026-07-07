@@ -139,6 +139,30 @@ func (ctl *GovernmentController) ListPolicyApplications(c *gin.Context) {
 	response.SuccessPage(c, apps, total, page, pageSize)
 }
 
+func (ctl *GovernmentController) ListCompletableIncubations(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	records, total, err := ctl.svc.ListCompletableIncubations(page, pageSize)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.SuccessPage(c, records, total, page, pageSize)
+}
+
+func (ctl *GovernmentController) ListIncubations(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	keyword := c.Query("keyword")
+	category := c.Query("category")
+	records, total, err := ctl.svc.ListIncubations(keyword, category, page, pageSize)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.SuccessPage(c, records, total, page, pageSize)
+}
+
 func (ctl *GovernmentController) CreatePerformanceTemplate(c *gin.Context) {
 	var req dto.PerformanceTemplateReq
 	if err := c.ShouldBindJSON(&req); err != nil {

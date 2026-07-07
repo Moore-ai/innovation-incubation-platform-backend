@@ -68,6 +68,8 @@ func (r *AuthRepo) CreateEnterprise(ent *model.Enterprise) error {
 	return r.db.Create(ent).Error
 }
 
+func (r *AuthRepo) DB() *gorm.DB { return r.db }
+
 func (r *AuthRepo) CreateGovernment(gov *model.Government) error {
 	return r.db.Create(gov).Error
 }

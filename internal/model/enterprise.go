@@ -3,7 +3,7 @@ package model
 type Enterprise struct {
 	BaseModel
 	UserID       uint   `gorm:"uniqueIndex;not null" json:"user_id"`
-	Name         string `gorm:"size:255;not null" json:"name"`
+	Name         string `gorm:"size:255;not null;uniqueIndex" json:"name"`
 	CreditCode   string `gorm:"size:64;uniqueIndex" json:"credit_code"`
 	Industry     string `gorm:"size:64" json:"industry"`
 	Scale        string `gorm:"size:32" json:"scale"`

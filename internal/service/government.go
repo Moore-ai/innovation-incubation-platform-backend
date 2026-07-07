@@ -295,6 +295,16 @@ func (s *GovernmentService) ListPolicyApplications(page, pageSize int) ([]model.
 	return s.repo.ListPolicyApplicationsForReview(page, pageSize)
 }
 
+func (s *GovernmentService) ListCompletableIncubations(page, pageSize int) ([]model.IncubationRecord, int64, error) {
+	today := time.Now().Format("2006-01-02")
+	return s.repo.ListCompletableIncubations(today, page, pageSize)
+}
+
+func (s *GovernmentService) ListIncubations(keyword, category string, page, pageSize int) ([]model.IncubationRecord, int64, error) {
+	today := time.Now().Format("2006-01-02")
+	return s.repo.ListIncubations(keyword, category, today, page, pageSize)
+}
+
 func (s *GovernmentService) CreatePerformanceTemplate(req *dto.PerformanceTemplateReq) (*model.PerformanceTemplate, error) {
 	t := &model.PerformanceTemplate{Name: req.Name, Year: req.Year, FormSchema: req.FormSchema}
 	if err := s.repo.CreatePerformanceTemplate(t); err != nil {
@@ -365,6 +375,9 @@ func (s *GovernmentService) CompleteIncubation(userID, incubationID uint) error 
 		return errcode.ErrStatusInvalid.WithMsg("入驻申请尚未通过审核，无法标记为孵化完成")
 	}
 	now := time.Now().Format("2006-01-02")
+	if record.IncubateEnd == "" || record.IncubateEnd > now {
+		return errcode.ErrStatusInvalid.WithMsg("该企业尚未到孵化结束日期，不能确认毕业")
+	}
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		res := tx.Model(&model.IncubationRecord{}).
 			Where("id = ? AND incubate_status = ?", incubationID, model.IncubateInIncubation).

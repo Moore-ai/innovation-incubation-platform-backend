@@ -15,11 +15,13 @@ type RegisterRequest struct {
 	Phone    string `json:"phone"`
 	Email    string `json:"email"`
 
-	EnterpriseName       string `json:"enterprise_name"`
-	EnterpriseCreditCode string `json:"enterprise_credit_code"`
-	EnterpriseIndustry   string `json:"enterprise_industry"`
-	EnterpriseScale      string `json:"enterprise_scale"`
-	EnterpriseAddress    string `json:"enterprise_address"`
+	EnterpriseName        string `json:"enterprise_name"`
+	EnterpriseCreditCode  string `json:"enterprise_credit_code"`
+	EnterpriseIndustry    string `json:"enterprise_industry"`
+	EnterpriseScale       string `json:"enterprise_scale"`
+	EnterpriseAddress     string `json:"enterprise_address"`
+	EnterpriseLegalPerson string `json:"enterprise_legal_person"`
+	EnterpriseContactName string `json:"enterprise_contact_name"`
 
 	CarrierName string `json:"carrier_name"`
 	CarrierType string `json:"carrier_type"`

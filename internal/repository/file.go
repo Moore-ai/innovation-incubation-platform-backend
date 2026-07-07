@@ -83,5 +83,39 @@ func (r *FileRepo) CheckFileAccess(fileID, userID uint) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return count > 0, nil
+	if count > 0 {
+		return true, nil
+	}
+
+	// 载体可查看其入驻企业提交的待审核变更附件（证明文件和新协议文件）。
+	var changes []model.MajorChange
+	err = r.db.Model(&model.MajorChange{}).
+		Joins("JOIN incubation_records ON incubation_records.enterprise_id = major_changes.enterprise_id").
+		Joins("JOIN carriers ON carriers.id = incubation_records.carrier_id").
+		Where("carriers.user_id = ? AND major_changes.status = ?", userID, model.ApprovalPending).
+		Find(&changes).Error
+	if err != nil {
+		return false, err
+	}
+	for _, change := range changes {
+		for _, key := range []string{"proof_file_id", "new_file_id"} {
+			if id, ok := fileIDFromJSON(change.NewValue[key]); ok && id == fileID {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func fileIDFromJSON(value any) (uint, bool) {
+	switch v := value.(type) {
+	case float64:
+		return uint(v), v > 0
+	case uint:
+		return v, v > 0
+	case int:
+		return uint(v), v > 0
+	default:
+		return 0, false
+	}
 }

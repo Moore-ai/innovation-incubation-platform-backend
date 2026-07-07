@@ -164,6 +164,8 @@ func registerGovernmentRoutes(r *gin.Engine, deps *Deps) {
 	g.GET("/account/deletions", deps.GovernmentController.ListDeletionRequests)
 	g.POST("/account/deletions/:id/review", deps.GovernmentController.ReviewDeletionRequest)
 	g.POST("/performances/:id/score", deps.GovernmentController.ScoreSubmission)
+	g.GET("/incubations/completable", deps.GovernmentController.ListCompletableIncubations)
+	g.GET("/incubations", deps.GovernmentController.ListIncubations)
 	g.POST("/incubations/:id/complete", deps.GovernmentController.CompleteIncubation)
 	g.GET("/appeals", deps.GovernmentController.ListAllAppeals)
 	g.PATCH("/appeals/:id/status", deps.GovernmentController.UpdateAppealStatus)

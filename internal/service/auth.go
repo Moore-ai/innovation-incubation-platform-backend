@@ -8,6 +8,7 @@ import (
 	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"log/slog"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -31,6 +32,30 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*dto.LoginResponse, er
 	if req.Role == string(model.UserRoleGovernment) {
 		return nil, errcode.ErrInvalidParams.WithMsg("政务账号不支持自助注册")
 	}
+	if req.Role == string(model.UserRoleEnterprise) {
+		req.EnterpriseName = strings.TrimSpace(req.EnterpriseName)
+		req.EnterpriseAddress = strings.TrimSpace(req.EnterpriseAddress)
+		req.EnterpriseLegalPerson = strings.TrimSpace(req.EnterpriseLegalPerson)
+		req.EnterpriseContactName = strings.TrimSpace(req.EnterpriseContactName)
+		if err := validateEnterpriseIdentity(s.repo.DB(), req.EnterpriseName, req.EnterpriseCreditCode, 0); err != nil {
+			return nil, err
+		}
+		if err := validateEnterpriseIndustry(req.EnterpriseIndustry); err != nil {
+			return nil, err
+		}
+		if err := validateEnterpriseScale(req.EnterpriseScale); err != nil {
+			return nil, err
+		}
+		if req.EnterpriseAddress == "" {
+			return nil, errcode.ErrInvalidParams.WithMsg("企业地址不能为空")
+		}
+		if req.EnterpriseLegalPerson == "" {
+			return nil, errcode.ErrInvalidParams.WithMsg("法定代表人不能为空")
+		}
+		if req.EnterpriseContactName == "" {
+			return nil, errcode.ErrInvalidParams.WithMsg("联系人不能为空")
+		}
+	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -50,12 +75,15 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*dto.LoginResponse, er
 	switch req.Role {
 	case string(model.UserRoleEnterprise):
 		ent := &model.Enterprise{
-			UserID:     user.ID,
-			Name:       req.EnterpriseName,
-			CreditCode: req.EnterpriseCreditCode,
-			Industry:   req.EnterpriseIndustry,
-			Scale:      req.EnterpriseScale,
-			Address:    req.EnterpriseAddress,
+			UserID:       user.ID,
+			Name:         req.EnterpriseName,
+			CreditCode:   req.EnterpriseCreditCode,
+			Industry:     req.EnterpriseIndustry,
+			Scale:        req.EnterpriseScale,
+			Address:      req.EnterpriseAddress,
+			LegalPerson:  req.EnterpriseLegalPerson,
+			ContactName:  req.EnterpriseContactName,
+			ContactPhone: req.Phone,
 		}
 		if err := s.repo.CreateEnterprise(ent); err != nil {
 			return nil, errcode.ErrInternal

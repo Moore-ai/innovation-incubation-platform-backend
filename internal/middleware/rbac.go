@@ -34,6 +34,7 @@ func SeedPolicies(e *casbin.Enforcer) {
 		{"carrier", "/api/v1/chat/*", "(GET|POST|PUT|PATCH|DELETE)"},
 		{"government", "/api/v1/chat/*", "(GET|POST|PUT|PATCH|DELETE)"},
 		{"*", "/api/v1/auth/*", "(GET|POST|PUT)"},
+		{"*", "/api/v1/users/me", "GET"},
 	}
 	for _, p := range policies {
 		args := make([]any, len(p))

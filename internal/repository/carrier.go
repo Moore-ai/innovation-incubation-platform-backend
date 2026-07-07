@@ -57,11 +57,13 @@ func (r *CarrierRepo) ListPendingIncubations(carrierID uint, page, pageSize int)
 	return records, total, err
 }
 
-// ListAllIncubationsByCarrier 列出本载体下所有入驻记录（不限状态）
+// ListAllIncubationsByCarrier 列出本载体下已通过审核的入驻记录。
+// 待审核、已拒绝和已退回的记录只属于“入驻审核”，不能提前出现在“入驻企业”。
 func (r *CarrierRepo) ListAllIncubationsByCarrier(carrierID uint, page, pageSize int) ([]model.IncubationRecord, int64, error) {
 	var records []model.IncubationRecord
 	var total int64
-	q := r.db.Model(&model.IncubationRecord{}).Where("carrier_id = ?", carrierID)
+	q := r.db.Model(&model.IncubationRecord{}).
+		Where("carrier_id = ? AND status = ?", carrierID, model.ApprovalApproved)
 	q.Count(&total)
 	err := q.Preload("Enterprise").Order("created_at DESC").
 		Offset((page-1)*pageSize).Limit(pageSize).Find(&records).Error

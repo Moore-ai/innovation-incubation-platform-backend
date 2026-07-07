@@ -35,6 +35,15 @@ func (s *EnterpriseService) GetMyEnterpriseInfo(userID uint) (*model.Enterprise,
 	if err != nil {
 		return nil, errcode.ErrNotFound.WithMsg("企业信息未找到")
 	}
+	// 注册手机号是企业的默认联系电话；已有手动维护的联系电话优先。
+	if strings.TrimSpace(ent.ContactPhone) == "" {
+		var phone string
+		if err := s.db.Model(&model.User{}).Select("phone").Where("id = ?", userID).Scan(&phone).Error; err == nil && phone != "" {
+			ent.ContactPhone = phone
+			// 同步回填历史数据，后续查询和政务/载体端查看保持一致。
+			s.db.Model(&model.Enterprise{}).Where("id = ? AND (contact_phone = '' OR contact_phone IS NULL)").Update("contact_phone", phone)
+		}
+	}
 	return ent, nil
 }
 
@@ -242,11 +251,16 @@ func (s *EnterpriseService) ApplyChange(userID uint, req *dto.ChangeApplyReq) (*
 	if err != nil {
 		return nil, errcode.ErrNotFound
 	}
+	if err := s.validateChangeValue(ent, req.ChangeType, req.NewValue); err != nil {
+		return nil, err
+	}
+	oldValue := s.changeOldValue(ent, req.ChangeType)
+	s.enrichChangeFileInfo(req.NewValue)
 	change := &model.MajorChange{
 		EnterpriseID:  ent.ID,
 		ChangeType:    req.ChangeType,
 		ChangeContent: req.ChangeContent,
-		OldValue:      nil,
+		OldValue:      oldValue,
 		NewValue:      req.NewValue,
 		Status:        model.ApprovalPending,
 	}
@@ -275,6 +289,51 @@ func (s *EnterpriseService) ApplyChange(userID uint, req *dto.ChangeApplyReq) (*
 	return change, nil
 }
 
+func (s *EnterpriseService) changeOldValue(ent *model.Enterprise, changeType string) model.JSONMap {
+	values := map[string]string{
+		"企业名称": ent.Name, "统一社会信用代码": ent.CreditCode, "所属行业": ent.Industry,
+		"企业规模": ent.Scale, "企业地址": ent.Address, "法定代表人": ent.LegalPerson,
+	}
+	if changeType != "入孵协议文件" {
+		return model.JSONMap{"value": values[changeType]}
+	}
+	var record model.IncubationRecord
+	if err := s.db.Where("enterprise_id = ? AND agreement_file_id IS NOT NULL", ent.ID).
+		Order("created_at DESC").First(&record).Error; err != nil || record.AgreementFileID == nil {
+		return model.JSONMap{}
+	}
+	result := model.JSONMap{"file_id": *record.AgreementFileID}
+	var file model.File
+	if s.db.First(&file, *record.AgreementFileID).Error == nil {
+		result["filename"] = file.Filename
+	}
+	return result
+}
+
+func (s *EnterpriseService) enrichChangeFileInfo(values model.JSONMap) {
+	id, ok := jsonMapUint(values["new_file_id"])
+	if !ok {
+		return
+	}
+	var file model.File
+	if s.db.First(&file, id).Error == nil {
+		values["new_filename"] = file.Filename
+	}
+}
+
+func jsonMapUint(value any) (uint, bool) {
+	switch v := value.(type) {
+	case float64:
+		return uint(v), v > 0
+	case uint:
+		return v, v > 0
+	case int:
+		return uint(v), v > 0
+	default:
+		return 0, false
+	}
+}
+
 func (s *EnterpriseService) GetChange(id uint) (*model.MajorChange, error) {
 	change, err := s.repo.FindChangeByID(id)
 	if err != nil {
@@ -298,6 +357,13 @@ func (s *EnterpriseService) ReeditChange(id uint, userID uint, req *dto.ChangeAp
 	}
 	if change.Status != model.ApprovalReturned {
 		return nil, errcode.ErrStatusInvalid.WithMsg("只有被退回的变更才能重新编辑")
+	}
+	ent, err := s.repo.FindEnterpriseByUserID(userID)
+	if err != nil || ent.ID != change.EnterpriseID {
+		return nil, errcode.ErrNotFound
+	}
+	if err := s.validateChangeValue(ent, req.ChangeType, req.NewValue); err != nil {
+		return nil, err
 	}
 	change.ChangeType = req.ChangeType
 	change.ChangeContent = req.ChangeContent

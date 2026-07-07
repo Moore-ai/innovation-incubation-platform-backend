@@ -102,6 +102,46 @@ func (r *GovernmentRepo) UpdateApplicationStatus(id uint, status string) error {
 	return r.db.Model(&model.PolicyApplication{}).Where("id = ?", id).Update("status", status).Error
 }
 
+func (r *GovernmentRepo) ListCompletableIncubations(today string, page, pageSize int) ([]model.IncubationRecord, int64, error) {
+	var records []model.IncubationRecord
+	var total int64
+	q := r.db.Model(&model.IncubationRecord{}).
+		Where("status = ? AND incubate_status = ? AND incubate_end <> '' AND incubate_end <= ?",
+			model.ApprovalApproved, model.IncubateInIncubation, today)
+	q.Count(&total)
+	err := q.Preload("Enterprise").Preload("Carrier").Order("incubate_end ASC, created_at DESC").
+		Offset((page - 1) * pageSize).Limit(pageSize).Find(&records).Error
+	return records, total, err
+}
+
+func (r *GovernmentRepo) ListIncubations(keyword, category, today string, page, pageSize int) ([]model.IncubationRecord, int64, error) {
+	var records []model.IncubationRecord
+	var total int64
+	q := r.db.Model(&model.IncubationRecord{}).
+		Joins("LEFT JOIN enterprises ON enterprises.id = incubation_records.enterprise_id").
+		Joins("LEFT JOIN carriers ON carriers.id = incubation_records.carrier_id")
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		q = q.Where("enterprises.name LIKE ? OR enterprises.credit_code LIKE ? OR carriers.name LIKE ?", like, like, like)
+	}
+	switch category {
+	case "completable":
+		q = q.Where("incubation_records.status = ? AND incubation_records.incubate_status = ? AND incubation_records.incubate_end <> '' AND incubation_records.incubate_end <= ?",
+			model.ApprovalApproved, model.IncubateInIncubation, today)
+	case "in_incubation":
+		q = q.Where("incubation_records.incubate_status = ?", model.IncubateInIncubation)
+	case "graduated":
+		q = q.Where("incubation_records.incubate_status = ?", model.IncubateGraduated)
+	case "exited":
+		q = q.Where("incubation_records.incubate_status = ?", model.IncubateExited)
+	}
+	q.Count(&total)
+	err := q.Preload("Enterprise").Preload("Carrier").
+		Order("incubation_records.created_at DESC").
+		Offset((page - 1) * pageSize).Limit(pageSize).Find(&records).Error
+	return records, total, err
+}
+
 func (r *GovernmentRepo) CreatePerformanceTemplate(t *model.PerformanceTemplate) error {
 	return r.db.Create(t).Error
 }

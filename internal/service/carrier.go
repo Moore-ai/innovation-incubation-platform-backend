@@ -110,7 +110,7 @@ func (s *CarrierService) ListPendingIncubations(userID uint, page, pageSize int)
 	return s.repo.ListPendingIncubations(carrier.ID, page, pageSize)
 }
 
-// ListMyIncubations 列出本载体下所有入驻记录（不限状态）
+// ListMyIncubations 列出本载体下已通过审核、正式入驻的记录。
 func (s *CarrierService) ListMyIncubations(userID uint, page, pageSize int) ([]model.IncubationRecord, int64, error) {
 	carrier, err := s.repo.FindCarrierByUserID(userID)
 	if err != nil {
@@ -264,28 +264,39 @@ func (s *CarrierService) ReviewChange(carrierUserID uint, changeID uint, req *dt
 	if err != nil {
 		return errcode.ErrStatusInvalid.WithMsg(err.Error())
 	}
-	s.db.Transaction(func(tx *gorm.DB) error {
-		tx.Model(&model.MajorChange{}).Where("id = ?", changeID).Update("status", newStatus)
-		tx.Create(&model.Approval{
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.MajorChange{}).Where("id = ?", changeID).Update("status", newStatus).Error; err != nil {
+			return err
+		}
+		if err := tx.Create(&model.Approval{
 			TargetType: model.TargetMajorChange,
 			TargetID:   changeID,
 			Step:       model.StepCarrierReview,
 			Action:     model.ApprovalAction(req.Action),
 			Comment:    req.Comment,
 			ReviewerID: carrierUserID,
-		})
+		}).Error; err != nil {
+			return err
+		}
 		if req.Action == string(model.ActionApprove) {
 			ent := &model.Enterprise{}
 			if err := tx.First(ent, change.EnterpriseID).Error; err != nil {
 				return err
 			}
-			applyChange(ent, change, tx)
+			if err := validateChangeValueWithDB(tx, ent, change.ChangeType, change.NewValue); err != nil {
+				return err
+			}
+			if err := applyChange(ent, change, tx); err != nil {
+				return err
+			}
 			if err := tx.Save(ent).Error; err != nil {
 				return err
 			}
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
 	// 通知企业
 	var entUserID uint
 	s.db.Model(&model.Enterprise{}).Select("user_id").Where("id = ?", change.EnterpriseID).Take(&entUserID)
@@ -312,11 +323,8 @@ func (s *CarrierService) ReviewChange(carrierUserID uint, changeID uint, req *dt
 }
 
 // applyChange maps ChangeType to Enterprise struct fields and applies the new value.
-func applyChange(ent *model.Enterprise, change *model.MajorChange, db *gorm.DB) {
-	v, ok := change.NewValue[change.ChangeType].(string)
-	if !ok {
-		return
-	}
+func applyChange(ent *model.Enterprise, change *model.MajorChange, db *gorm.DB) error {
+	v, _ := change.NewValue["value"].(string)
 	switch change.ChangeType {
 	case "企业名称":
 		ent.Name = v
@@ -331,24 +339,36 @@ func applyChange(ent *model.Enterprise, change *model.MajorChange, db *gorm.DB) 
 	case "法定代表人":
 		ent.LegalPerson = v
 	case "入孵协议文件":
-		recordID, _ := change.NewValue["incubation_record_id"].(float64)
-		if recordID == 0 {
-			return
-		}
 		var record model.IncubationRecord
-		if err := db.First(&record, uint(recordID)).Error; err != nil {
-			return
+		if err := db.Where("enterprise_id = ?", change.EnterpriseID).Order("created_at DESC").First(&record).Error; err != nil {
+			return err
 		}
 		if record.AgreementFileID != nil {
 			db.Delete(&model.File{}, *record.AgreementFileID)
 		}
 		db.Delete(&record)
 	}
+	return nil
 }
 
 func (s *CarrierService) ListPendingChanges(userID uint, page, pageSize int) ([]model.MajorChange, int64, error) {
 	carrier, _ := s.repo.FindCarrierByUserID(userID)
-	return s.repo.ListPendingChanges(carrier.ID, page, pageSize)
+	changes, total, err := s.repo.ListPendingChanges(carrier.ID, page, pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+	// 兼容升级前已提交、尚未记录旧值的申请。
+	for i := range changes {
+		if len(changes[i].OldValue) == 0 {
+			helper := EnterpriseService{db: s.db}
+			changes[i].OldValue = helper.changeOldValue(&changes[i].Enterprise, changes[i].ChangeType)
+		}
+		if changes[i].ChangeType == "入孵协议文件" {
+			helper := EnterpriseService{db: s.db}
+			helper.enrichChangeFileInfo(changes[i].NewValue)
+		}
+	}
+	return changes, total, nil
 }
 
 func (s *CarrierService) UpdateInfo(userID uint, req *dto.CarrierInfoReq) (*model.Carrier, error) {
