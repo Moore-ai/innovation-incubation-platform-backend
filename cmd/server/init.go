@@ -91,7 +91,7 @@ func initSearchService(r *repositories, cfg *config.Config, db *gorm.DB, aiClien
 	}
 }
 
-func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, embedClient *aiclient.EmbeddingClient, searchSvc service.PolicySearch, db *gorm.DB, fileStorage storage.Storage) (*service.ChatService, *agentpkg.Engine) {
+func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, embedClient *aiclient.EmbeddingClient, searchSvc service.PolicySearch, db *gorm.DB, fileStorage storage.Storage, notifSvc *service.NotificationService) (*service.ChatService, *agentpkg.Engine) {
 	registry := agenttools.NewToolRegistry()
 	registry.Register(agentbuiltin.NewSearchPolicy(searchSvc))
 	registry.Register(agentbuiltin.NewQueryEnterpriseInfo(r.ent))
@@ -114,7 +114,7 @@ func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, e
 	}
 	converterAddr := fmt.Sprintf("127.0.0.1:%d", cfg.ReportConverter.Port)
 	converter := agentbuiltin.NewReportConverter(converterAddr, cfg.ReportConverter.TimeoutSec)
-	registry.Register(agentbuiltin.NewGenerateReport(aiClient, db, converter, r.file, fileStorage))
+	registry.Register(agentbuiltin.NewGenerateReport(aiClient, db, converter, r.file, fileStorage, notifSvc))
 
 	workingMem := agentmemory.NewWorkingMemory(r.chat, cfg.Agent.WorkingMemory.PageSize)
 	semanticMem := agentmemory.NewSemanticMemory(r.chat, embedClient, cfg.Agent.Memory.SemanticLimit)
@@ -146,7 +146,7 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 	}
 
 	searchSvc := initSearchService(r, cfg, db, aiClient, aiSvc, embedClient)
-	chatSvc, _ := initAgent(r, cfg, aiClient, embedClient, searchSvc, db, fileStorage)
+	chatSvc, _ := initAgent(r, cfg, aiClient, embedClient, searchSvc, db, fileStorage, notifSvc)
 
 	return &services{
 		auth:    service.NewAuthService(r.auth, cfg.JWT),

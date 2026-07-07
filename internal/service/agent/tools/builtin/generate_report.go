@@ -18,6 +18,7 @@ import (
 
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/repository"
+	"innovation-incubation-platform-backend/internal/service"
 	"innovation-incubation-platform-backend/internal/storage"
 	"innovation-incubation-platform-backend/pkg/aiclient"
 
@@ -35,17 +36,18 @@ type GenerateReport struct {
 	converter   *ReportConverter
 	fileRepo    *repository.FileRepo
 	fileStorage storage.Storage
+	notif       *service.NotificationService
 }
 
-func NewGenerateReport(ai *aiclient.Client, db *gorm.DB, converter *ReportConverter, fileRepo *repository.FileRepo, fileStorage storage.Storage) *GenerateReport {
-	return &GenerateReport{ai: ai, db: db, engine: &QueryEngine{}, configs: TableConfigs, converter: converter, fileRepo: fileRepo, fileStorage: fileStorage}
+func NewGenerateReport(ai *aiclient.Client, db *gorm.DB, converter *ReportConverter, fileRepo *repository.FileRepo, fileStorage storage.Storage, notif *service.NotificationService) *GenerateReport {
+	return &GenerateReport{ai: ai, db: db, engine: &QueryEngine{}, configs: TableConfigs, converter: converter, fileRepo: fileRepo, fileStorage: fileStorage, notif: notif}
 }
 
 func (t *GenerateReport) Name() string           { return "generate_report" }
 func (t *GenerateReport) AllowedRoles() []string { return []string{"government"} }
 func (t *GenerateReport) Timeout() time.Duration { return 180 * time.Second }
 func (t *GenerateReport) Description() string {
-	return "生成数据分析报告（PDF 或 DOCX 格式，含图表）。如用户未指定格式，请主动询问。"
+	return "生成数据分析报告（PDF 或 DOCX 格式，含图表）。如用户未指定格式，请主动询问。报告生成后系统自动通知用户，不要在回复中输出文件路径。"
 }
 
 func (t *GenerateReport) InputSchema() json.RawMessage {
@@ -100,6 +102,21 @@ func (t *GenerateReport) Execute(ctx context.Context, args json.RawMessage) (jso
 	fileURL, err := t.runConverter(ctx, markdown, input.Format, pw)
 	if err != nil {
 		return nil, fmt.Errorf("格式转换失败: %w", err)
+	}
+
+	if t.notif != nil {
+		userID := agent.UserIDFromCtx(ctx)
+		var fileID uint64
+		fmt.Sscanf(fileURL, "/api/v1/files/%d/download", &fileID)
+		notifData, err := json.Marshal(map[string]any{"file_id": fileID, "format": input.Format})
+		if err != nil {
+			return nil, fmt.Errorf("信息发送失败")
+		}
+		content := string(notifData)
+		if err := t.notif.Send(userID, model.NotifReportGenerated, "报告已生成",
+			content, "", 0); err != nil {
+			return nil, fmt.Errorf("信息发送失败")
+		}
 	}
 
 	sendProgress(pw, "report_done", map[string]any{"file_url": fileURL, "format": input.Format})
@@ -267,6 +284,7 @@ func (t *GenerateReport) runConverter(ctx context.Context, markdown, format stri
 	if err := t.fileRepo.Create(fileRecord); err != nil {
 		return "", fmt.Errorf("创建文件记录失败: %w", err)
 	}
+
 	return fmt.Sprintf("/api/v1/files/%d/download", fileRecord.ID), nil
 }
 
@@ -323,9 +341,9 @@ func chatAndParse[T any](ai *aiclient.Client, ctx context.Context, system, user,
 }
 
 func extractTitle(md string) string {
-	for _, line := range strings.Split(md, "\n") {
-		if strings.HasPrefix(line, "# ") {
-			return strings.TrimPrefix(line, "# ")
+	for line := range strings.SplitSeq(md, "\n") {
+		if after, ok := strings.CutPrefix(line, "# "); ok {
+			return after
 		}
 	}
 	return ""
