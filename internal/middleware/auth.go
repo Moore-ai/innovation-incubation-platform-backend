@@ -70,6 +70,10 @@ func GetUserID(c *gin.Context) uint {
 }
 
 func GetRole(c *gin.Context) string {
-	role, _ := c.Get("role")
-	return role.(string)
+	role, ok := c.Get("role")
+	if !ok {
+		return ""
+	}
+	s, _ := role.(string)
+	return s
 }

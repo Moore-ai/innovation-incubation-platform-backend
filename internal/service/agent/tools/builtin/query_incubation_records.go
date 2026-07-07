@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -23,16 +24,43 @@ func NewQueryIncubationRecords(entRepo *repository.EnterpriseRepo) *QueryIncubat
 	return &QueryIncubationRecords{entRepo: entRepo}
 }
 
-func (t *QueryIncubationRecords) Name() string          { return "query_incubation_records" }
-func (t *QueryIncubationRecords) Description() string   { return "查询当前企业的入驻申请记录，支持分页" }
+func (t *QueryIncubationRecords) Name() string { return "query_incubation_records" }
+func (t *QueryIncubationRecords) Description() string {
+	return "查询当前企业的入驻申请记录，支持分页"
+}
 func (t *QueryIncubationRecords) AllowedRoles() []string { return []string{"enterprise"} }
+func (t *QueryIncubationRecords) Timeout() time.Duration { return agenttools.DefaultTimeout() }
 
 func (t *QueryIncubationRecords) InputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"page":{"type":"integer","description":"页码，默认1"},"page_size":{"type":"integer","description":"每页条数，默认10"}},"required":[]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"page":{
+				"type":"integer",
+				"description":"页码，默认1"
+			},
+			"page_size":{
+				"type":"integer",
+				"description":"每页条数，默认10"
+			}
+		},
+		"required":[]
+	}`)
 }
 
 func (t *QueryIncubationRecords) OutputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"records":{"type":"array","items":{"type":"object"}},"total":{"type":"integer"}},"required":["records","total"]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"records":{"type":"array","items":{"type":"object","properties":{"id":{"type":"integer"},"enterprise_id":{"type":"integer"},"carrier_id":{"type":"integer"},"incubate_status":{"type":"string"},"incubate_start":{"type":"string"},"incubate_end":{"type":"string"},"status":{"type":"string"},"created_at":{"type":"string"}}}}},
+			"total":{
+				"type":"integer"
+			}
+		},
+		"required":["records","total"]
+	}`)
 }
 
 func (t *QueryIncubationRecords) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {

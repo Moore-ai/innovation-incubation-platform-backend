@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -23,16 +24,42 @@ func NewQueryChangeHistory(entRepo *repository.EnterpriseRepo) *QueryChangeHisto
 	return &QueryChangeHistory{entRepo: entRepo}
 }
 
-func (t *QueryChangeHistory) Name() string          { return "query_change_history" }
-func (t *QueryChangeHistory) Description() string   { return "查询当前企业的变更记录，支持分页" }
+func (t *QueryChangeHistory) Name() string { return "query_change_history" }
+func (t *QueryChangeHistory) Description() string {
+	return "查询当前企业的变更记录，支持分页"
+}
 func (t *QueryChangeHistory) AllowedRoles() []string { return []string{"enterprise"} }
+func (t *QueryChangeHistory) Timeout() time.Duration { return agenttools.DefaultTimeout() }
 
 func (t *QueryChangeHistory) InputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"page":{"type":"integer","description":"页码，默认1"},"page_size":{"type":"integer","description":"每页条数，默认10"}},"required":[]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"page":{
+				"type":"integer",
+				"description":"页码，默认1"
+			},
+			"page_size":{
+				"type":"integer",
+				"description":"每页条数，默认10"
+			}
+		},"required":[]
+	}`)
 }
 
 func (t *QueryChangeHistory) OutputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"changes":{"type":"array","items":{"type":"object"}},"total":{"type":"integer"}},"required":["changes","total"]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"changes":{"type":"array","items":{"type":"object","properties":{"id":{"type":"integer"},"enterprise_id":{"type":"integer"},"change_type":{"type":"string"},"change_content":{"type":"string"},"status":{"type":"string"},"created_at":{"type":"string"}}}}},
+			"total":{
+				"type":"integer"
+			}
+		},
+		"required":["changes","total"]
+	}`)
 }
 
 func (t *QueryChangeHistory) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {

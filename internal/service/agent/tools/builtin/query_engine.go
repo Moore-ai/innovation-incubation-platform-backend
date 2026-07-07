@@ -1,0 +1,205 @@
+package builtin
+
+import (
+	"sort"
+	"strings"
+
+	"gorm.io/gorm"
+)
+
+// TableConfig 定义一张表的查询配置。
+type TableConfig struct {
+	Table       string      // 工具名（如 query_enterprises）
+	DBTable     string      // 数据库表名（如 enterprises），空则去掉 Table 的 query_ 前缀
+	Description string      // 工具 Description
+	Columns     []ColumnDef // 可筛选/分组字段
+	TimeColumn  string      // group_by_period 使用的日期列，默认 "created_at"
+	Aggregates  []string    // 支持的聚合方式，默认 ["count"]
+}
+
+// TblName 返回工具名，用于 Executor 匹配 LLM 选择的表。
+func (c *TableConfig) TblName() string {
+	return c.Table
+}
+
+// dbTable 返回实际数据库表名。
+func (c *TableConfig) dbTable() string {
+	if c.DBTable != "" {
+		return c.DBTable
+	}
+	return strings.TrimPrefix(c.Table, "query_")
+}
+
+// validColumn 检查 col 是否为 cfg 中的合法列名。
+func (c *TableConfig) validColumn(col string) bool {
+	for _, def := range c.Columns {
+		if def.Name == col {
+			return true
+		}
+	}
+	return false
+}
+
+// validPeriods 白名单：group_by_period 的合法值。
+var validPeriods = map[string]bool{
+	"day": true, "week": true, "month": true, "quarter": true, "year": true,
+}
+
+// ColumnDef 定义列。
+type ColumnDef struct {
+	Name       string   // 列名
+	Type       string   // string / int / bool / float
+	FilterMode string   // exact / like / range
+	EnumValues []string // 枚举值（可选，填入 InputSchema enum）
+}
+
+// QueryResult 统一返回格式。
+type QueryResult struct {
+	Columns  []string `json:"columns"`
+	Rows     [][]any  `json:"rows"`
+	RowCount int      `json:"row_count"`
+}
+
+// QueryEngine 参数化查询后端。
+type QueryEngine struct{}
+
+func (e *QueryEngine) Query(db *gorm.DB, cfg *TableConfig, params map[string]any) (*QueryResult, error) {
+	timeCol := cfg.TimeColumn
+	if timeCol == "" {
+		timeCol = "created_at"
+	}
+
+	q := db.Table(cfg.dbTable())
+
+	// 应用等值过滤
+	for _, col := range cfg.Columns {
+		if col.FilterMode == "range" {
+			if from, ok := params[col.Name+"_from"].(string); ok && from != "" {
+				q = q.Where(col.Name+" >= ?", from)
+			}
+			if to, ok := params[col.Name+"_to"].(string); ok && to != "" {
+				q = q.Where(col.Name+" <= ?", to)
+			}
+			continue
+		}
+		v, ok := params[col.Name]
+		if !ok {
+			continue
+		}
+		switch col.FilterMode {
+		case "like":
+			if s, ok := v.(string); ok && s != "" {
+				q = q.Where(col.Name+" ILIKE ?", "%"+s+"%")
+			}
+		case "exact", "":
+			q = q.Where(col.Name+" = ?", v)
+		}
+	}
+
+	// group_by + aggregate（校验后使用）
+	gby, _ := params["group_by"].(string)
+	period, _ := params["group_by_period"].(string)
+	agg, _ := params["aggregate"].(string)
+	aggField := "score"
+
+	// 校验 group_by（必须是合法列名）
+	if gby != "" && !cfg.validColumn(gby) {
+		gby = ""
+	}
+	// 校验 period（白名单）
+	if period != "" && !validPeriods[period] {
+		period = ""
+	}
+
+	var selectCols []string
+	if gby != "" {
+		selectCols = append(selectCols, gby)
+		q = q.Group(gby)
+	}
+	if period != "" {
+		periodExpr := "DATE_TRUNC('" + period + "', " + timeCol + ")"
+		selectCols = append(selectCols, periodExpr)
+		q = q.Group(periodExpr)
+	}
+	switch agg {
+	case "count":
+		selectCols = append(selectCols, "COUNT(*) AS count")
+	case "avg":
+		selectCols = append(selectCols, "AVG("+aggField+") AS avg")
+	case "max":
+		selectCols = append(selectCols, "MAX("+aggField+") AS max")
+	case "min":
+		selectCols = append(selectCols, "MIN("+aggField+") AS min")
+	}
+	if len(selectCols) > 0 {
+		q = q.Select(selectCols)
+	}
+
+	// order / limit
+	limit := 100
+	if l, ok := params["limit"].(float64); ok && l > 0 {
+		limit = int(l)
+	}
+	if limit > 2000 {
+		limit = 2000
+	}
+	q = q.Limit(limit)
+
+	orderBy, _ := params["order_by"].(string)
+	// 聚合查询（无 group_by 时单行结果）跳过排序
+	if orderBy != "" && agg != "" && gby == "" {
+		orderBy = ""
+	}
+	if orderBy != "" {
+		dir := "ASC"
+		if len(orderBy) > 0 && orderBy[0] == '-' {
+			dir = "DESC"
+			orderBy = orderBy[1:]
+		}
+		// 校验 order_by 列名
+		if cfg.validColumn(orderBy) {
+			q = q.Order(orderBy + " " + dir)
+		}
+	}
+
+	// 执行
+	var rows []map[string]any
+	if err := q.Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	columns := extractColumns(gby, period, agg, rows)
+	result := &QueryResult{Columns: columns, Rows: make([][]any, len(rows)), RowCount: len(rows)}
+	for i, row := range rows {
+		for _, c := range columns {
+			result.Rows[i] = append(result.Rows[i], row[c])
+		}
+	}
+	return result, nil
+}
+
+// extractColumns 从参数和结果行中提取列名。查询无聚合时从结果行中获取全部列名。
+func extractColumns(gby, period, agg string, rows []map[string]any) []string {
+	var cols []string
+	if gby != "" {
+		cols = append(cols, gby)
+	}
+	if period != "" {
+		cols = append(cols, period)
+	}
+	switch agg {
+	case "count":
+		cols = append(cols, "count")
+	case "avg", "max", "min":
+		cols = append(cols, agg)
+	default:
+		// 无聚合：从结果行中提取所有列名
+		if len(rows) > 0 {
+			for k := range rows[0] {
+				cols = append(cols, k)
+			}
+			sort.Strings(cols)
+		}
+	}
+	return cols
+}

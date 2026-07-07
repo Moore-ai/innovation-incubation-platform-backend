@@ -52,7 +52,7 @@ func main() {
 	mimeType := detectMimeType(fileName)
 
 	fileRepo := repository.NewFileRepo(db)
-	fileStorage, err := storage.NewLocalFileStorage(cfg.Upload.Dir)
+	fileStorage, err := storage.NewLocalFileStorage(cfg.Upload.FileDir)
 	if err != nil {
 		slog.Error("初始化文件存储失败", "error", err)
 		os.Exit(1)

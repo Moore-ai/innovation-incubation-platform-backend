@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/dto"
@@ -23,6 +24,23 @@ type ChatController struct {
 
 func NewChatController(svc *service.ChatService, cfg *config.Config) *ChatController {
 	return &ChatController{svc: svc, cfg: cfg}
+}
+
+func (ctl *ChatController) publicAIError(err error) string {
+	if ctl.cfg != nil && strings.TrimSpace(ctl.cfg.AI.OpenAI.APIKey) == "" {
+		return "AI 服务未配置，请联系管理员检查模型 API Key。"
+	}
+	raw := strings.ToLower(err.Error())
+	if strings.Contains(raw, "401") ||
+		strings.Contains(raw, "unauthorized") ||
+		strings.Contains(raw, "authentication") ||
+		strings.Contains(raw, "api key") {
+		return "AI 服务鉴权失败，请联系管理员检查模型 API Key。"
+	}
+	if strings.Contains(raw, "timeout") || strings.Contains(raw, "deadline") {
+		return "AI 服务响应超时，请稍后重试。"
+	}
+	return "AI 服务暂不可用，请稍后重试。"
 }
 
 func (ctl *ChatController) CreateSession(c *gin.Context) {
@@ -131,7 +149,7 @@ func (ctl *ChatController) EditAndResend(c *gin.Context) {
 	})
 
 	if err != nil {
-		agent.WriteSSEEvent(c.Writer, flusher, agent.SSEEvent{Type: "error", Data: map[string]string{"message": err.Error()}})
+		agent.WriteSSEEvent(c.Writer, flusher, agent.SSEEvent{Type: "error", Data: map[string]string{"message": ctl.publicAIError(err)}})
 		return
 	}
 }
@@ -189,7 +207,7 @@ func (ctl *ChatController) SendMessage(c *gin.Context) {
 	})
 
 	if err != nil {
-		agent.WriteSSEEvent(c.Writer, flusher, agent.SSEEvent{Type: "error", Data: map[string]string{"message": err.Error()}})
+		agent.WriteSSEEvent(c.Writer, flusher, agent.SSEEvent{Type: "error", Data: map[string]string{"message": ctl.publicAIError(err)}})
 		return
 	}
 

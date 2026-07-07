@@ -3,6 +3,7 @@ package builtin
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"innovation-incubation-platform-backend/internal/repository"
 	agent "innovation-incubation-platform-backend/internal/service/agent"
@@ -19,16 +20,53 @@ func NewQueryPolicyFollow(followRepo *repository.PolicyFollowRepo) *QueryPolicyF
 	return &QueryPolicyFollow{followRepo: followRepo}
 }
 
-func (t *QueryPolicyFollow) Name() string          { return "query_policy_follow" }
-func (t *QueryPolicyFollow) Description() string   { return "查询当前用户关注的政策列表" }
-func (t *QueryPolicyFollow) AllowedRoles() []string { return []string{"enterprise", "carrier"} }
+func (t *QueryPolicyFollow) Name() string           { return "query_policy_follow" }
+func (t *QueryPolicyFollow) Description() string    { return "查询当前用户关注的政策列表" }
+func (t *QueryPolicyFollow) AllowedRoles() []string { return []string{"enterprise"} }
+func (t *QueryPolicyFollow) Timeout() time.Duration { return agenttools.DefaultTimeout() }
 
 func (t *QueryPolicyFollow) InputSchema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"page":{"type":"integer","description":"页码，默认1"},"page_size":{"type":"integer","description":"每页条数，默认10"}},"required":[]}`)
 }
 
 func (t *QueryPolicyFollow) OutputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"follows":{"type":"array","items":{"type":"object","properties":{"id":{"type":"integer"},"policy":{"type":"object","properties":{"id":{"type":"integer"},"title":{"type":"string"},"department":{"type":"string"}},"required":["id","title"]}},"required":["id","policy"]}},"total":{"type":"integer"}},"required":["follows","total"]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"follows":{
+				"type":"array",
+				"items":{
+					"type":"object",
+					"properties":{
+						"id":{
+							"type":"integer"
+						},
+						"policy":{
+							"type":"object",
+							"properties":{
+								"id":{
+									"type":"integer"
+								},
+								"title":{
+									"type":"string"
+								},
+								"department":{
+									"type":"string"
+								}
+							},
+							"required":["id","title"]
+						}
+					},
+					"required":["id","policy"]
+				}
+			},
+			"total":{
+				"type":"integer"
+			}
+		},
+		"required":["follows","total"]
+	}`)
 }
 
 func (t *QueryPolicyFollow) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {

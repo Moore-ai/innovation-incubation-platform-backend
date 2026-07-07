@@ -94,8 +94,11 @@ func (e *Engine) runReAct(ctx context.Context, sessionID uint, userMessage strin
 
 		onEvent(SSEEvent{Type: "tool_call", Data: toolCalls})
 
-		// Act: 并行执行工具
-		results := e.executeToolCalls(ctx, toolCalls)
+		// Act: 并行执行工具，注入进度 writer 用于 generate_report 等长耗时工具
+		execCtx := WithProgressWriter(ctx, func(typ string, data map[string]any) {
+			onEvent(SSEEvent{Type: typ, Data: data})
+		})
+		results := e.executeToolCalls(execCtx, toolCalls)
 
 		// Observe: 处理工具结果
 		var hit bool

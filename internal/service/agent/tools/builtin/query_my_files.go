@@ -3,6 +3,7 @@ package builtin
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"innovation-incubation-platform-backend/internal/repository"
 	agent "innovation-incubation-platform-backend/internal/service/agent"
@@ -19,16 +20,42 @@ func NewQueryMyFiles(fileRepo *repository.FileRepo) *QueryMyFiles {
 	return &QueryMyFiles{fileRepo: fileRepo}
 }
 
-func (t *QueryMyFiles) Name() string          { return "query_my_files" }
-func (t *QueryMyFiles) Description() string   { return "查询当前用户上传的文件列表，支持分页" }
-func (t *QueryMyFiles) AllowedRoles() []string { return []string{"enterprise", "carrier"} }
+func (t *QueryMyFiles) Name() string { return "query_my_files" }
+func (t *QueryMyFiles) Description() string {
+	return "查询当前用户上传的文件列表，支持分页"
+}
+func (t *QueryMyFiles) AllowedRoles() []string { return []string{"enterprise", "carrier", "government"} }
+func (t *QueryMyFiles) Timeout() time.Duration { return agenttools.DefaultTimeout() }
 
 func (t *QueryMyFiles) InputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"page":{"type":"integer","description":"页码，默认1"},"page_size":{"type":"integer","description":"每页条数，默认10"}},"required":[]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"page":{
+				"type":"integer",
+				"description":"页码，默认1"
+			},
+			"page_size":{
+				"type":"integer",
+				"description":"每页条数，默认10"
+			}
+		},"required":[]
+	}`)
 }
 
 func (t *QueryMyFiles) OutputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"files":{"type":"array","items":{"type":"object"}},"total":{"type":"integer"}},"required":["files","total"]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"files":{"type":"array","items":{"type":"object","properties":{"id":{"type":"integer"},"filename":{"type":"string"},"mime_type":{"type":"string"},"size":{"type":"integer"},"summary":{"type":"string"},"created_at":{"type":"string"}}}}},
+			"total":{
+				"type":"integer"
+			}
+		},
+		"required":["files","total"]
+	}`)
 }
 
 func (t *QueryMyFiles) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -23,16 +24,31 @@ func NewQueryMyCarrierInfo(carrierRepo *repository.CarrierRepo) *QueryMyCarrierI
 	return &QueryMyCarrierInfo{carrierRepo: carrierRepo}
 }
 
-func (t *QueryMyCarrierInfo) Name() string          { return "query_my_carrier_info" }
-func (t *QueryMyCarrierInfo) Description() string   { return "查询当前载体用户的基本信息（名称、类型、地址等）" }
+func (t *QueryMyCarrierInfo) Name() string { return "query_my_carrier_info" }
+func (t *QueryMyCarrierInfo) Description() string {
+	return "查询当前载体用户的基本信息（名称、类型、地址等）"
+}
 func (t *QueryMyCarrierInfo) AllowedRoles() []string { return []string{"carrier"} }
+func (t *QueryMyCarrierInfo) Timeout() time.Duration { return agenttools.DefaultTimeout() }
 
 func (t *QueryMyCarrierInfo) InputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{},"required":[]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{},
+		"required":[]
+	}`)
 }
 
 func (t *QueryMyCarrierInfo) OutputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"carrier":{"type":"object"}},"required":["carrier"]}`)
+	return json.RawMessage(`
+	{
+		"type":"object",
+		"properties":{
+			"carrier": {"type":"object","properties":{"id":{"type":"integer"},"name":{"type":"string"},"type":{"type":"string"},"address":{"type":"string"},"area":{"type":"string"},"manager_name":{"type":"string"},"contact_phone":{"type":"string"},"scale":{"type":"string"},"incubation_count":{"type":"integer"},"created_at":{"type":"string"}}}
+		},
+		"required":["carrier"]
+	}`)
 }
 
 func (t *QueryMyCarrierInfo) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
