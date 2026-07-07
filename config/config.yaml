@@ -92,6 +92,11 @@ file_parser:
   script_path: "sidecar/file-parser/server.py"
   timeout_sec: 30
 
+report_converter:
+  venv_path: "sidecar/report-converter/venv"
+  port: 9800
+  timeout_sec: 60
+
 agent:
   model: ""               # 空字符串表示沿用 ai.openai.model
   max_steps: 10

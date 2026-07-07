@@ -23,8 +23,15 @@ type Config struct {
 	Notification NotificationConfig `mapstructure:"notification"`
 	FileMatch    FileMatchConfig    `mapstructure:"filematch"`
 	Search       SearchConfig       `mapstructure:"search"`
-	FileParser   FileParserConfig   `mapstructure:"file_parser"`
-	Agent        AgentConfig        `mapstructure:"agent"`
+	FileParser       FileParserConfig       `mapstructure:"file_parser"`
+	ReportConverter ReportConverterConfig `mapstructure:"report_converter"`
+	Agent            AgentConfig            `mapstructure:"agent"`
+}
+
+type ReportConverterConfig struct {
+	VenvPath   string `mapstructure:"venv_path"`
+	Port       int    `mapstructure:"port"`
+	TimeoutSec int    `mapstructure:"timeout_sec"`
 }
 
 type FileParserConfig struct {
@@ -258,6 +265,9 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("file_parser.venv_path", "sidecar/file-parser/venv")
 	v.SetDefault("file_parser.script_path", "sidecar/file-parser/server.py")
 	v.SetDefault("file_parser.timeout_sec", 30)
+	v.SetDefault("report_converter.venv_path", "sidecar/report-converter/venv")
+	v.SetDefault("report_converter.port", 9800)
+	v.SetDefault("report_converter.timeout_sec", 60)
 
 	v.SetDefault("ai.use_legal_raw_for_summary", true)
 	v.SetDefault("ai.use_legal_raw_for_embedding", false)
