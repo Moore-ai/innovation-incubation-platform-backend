@@ -43,6 +43,24 @@ def convert_pdf(req: ConvertRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+def _add_formatted_paragraph(doc, text: str):
+    """解析 inline Markdown 格式（**粗体**, *斜体*）写入 docx 段落。"""
+    para = doc.add_paragraph()
+    token_re = re.compile(r"(\*\*([^*]+?)\*\*|\*([^*]+?)\*)")
+    idx = 0
+    for m in token_re.finditer(text):
+        if m.start() > idx:
+            para.add_run(text[idx:m.start()])
+        if m.group(2):
+            para.add_run(m.group(2)).bold = True
+        elif m.group(3):
+            para.add_run(m.group(3)).italic = True
+        idx = m.end()
+    if idx < len(text):
+        para.add_run(text[idx:])
+    return para
+
+
 @app.post("/convert/docx")
 def convert_docx(req: ConvertRequest):
     try:
@@ -91,7 +109,7 @@ def convert_docx(req: ConvertRequest):
             else:
                 text = line.strip()
                 if text and not text.startswith("!["):
-                    doc.add_paragraph(text)
+                    _add_formatted_paragraph(doc, text)
         output = os.path.join(workdir, f"report_{uuid.uuid4().hex}.docx")
         doc.save(output)
         return {"file_path": output}
