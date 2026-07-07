@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +16,9 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 	"golang.org/x/sync/errgroup"
 
+	"innovation-incubation-platform-backend/internal/model"
+	"innovation-incubation-platform-backend/internal/repository"
+	"innovation-incubation-platform-backend/internal/storage"
 	"innovation-incubation-platform-backend/pkg/aiclient"
 
 	agent "innovation-incubation-platform-backend/internal/service/agent"
@@ -23,37 +28,44 @@ import (
 var _ agenttools.Tool = (*GenerateReport)(nil)
 
 type GenerateReport struct {
-	ai      *aiclient.Client
-	db      *gorm.DB
-	engine  *QueryEngine
-	configs []*TableConfig
+	ai          *aiclient.Client
+	db          *gorm.DB
+	engine      *QueryEngine
+	configs     []*TableConfig
+	converter   *ReportConverter
+	fileRepo    *repository.FileRepo
+	fileStorage storage.Storage
 }
 
-func NewGenerateReport(ai *aiclient.Client, db *gorm.DB) *GenerateReport {
-	return &GenerateReport{ai: ai, db: db, engine: &QueryEngine{}, configs: TableConfigs}
+func NewGenerateReport(ai *aiclient.Client, db *gorm.DB, converter *ReportConverter, fileRepo *repository.FileRepo, fileStorage storage.Storage) *GenerateReport {
+	return &GenerateReport{ai: ai, db: db, engine: &QueryEngine{}, configs: TableConfigs, converter: converter, fileRepo: fileRepo, fileStorage: fileStorage}
 }
 
 func (t *GenerateReport) Name() string           { return "generate_report" }
 func (t *GenerateReport) AllowedRoles() []string { return []string{"government"} }
-func (t *GenerateReport) Timeout() time.Duration { return 120 * time.Second }
+func (t *GenerateReport) Timeout() time.Duration { return 180 * time.Second }
 func (t *GenerateReport) Description() string {
-	return "根据政务要求，生成数据分析报告（Markdown 格式，含图表）。"
+	return "生成数据分析报告（PDF 或 DOCX 格式，含图表）。如用户未指定格式，请主动询问。"
 }
 
 func (t *GenerateReport) InputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"prompt":{"type":"string","description":"报告主题和要求"}},"required":["prompt"]}`)
+	return json.RawMessage(`{"type":"object","properties":{"prompt":{"type":"string","description":"报告主题和要求"},"format":{"type":"string","enum":["pdf","docx"],"description":"输出格式"}},"required":["prompt","format"]}`)
 }
 
 func (t *GenerateReport) OutputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"markdown":{"type":"string"}}}`)
+	return json.RawMessage(`{"type":"object","properties":{"file_url":{"type":"string"},"format":{"type":"string"}}}`)
 }
 
 func (t *GenerateReport) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	var input struct {
 		Prompt string `json:"prompt"`
+		Format string `json:"format"`
 	}
 	if err := json.Unmarshal(args, &input); err != nil {
 		return nil, err
+	}
+	if input.Format == "" {
+		input.Format = "pdf"
 	}
 
 	pw := agent.ProgressWriterFromCtx(ctx)
@@ -82,8 +94,16 @@ func (t *GenerateReport) Execute(ctx context.Context, args json.RawMessage) (jso
 	}
 
 	markdown = cleanMarkdown(markdown)
-	sendProgress(pw, "report_done", map[string]any{"markdown_size": len(markdown)})
-	result, _ := json.Marshal(map[string]string{"markdown": markdown})
+
+	// Phase 4: Converter
+	sendProgress(pw, "report_progress", map[string]any{"phase": "converter"})
+	fileURL, err := t.runConverter(ctx, markdown, input.Format, pw)
+	if err != nil {
+		return nil, fmt.Errorf("格式转换失败: %w", err)
+	}
+
+	sendProgress(pw, "report_done", map[string]any{"file_url": fileURL, "format": input.Format})
+	result, _ := json.Marshal(map[string]string{"file_url": fileURL, "format": input.Format})
 	return json.RawMessage(result), nil
 }
 
@@ -200,6 +220,56 @@ func (t *GenerateReport) runSummarizer(ctx context.Context, prompt string, chart
 	return resp.Choices[0].Message.Content, nil
 }
 
+// --- Phase 4: Converter ---
+
+func (t *GenerateReport) runConverter(ctx context.Context, markdown, format string, pw agent.ProgressWriter) (string, error) {
+	title := extractTitle(markdown)
+	var filePath string
+	var err error
+	switch format {
+	case "pdf":
+		filePath, err = t.converter.ConvertPDF(markdown, title)
+	case "docx":
+		filePath, err = t.converter.ConvertDOCX(markdown, title)
+	default:
+		return "", fmt.Errorf("不支持的格式: %s", format)
+	}
+	if err != nil {
+		return "", err
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", fmt.Errorf("打开转换文件失败: %w", err)
+	}
+	defer f.Close()
+
+	storagePath := "reports/" + filepath.Base(filePath)
+	if err := t.fileStorage.Save(ctx, storagePath, f); err != nil {
+		return "", fmt.Errorf("保存文件到存储失败: %w", err)
+	}
+	if _, err := f.Seek(0, 0); err != nil {
+		return "", err
+	}
+
+	fi, _ := os.Stat(filePath)
+	size := int64(0)
+	if fi != nil {
+		size = fi.Size()
+	}
+	fileRecord := &model.File{
+		Filename:    filepath.Base(filePath),
+		MimeType:    mimeTypeByFormat(format),
+		Size:        size,
+		StoragePath: filepath.ToSlash(storagePath),
+		UploadedBy:  0,
+	}
+	if err := t.fileRepo.Create(fileRecord); err != nil {
+		return "", fmt.Errorf("创建文件记录失败: %w", err)
+	}
+	return fmt.Sprintf("/api/v1/files/%d/download", fileRecord.ID), nil
+}
+
 // --- helpers ---
 
 func sendProgress(pw agent.ProgressWriter, typ string, data map[string]any) {
@@ -250,4 +320,24 @@ func chatAndParse[T any](ai *aiclient.Client, ctx context.Context, system, user,
 		return nil, errors.New(parseErrMsg)
 	}
 	return &result, nil
+}
+
+func extractTitle(md string) string {
+	for _, line := range strings.Split(md, "\n") {
+		if strings.HasPrefix(line, "# ") {
+			return strings.TrimPrefix(line, "# ")
+		}
+	}
+	return ""
+}
+
+func mimeTypeByFormat(format string) string {
+	switch format {
+	case "pdf":
+		return "application/pdf"
+	case "docx":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	default:
+		return "application/octet-stream"
+	}
 }
