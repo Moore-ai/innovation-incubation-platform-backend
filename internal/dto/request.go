@@ -78,13 +78,39 @@ type PublishPolicyReq struct {
 }
 
 type EnterpriseEditReq struct {
-	Name         string `json:"name"`
-	Industry     string `json:"industry"`
-	Scale        string `json:"scale"`
-	Address      string `json:"address"`
-	LegalPerson  string `json:"legal_person"`
-	ContactName  string `json:"contact_name"`
-	ContactPhone string `json:"contact_phone"`
+	Name                 string  `json:"name"`
+	CreditCode           string  `json:"credit_code"`
+	Industry             string  `json:"industry"`
+	Scale                string  `json:"scale"`
+	Address              string  `json:"address"`
+	LegalPerson          string  `json:"legal_person"`
+	ContactName          string  `json:"contact_name"`
+	ContactPhone         string  `json:"contact_phone"`
+	OfficePhone          string  `json:"office_phone"`
+	MobilePhone          string  `json:"mobile_phone"`
+	OperatingUnitName    string  `json:"operating_unit_name"`
+	BankName             string  `json:"bank_name"`
+	BankAccount          string  `json:"bank_account"`
+	FixedAssetInvestment float64 `json:"fixed_asset_investment"`
+	Nature               string  `json:"nature"`
+	Type                 string  `json:"type"`
+	Level                string  `json:"level"`
+	CertificationDate    string  `json:"certification_date"`
+	EstablishmentDate    string  `json:"establishment_date"`
+	TotalArea            float64 `json:"total_area"`
+	FunctionalArea       float64 `json:"functional_area"`
+	IncubationArea       float64 `json:"incubation_area"`
+	RentArea             float64 `json:"rent_area"`
+	RentPrice            float64 `json:"rent_price"`
+	WorkstationCount     int     `json:"workstation_count"`
+	WorkstationStandard  string  `json:"workstation_standard"`
+	ManagersCount        int     `json:"managers_count"`
+	TechnicalStaffCount  int     `json:"technical_staff_count"`
+	BachelorAboveCount   int     `json:"bachelor_above_count"`
+	TrainedStaffCount    int     `json:"trained_staff_count"`
+	SeedFundAmount       float64 `json:"seed_fund_amount"`
+	SiteProofMaterial     string  `json:"site_proof_material"`
+	SeedFundMaterial     string  `json:"seed_fund_material"`
 }
 
 type PerformanceTemplateReq struct {

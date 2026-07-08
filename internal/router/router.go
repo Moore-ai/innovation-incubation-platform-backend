@@ -77,6 +77,7 @@ func registerEnterpriseRoutes(r *gin.Engine, deps *Deps) {
 	}
 	e := protectedGroup(r, "/enterprise", deps)
 	e.GET("/profile", deps.EnterpriseController.GetMyEnterpriseInfo)
+	e.PUT("/profile", deps.EnterpriseController.UpdateMyEnterpriseInfo)
 	e.POST("/incubations", deps.EnterpriseController.ApplyIncubation)
 	e.GET("/incubations/:id", deps.EnterpriseController.GetIncubation)
 	e.GET("/incubations", deps.EnterpriseController.ListMyIncubation)
@@ -158,6 +159,7 @@ func registerGovernmentRoutes(r *gin.Engine, deps *Deps) {
 	g.GET("/carriers", deps.GovernmentController.SearchCarriers)
 	g.POST("/applications/:id/review", deps.GovernmentController.ReviewPolicyApplication)
 	g.GET("/applications", deps.GovernmentController.ListPolicyApplications)
+	g.GET("/performances/templates", deps.GovernmentController.ListPerformanceTemplates)
 	g.POST("/performances/templates", deps.GovernmentController.CreatePerformanceTemplate)
 	g.POST("/performances/campaigns", deps.GovernmentController.StartCampaign)
 	g.GET("/performances/submissions", deps.GovernmentController.ListSubmissions)

@@ -313,7 +313,30 @@ func (s *GovernmentService) CreatePerformanceTemplate(req *dto.PerformanceTempla
 	return t, nil
 }
 
+func (s *GovernmentService) ListPerformanceTemplates() ([]model.PerformanceTemplate, error) {
+	templates, err := s.repo.ListPerformanceTemplates()
+	if err != nil {
+		return nil, errcode.ErrInternal
+	}
+	return templates, nil
+}
+
 func (s *GovernmentService) StartPerformanceCampaign(req *dto.PerformanceCampaignReq) (*model.PerformanceCampaign, error) {
+	if req.TemplateID == 0 {
+		return nil, errcode.ErrInvalidParams.WithMsg("请选择考核模板")
+	}
+	if _, err := s.repo.FindPerformanceTemplate(req.TemplateID); err != nil {
+		return nil, errcode.ErrInvalidParams.WithMsg("考核模板不存在，请先新建模板")
+	}
+	if req.Name == "" {
+		return nil, errcode.ErrInvalidParams.WithMsg("请填写考核名称")
+	}
+	if req.Year == 0 {
+		return nil, errcode.ErrInvalidParams.WithMsg("请填写考核年度")
+	}
+	if err := validateDateRange(req.StartDate, req.EndDate); err != nil {
+		return nil, err
+	}
 	c := &model.PerformanceCampaign{
 		TemplateID: req.TemplateID,
 		Name:       req.Name,

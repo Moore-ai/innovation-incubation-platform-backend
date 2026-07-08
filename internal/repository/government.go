@@ -146,6 +146,21 @@ func (r *GovernmentRepo) CreatePerformanceTemplate(t *model.PerformanceTemplate)
 	return r.db.Create(t).Error
 }
 
+func (r *GovernmentRepo) ListPerformanceTemplates() ([]model.PerformanceTemplate, error) {
+	var templates []model.PerformanceTemplate
+	err := r.db.Order("year DESC, created_at DESC").Find(&templates).Error
+	return templates, err
+}
+
+func (r *GovernmentRepo) FindPerformanceTemplate(id uint) (*model.PerformanceTemplate, error) {
+	var template model.PerformanceTemplate
+	err := r.db.First(&template, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &template, nil
+}
+
 func (r *GovernmentRepo) CreatePerformanceCampaign(c *model.PerformanceCampaign) error {
 	return r.db.Create(c).Error
 }

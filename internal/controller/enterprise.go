@@ -192,6 +192,20 @@ func (ctl *EnterpriseController) GetMyEnterpriseInfo(c *gin.Context) {
 	response.Success(c, ent)
 }
 
+func (ctl *EnterpriseController) UpdateMyEnterpriseInfo(c *gin.Context) {
+	var req dto.EnterpriseEditReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, errcode.ErrInvalidParams.WithMsg(err.Error()))
+		return
+	}
+	ent, err := ctl.svc.UpdateMyEnterpriseInfo(middleware.GetUserID(c), &req)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, ent)
+}
+
 func (ctl *EnterpriseController) ApplyDeletion(c *gin.Context) {
 	var req struct {
 		Reason string `json:"reason"`

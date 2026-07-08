@@ -47,6 +47,58 @@ func (s *EnterpriseService) GetMyEnterpriseInfo(userID uint) (*model.Enterprise,
 	return ent, nil
 }
 
+func (s *EnterpriseService) UpdateMyEnterpriseInfo(userID uint, req *dto.EnterpriseEditReq) (*model.Enterprise, error) {
+	ent, err := s.repo.FindEnterpriseByUserID(userID)
+	if err != nil {
+		return nil, errcode.ErrNotFound.WithMsg("企业信息未找到")
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	req.CreditCode = strings.TrimSpace(req.CreditCode)
+	if err := validateEnterpriseIdentity(s.db, req.Name, req.CreditCode, ent.ID); err != nil {
+		return nil, err
+	}
+
+	updates := map[string]any{
+		"name":                   req.Name,
+		"credit_code":            req.CreditCode,
+		"industry":               strings.TrimSpace(req.Industry),
+		"scale":                  strings.TrimSpace(req.Scale),
+		"address":                strings.TrimSpace(req.Address),
+		"legal_person":           strings.TrimSpace(req.LegalPerson),
+		"contact_name":           strings.TrimSpace(req.ContactName),
+		"contact_phone":          strings.TrimSpace(req.ContactPhone),
+		"office_phone":           strings.TrimSpace(req.OfficePhone),
+		"mobile_phone":           strings.TrimSpace(req.MobilePhone),
+		"operating_unit_name":    strings.TrimSpace(req.OperatingUnitName),
+		"bank_name":              strings.TrimSpace(req.BankName),
+		"bank_account":           strings.TrimSpace(req.BankAccount),
+		"fixed_asset_investment": req.FixedAssetInvestment,
+		"nature":                 strings.TrimSpace(req.Nature),
+		"type":                   strings.TrimSpace(req.Type),
+		"level":                  strings.TrimSpace(req.Level),
+		"certification_date":     strings.TrimSpace(req.CertificationDate),
+		"establishment_date":     strings.TrimSpace(req.EstablishmentDate),
+		"total_area":             req.TotalArea,
+		"functional_area":        req.FunctionalArea,
+		"incubation_area":        req.IncubationArea,
+		"rent_area":              req.RentArea,
+		"rent_price":             req.RentPrice,
+		"workstation_count":      req.WorkstationCount,
+		"workstation_standard":   strings.TrimSpace(req.WorkstationStandard),
+		"managers_count":         req.ManagersCount,
+		"technical_staff_count":  req.TechnicalStaffCount,
+		"bachelor_above_count":   req.BachelorAboveCount,
+		"trained_staff_count":    req.TrainedStaffCount,
+		"seed_fund_amount":       req.SeedFundAmount,
+		"site_proof_material":    strings.TrimSpace(req.SiteProofMaterial),
+		"seed_fund_material":     strings.TrimSpace(req.SeedFundMaterial),
+	}
+	if err := s.db.Model(&model.Enterprise{}).Where("id = ?", ent.ID).Updates(updates).Error; err != nil {
+		return nil, errcode.ErrInternal.WithMsg("保存企业信息失败")
+	}
+	return s.repo.FindEnterpriseByUserID(userID)
+}
+
 var datePattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
 func validateDateRange(start, end string) error {

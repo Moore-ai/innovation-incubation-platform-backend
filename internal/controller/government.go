@@ -177,6 +177,15 @@ func (ctl *GovernmentController) CreatePerformanceTemplate(c *gin.Context) {
 	response.Success(c, t)
 }
 
+func (ctl *GovernmentController) ListPerformanceTemplates(c *gin.Context) {
+	templates, err := ctl.svc.ListPerformanceTemplates()
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, templates)
+}
+
 func (ctl *GovernmentController) StartCampaign(c *gin.Context) {
 	var req dto.PerformanceCampaignReq
 	if err := c.ShouldBindJSON(&req); err != nil {
