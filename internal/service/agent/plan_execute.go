@@ -198,9 +198,12 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 		// 注入 userID 供 record_semantic_memory 等工具读取
 		execCtx = context.WithValue(execCtx, agenttools.CtxKeyUserID, userID)
 		results := e.executeToolCalls(execCtx, toolCalls)
-		var hit bool
-		messages, records, hit = e.observeToolResults(ctx, results, messages, records, onEvent)
+		var hit, allSilent bool
+		messages, records, hit, allSilent = e.observeToolResults(ctx, results, messages, records, onEvent)
 		completedSteps++
+		if allSilent {
+			break
+		}
 		if !hit {
 			continue
 		}

@@ -105,8 +105,13 @@ func (e *Engine) runReAct(ctx context.Context, sessionID uint, userMessage strin
 		results := e.executeToolCalls(execCtx, toolCalls)
 
 		// Observe: 处理工具结果
-		var hit bool
-		messages, records, hit = e.observeToolResults(ctx, results, messages, records, onEvent)
+		var hit, allSilent bool
+		messages, records, hit, allSilent = e.observeToolResults(ctx, results, messages, records, onEvent)
+
+		// 全部为静默工具 → 直接返回当前 thinkContent 作为最终回复
+		if allSilent {
+			return e.finishReply(thinkContent, records, step, reflectTrigger, onEvent)
+		}
 		if hit {
 			reflectTrigger = true
 		}

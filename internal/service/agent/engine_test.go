@@ -255,7 +255,7 @@ func TestObserveToolResults_ReflectOnError(t *testing.T) {
 		{callID: "call_1", name: "test", err: errors.New("execution failed")},
 	}
 
-	messages, records, hit := eng.observeToolResults(
+	messages, records, hit, _ := eng.observeToolResults(
 		context.Background(), results,
 		[]openai.ChatCompletionMessage{}, []ChatMessageRecord{},
 		func(SSEEvent) {},
@@ -290,7 +290,7 @@ func TestObserveToolResults_NoReflectOnSuccess(t *testing.T) {
 		{callID: "call_1", name: "test", content: data},
 	}
 
-	_, _, hit := eng.observeToolResults(
+	_, _, hit, _ := eng.observeToolResults(
 		context.Background(), results,
 		[]openai.ChatCompletionMessage{}, []ChatMessageRecord{},
 		func(SSEEvent) {},
@@ -298,6 +298,32 @@ func TestObserveToolResults_NoReflectOnSuccess(t *testing.T) {
 
 	if hit {
 		t.Error("expected no reflect trigger for successful execution")
+	}
+}
+
+func TestObserveToolResults_SilentTool(t *testing.T) {
+	reg := agenttools.NewToolRegistry()
+	checker := NewReflectChecker(reg)
+	eng := NewEngine(nil, reg, nil, checker, config.AgentConfig{PublicSSETypes: sseAll})
+
+	data, _ := json.Marshal(map[string]string{"success": "true"})
+	results := []toolResult{
+		{callID: "call_1", name: "record_semantic_memory", content: data},
+	}
+
+	msgs := []openai.ChatCompletionMessage{{Role: openai.ChatMessageRoleUser, Content: "hi"}}
+	msgs, _, _, allSilent := eng.observeToolResults(
+		context.Background(), results, msgs, []ChatMessageRecord{},
+		func(SSEEvent) {},
+	)
+
+	if !allSilent {
+		t.Error("expected allSilent=true for silent tool")
+	}
+	for _, m := range msgs {
+		if m.Role == openai.ChatMessageRoleTool && m.ToolCallID != "" {
+			t.Fatal("silent tool result should not be appended to messages")
+		}
 	}
 }
 
