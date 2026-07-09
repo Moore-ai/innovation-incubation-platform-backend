@@ -3,10 +3,12 @@ package builtin
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"time"
 
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/repository"
+	agentmemory "innovation-incubation-platform-backend/internal/service/agent/memory"
 	agenttools "innovation-incubation-platform-backend/internal/service/agent/tools"
 	"innovation-incubation-platform-backend/pkg/aiclient"
 )
@@ -45,7 +47,7 @@ func (t *RecordSemanticMemory) InputSchema() json.RawMessage {
 }
 
 func (t *RecordSemanticMemory) OutputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"success":{"type":"boolean"}}}`)
+	return json.RawMessage(`{"type":"object","properties":{"success":{"type":"boolean"},"saved":{"type":"integer"}}}`)
 }
 
 type recordInput struct {
@@ -66,7 +68,7 @@ func (t *RecordSemanticMemory) Execute(ctx context.Context, args json.RawMessage
 		if lesson = trimStr(lesson); lesson == "" {
 			continue
 		}
-		if err := t.save(ctx, userID, lesson, "lesson"); err == nil {
+		if err := t.save(ctx, userID, lesson, string(agentmemory.CategoryLesson)); err == nil {
 			saved++
 		}
 	}
@@ -74,7 +76,7 @@ func (t *RecordSemanticMemory) Execute(ctx context.Context, args json.RawMessage
 		if pref = trimStr(pref); pref == "" {
 			continue
 		}
-		if err := t.save(ctx, userID, pref, "preference"); err == nil {
+		if err := t.save(ctx, userID, pref, string(agentmemory.CategoryPreference)); err == nil {
 			saved++
 		}
 	}
@@ -92,7 +94,9 @@ func (t *RecordSemanticMemory) save(ctx context.Context, userID uint, content, c
 	}
 	if t.embedClient != nil {
 		vec, err := t.embedClient.Embed(ctx, content)
-		if err == nil {
+		if err != nil {
+			slog.Warn("semantic memory embedding failed", "error", err)
+		} else {
 			mem.Embedding = vec
 		}
 	}
