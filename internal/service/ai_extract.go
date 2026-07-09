@@ -75,7 +75,7 @@ func (s *AIService) ExtractPolicy(ctx context.Context, policy *model.Policy) err
 	return nil
 }
 
-func cleanLLMOutput(s string) string {
+func CleanLLMOutput(s string) string {
 	s = strings.TrimPrefix(s, "\ufeff")
 	s = strings.TrimSpace(s)
 	for _, prefix := range []string{"```json", "```"} {

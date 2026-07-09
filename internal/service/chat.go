@@ -191,13 +191,24 @@ func (s *ChatService) writeSemantic(userID uint, msgs []agent.ChatMessageRecord)
 
 	// 构建对话上下文：工具调用 + 工具返回 + 用户消息
 	var b strings.Builder
+	type toolCallInfo struct {
+		Function struct {
+			Name      string `json:"name"`
+			Arguments string `json:"arguments"`
+		} `json:"function"`
+	}
 	for _, m := range msgs {
 		switch m.Role {
 		case "user":
 			fmt.Fprintf(&b, "用户: %s\n", m.Content)
 		case "assistant":
 			if m.ToolCalls != "" {
-				b.WriteString("助手调用了工具\n")
+				var calls []toolCallInfo
+				if json.Unmarshal([]byte(m.ToolCalls), &calls) == nil {
+					for _, call := range calls {
+						fmt.Fprintf(&b, "调用工具: %s, 参数: %s\n", call.Function.Name, call.Function.Arguments)
+					}
+				}
 			}
 		case "tool":
 			fmt.Fprintf(&b, "工具返回: %s\n", m.Content)
@@ -231,18 +242,7 @@ func (s *ChatService) writeSemantic(userID uint, msgs []agent.ChatMessageRecord)
 		return
 	}
 
-	raw := strings.TrimSpace(resp.Choices[0].Message.Content)
-	// 清理 LLM 输出的 Markdown 围栏
-	for _, prefix := range []string{"```json", "```"} {
-		if idx := strings.Index(raw, prefix); idx >= 0 {
-			raw = raw[idx+len(prefix):]
-			break
-		}
-	}
-	if idx := strings.LastIndex(raw, "```"); idx >= 0 {
-		raw = raw[:idx]
-	}
-	raw = strings.TrimSpace(raw)
+	raw := CleanLLMOutput(resp.Choices[0].Message.Content)
 
 	var result struct {
 		Lessons     []string `json:"lessons"`
