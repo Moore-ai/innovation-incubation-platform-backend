@@ -3,7 +3,6 @@ package memory
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"innovation-incubation-platform-backend/internal/model"
@@ -52,32 +51,6 @@ const hydePrompt = `根据用户输入，生成一段假设的语义记忆条目
 - 教训：query_enterprise_info 缺少企业名，应提醒用户提供
 
 直接输出假设条目，不要分析过程。如果没有明确的偏好或教训线索则输出空字符串。`
-
-func (m *SemanticMemory) Add(ctx context.Context, item *MemoryItem) error {
-	category := string(item.Category)
-	if category == "" {
-		category = string(CategoryLesson)
-	}
-	var uid *uint
-	if item.UserID != 0 {
-		uid = &item.UserID
-	}
-	mem := &model.SemanticMemory{
-		Content:    item.Content,
-		Importance: item.Importance,
-		Category:   category,
-		UserID:     uid,
-	}
-	if m.embedClient != nil {
-		vec, err := m.embedClient.Embed(ctx, item.Content)
-		if err != nil {
-			slog.Warn("semantic memory embedding failed", "error", err)
-		} else {
-			mem.Embedding = vec
-		}
-	}
-	return m.repo.CreateSemanticMemory(mem)
-}
 
 func (m *SemanticMemory) Retrieve(ctx context.Context, query string, opts RetrievalOpts) ([]*MemoryItem, error) {
 	limit := opts.Limit
@@ -133,4 +106,3 @@ func (m *SemanticMemory) generateHydeDoc(ctx context.Context, query string) stri
 	return strings.TrimSpace(text)
 }
 
-func (m *SemanticMemory) Clear(ctx context.Context) error { return nil }

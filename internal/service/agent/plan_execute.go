@@ -146,7 +146,7 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 	}
 
 	var records []ChatMessageRecord
-	reflectTrigger, retries, replanFailed, completedSteps := false, 0, false, 0
+	retries, replanFailed, completedSteps := 0, false, 0
 
 	for stepIdx := 0; stepIdx < len(plan.Steps); stepIdx++ {
 		if ctx.Err() != nil {
@@ -176,7 +176,7 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 				continue
 			}
 			onEvent(SSEEvent{Type: "reply", Data: thinkContent})
-			return e.finishReply(thinkContent, records, completedSteps, reflectTrigger, onEvent)
+			return e.finishReply(thinkContent, records, completedSteps, onEvent)
 		}
 
 		tcJSON, err := json.Marshal(toolCalls)
@@ -202,14 +202,13 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 		messages, records, hit, allSilent = e.observeToolResults(ctx, results, messages, records, onEvent)
 		completedSteps++
 		if allSilent {
-			return e.finishReply(thinkContent, records, completedSteps, reflectTrigger, onEvent)
+			return e.finishReply(thinkContent, records, completedSteps, onEvent)
 		}
 		if !hit {
 			continue
 		}
 
-		reflectTrigger = true
-		messages = append(messages, openai.ChatCompletionMessage{
+				messages = append(messages, openai.ChatCompletionMessage{
 			Role:    openai.ChatMessageRoleUser,
 			Content: fmt.Sprintf("第 %d 步执行失败。请立即输出替代计划，只输出计划本身（不要其他文字）。格式如下：\n\nPlan:\n1. tool(param) — 说明\n", stepIdx+1),
 		})
@@ -251,6 +250,5 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 	onEvent(SSEEvent{Type: "done", Data: nil})
 	return &RunResult{
 		FinalReply: finalReply, Messages: records,
-		StepsUsed: completedSteps + 1, ReflectTrigger: reflectTrigger,
-	}, nil
+		StepsUsed: completedSteps + 1, 	}, nil
 }

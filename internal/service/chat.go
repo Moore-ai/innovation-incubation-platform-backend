@@ -9,19 +9,17 @@ import (
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/repository"
 	agent "innovation-incubation-platform-backend/internal/service/agent"
-	"innovation-incubation-platform-backend/pkg/aiclient"
 	"innovation-incubation-platform-backend/pkg/errcode"
 )
 
 type ChatService struct {
 	engine *agent.Engine
 	repo   *repository.ChatRepo
-	ai     *aiclient.Client
 	cfg    config.AgentConfig
 }
 
-func NewChatService(engine *agent.Engine, repo *repository.ChatRepo, ai *aiclient.Client, cfg config.AgentConfig) *ChatService {
-	return &ChatService{engine: engine, repo: repo, ai: ai, cfg: cfg}
+func NewChatService(engine *agent.Engine, repo *repository.ChatRepo, cfg config.AgentConfig) *ChatService {
+	return &ChatService{engine: engine, repo: repo, cfg: cfg}
 }
 
 // CreateSession 创建新会话

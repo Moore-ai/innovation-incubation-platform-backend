@@ -86,7 +86,7 @@ func runReportQuery(t *testing.T, eng *agent.Engine, query string) (string, []st
 	}
 	names := extractCalledTools(result.Messages)
 	t.Logf("Tools called: %v", names)
-	t.Logf("Steps: %d, Reflect: %v", result.StepsUsed, result.ReflectTrigger)
+	t.Logf("Steps: %d", result.StepsUsed)
 	t.Logf("Reply (first 300 chars): %s", result.FinalReply[:min(300, len(result.FinalReply))])
 	return result.FinalReply, names
 }

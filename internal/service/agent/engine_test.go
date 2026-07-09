@@ -809,13 +809,11 @@ func TestReflectRecovery_RealAI(t *testing.T) {
 	}
 
 	calledTools := extractAllToolNames(result.Messages)
-	t.Logf("Tools(%d): %v, Reflect=%v, Steps=%d, Reply: %s",
-		len(calledTools), calledTools, result.ReflectTrigger, result.StepsUsed,
+	t.Logf("Tools(%d): %v, Steps=%d, Reply: %s",
+		len(calledTools), calledTools, result.StepsUsed,
 		result.FinalReply[:min(len(result.FinalReply), 120)])
 
-	if !result.ReflectTrigger {
-		t.Error("expected ReflectTrigger=true")
-	}
+	
 	foundDetail := slices.Contains(calledTools, "policy_detail")
 	foundSearch := slices.Contains(calledTools, "search_policy")
 	if !foundDetail || !foundSearch {

@@ -15,10 +15,9 @@ type SSEEvent struct {
 }
 
 type RunResult struct {
-	FinalReply     string
-	Messages       []ChatMessageRecord
-	StepsUsed      int
-	ReflectTrigger bool
+	FinalReply string
+	Messages   []ChatMessageRecord
+	StepsUsed  int
 }
 
 type ChatMessageRecord struct {

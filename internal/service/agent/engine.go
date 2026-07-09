@@ -210,7 +210,7 @@ func (e *Engine) startChatStream(ctx context.Context, messages []openai.ChatComp
 }
 
 // finishReply 构造纯文本回复的 RunResult。
-func (e *Engine) finishReply(thinkContent string, records []ChatMessageRecord, step int, reflectTrigger bool, onEvent func(SSEEvent)) (*RunResult, error) {
+func (e *Engine) finishReply(thinkContent string, records []ChatMessageRecord, step int, onEvent func(SSEEvent)) (*RunResult, error) {
 	records = append(records, ChatMessageRecord{
 		Role:    "assistant",
 		Content: thinkContent,
@@ -218,10 +218,9 @@ func (e *Engine) finishReply(thinkContent string, records []ChatMessageRecord, s
 	onEvent(SSEEvent{Type: "reply", Data: thinkContent})
 	onEvent(SSEEvent{Type: "done", Data: nil})
 	return &RunResult{
-		FinalReply:     thinkContent,
-		Messages:       records,
-		StepsUsed:      step + 1,
-		ReflectTrigger: reflectTrigger,
+		FinalReply: thinkContent,
+		Messages:   records,
+		StepsUsed:  step + 1,
 	}, nil
 }
 

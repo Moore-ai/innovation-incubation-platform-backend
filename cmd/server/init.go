@@ -124,7 +124,7 @@ func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, e
 	reflect := agentpkg.NewReflectChecker(registry)
 	engine := agentpkg.NewEngine(aiClient, registry, memMgr, reflect, cfg.Agent)
 
-	chatSvc := service.NewChatService(engine, r.chat, aiClient, cfg.Agent)
+	chatSvc := service.NewChatService(engine, r.chat, cfg.Agent)
 	return chatSvc, engine
 }
 

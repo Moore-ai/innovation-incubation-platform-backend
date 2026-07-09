@@ -177,55 +177,6 @@ func TestSemanticRetrieve_HyDEFallback(t *testing.T) {
 	}
 }
 
-func TestSemanticAdd_CategoryPreference(t *testing.T) {
-	var saved *model.SemanticMemory
-	repo := &mockSemanticRepo{
-		createFn: func(m *model.SemanticMemory) error {
-			saved = m
-			return nil
-		},
-	}
-	sm := &SemanticMemory{repo: repo, semanticLimit: 3}
 
-	uid := uint(42)
-	err := sm.Add(context.Background(), &MemoryItem{
-		Content:    "用户更喜欢饼图",
-		Importance: 0.7,
-		Category:   CategoryPreference,
-		UserID:     uid,
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if saved == nil {
-		t.Fatal("no memory saved")
-	}
-	if saved.Category != "preference" {
-		t.Errorf("expected preference, got %s", saved.Category)
-	}
-	if saved.UserID == nil || *saved.UserID != 42 {
-		t.Errorf("expected UserID=42, got %v", saved.UserID)
-	}
-}
 
-func TestSemanticAdd_CategoryLessonDefault(t *testing.T) {
-	var saved *model.SemanticMemory
-	repo := &mockSemanticRepo{
-		createFn: func(m *model.SemanticMemory) error {
-			saved = m
-			return nil
-		},
-	}
-	sm := &SemanticMemory{repo: repo, semanticLimit: 3}
 
-	err := sm.Add(context.Background(), &MemoryItem{
-		Content:    "工具调用失败教训",
-		Category:   "", // 空 category 应回退为 lesson
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if saved.Category != "lesson" {
-		t.Errorf("expected default lesson, got %s", saved.Category)
-	}
-}

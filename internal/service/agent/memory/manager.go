@@ -25,10 +25,9 @@ type workingContextProvider interface {
 	BuildWorkingContext(sessionID uint, budget int, excludeID uint) (string, error)
 }
 
-// semanticRetriever 语义记忆的检索与写入能力。
+// semanticRetriever 语义记忆的检索能力。
 type semanticRetriever interface {
 	Retrieve(ctx context.Context, query string, opts RetrievalOpts) ([]*MemoryItem, error)
-	Add(ctx context.Context, item *MemoryItem) error
 }
 
 type MemoryManager struct {
@@ -173,14 +172,4 @@ func rankWithDecay(msgs []model.ChatMessage, distances []float64, decayFactor fl
 		result = append(result, scoredList[i].msg)
 	}
 	return result
-}
-
-// AddSemantic 写入语义记忆（外部触发）
-func (m *MemoryManager) AddSemantic(ctx context.Context, userID uint, content string, importance float64, category Category) error {
-	return m.semantic.Add(ctx, &MemoryItem{
-		Content:    content,
-		Importance: importance,
-		Category:   category,
-		UserID:     userID,
-	})
 }
