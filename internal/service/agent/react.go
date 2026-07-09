@@ -7,6 +7,8 @@ import (
 	"log/slog"
 
 	openai "github.com/sashabaranov/go-openai"
+
+	agenttools "innovation-incubation-platform-backend/internal/service/agent/tools"
 )
 
 // Run 执行 ReAct 循环。onEvent 回调推送 SSE 事件。
@@ -98,6 +100,8 @@ func (e *Engine) runReAct(ctx context.Context, sessionID uint, userMessage strin
 		execCtx := WithProgressWriter(ctx, func(typ string, data map[string]any) {
 			onEvent(SSEEvent{Type: typ, Data: data})
 		})
+		// 注入 userID 供 record_semantic_memory 等工具读取
+		execCtx = context.WithValue(execCtx, agenttools.CtxKeyUserID, userID)
 		results := e.executeToolCalls(execCtx, toolCalls)
 
 		// Observe: 处理工具结果

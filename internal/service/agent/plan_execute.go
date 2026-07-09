@@ -195,6 +195,8 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 		execCtx := WithProgressWriter(ctx, func(typ string, data map[string]any) {
 			onEvent(SSEEvent{Type: typ, Data: data})
 		})
+		// 注入 userID 供 record_semantic_memory 等工具读取
+		execCtx = context.WithValue(execCtx, agenttools.CtxKeyUserID, userID)
 		results := e.executeToolCalls(execCtx, toolCalls)
 		var hit bool
 		messages, records, hit = e.observeToolResults(ctx, results, messages, records, onEvent)
