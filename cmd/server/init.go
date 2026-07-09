@@ -91,7 +91,7 @@ func initSearchService(r *repositories, cfg *config.Config, db *gorm.DB, aiClien
 	}
 }
 
-func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, embedClient *aiclient.EmbeddingClient, searchSvc service.PolicySearch, db *gorm.DB, fileStorage storage.Storage, notifSvc *service.NotificationService) (*service.ChatService, *agentpkg.Engine) {
+func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, embedClient *aiclient.EmbeddingClient, searchSvc service.PolicySearch, db *gorm.DB, fileStorage storage.Storage, notifSvc *service.NotificationService, aiSvc *service.AIService) (*service.ChatService, *agentpkg.Engine) {
 	registry := agenttools.NewToolRegistry()
 	registry.Register(agentbuiltin.NewSearchPolicy(searchSvc))
 	registry.Register(agentbuiltin.NewQueryEnterpriseInfo(r.ent))
@@ -123,7 +123,7 @@ func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, e
 	reflect := agentpkg.NewReflectChecker(registry)
 	engine := agentpkg.NewEngine(aiClient, registry, memMgr, reflect, cfg.Agent)
 
-	chatSvc := service.NewChatService(engine, r.chat, memMgr, aiClient, cfg.Agent)
+	chatSvc := service.NewChatService(engine, r.chat, memMgr, aiClient, aiSvc, cfg.Agent)
 	return chatSvc, engine
 }
 
@@ -146,7 +146,7 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 	}
 
 	searchSvc := initSearchService(r, cfg, db, aiClient, aiSvc, embedClient)
-	chatSvc, _ := initAgent(r, cfg, aiClient, embedClient, searchSvc, db, fileStorage, notifSvc)
+	chatSvc, _ := initAgent(r, cfg, aiClient, embedClient, searchSvc, db, fileStorage, notifSvc, aiSvc)
 
 	return &services{
 		auth:    service.NewAuthService(r.auth, cfg.JWT),

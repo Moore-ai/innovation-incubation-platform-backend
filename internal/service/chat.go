@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	openai "github.com/sashabaranov/go-openai"
-
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/repository"
@@ -24,11 +22,12 @@ type ChatService struct {
 	repo   *repository.ChatRepo
 	memory *agentmemory.MemoryManager
 	ai     *aiclient.Client
+	aiSvc  *AIService
 	cfg    config.AgentConfig
 }
 
-func NewChatService(engine *agent.Engine, repo *repository.ChatRepo, memory *agentmemory.MemoryManager, ai *aiclient.Client, cfg config.AgentConfig) *ChatService {
-	return &ChatService{engine: engine, repo: repo, memory: memory, ai: ai, cfg: cfg}
+func NewChatService(engine *agent.Engine, repo *repository.ChatRepo, memory *agentmemory.MemoryManager, ai *aiclient.Client, aiSvc *AIService, cfg config.AgentConfig) *ChatService {
+	return &ChatService{engine: engine, repo: repo, memory: memory, ai: ai, aiSvc: aiSvc, cfg: cfg}
 }
 
 // CreateSession 创建新会话
@@ -170,7 +169,7 @@ func (s *ChatService) EditAndResend(ctx context.Context, sessionID uint, message
 		slog.Error("替换消息事务失败", "error", err, "session_id", sessionID)
 		return result, errcode.ErrInternal.WithMsg("替换消息失败")
 	}
-		// 6. 更新会话统计
+	// 6. 更新会话统计
 	delta := len(newRecords) - int(deletedCount)
 	if err := s.repo.UpdateSessionStats(sessionID, time.Now(), delta); err != nil {
 		slog.Error("更新会话统计失败", "error", err, "session_id", sessionID)
@@ -219,10 +218,12 @@ func (s *ChatService) writeSemantic(userID uint, msgs []agent.ChatMessageRecord)
 		return
 	}
 
-	resp, err := s.ai.ChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: s.ai.Model(),
-		Messages: []openai.ChatCompletionMessage{
-			{Role: openai.ChatMessageRoleSystem, Content: `你是一个AI学习助手。分析以下对话，输出 JSON：
+	type semanticResult struct {
+		Lessons     []string `json:"lessons"`
+		Preferences []string `json:"preferences"`
+	}
+	result, err := ChatAndParse[semanticResult](s.aiSvc, ctx, "semantic-extract",
+		`你是一个AI学习助手。分析以下对话，输出 JSON：
 
 {
   "lessons": [],
@@ -233,23 +234,10 @@ func (s *ChatService) writeSemantic(userID uint, msgs []agent.ChatMessageRecord)
 - lessons: 工具调用失败的教训。每条一句话，包含"哪个工具失败了、原因、如何避免"。无失败则留空数组。
 - preferences: 用户明确表达的偏好或反馈。如"更喜欢饼图"、"回复简洁些"、"默认用PDF"。无偏好则留空数组。
 - 每条不超过80字，数组最多3条。
-- 严格输出JSON，不要其他内容。`},
-			{Role: openai.ChatMessageRoleUser, Content: contextStr},
-		},
-	})
-	if err != nil || len(resp.Choices) == 0 {
-		slog.Warn("语义提炼失败", "error", err)
-		return
-	}
-
-	raw := CleanLLMOutput(resp.Choices[0].Message.Content)
-
-	var result struct {
-		Lessons     []string `json:"lessons"`
-		Preferences []string `json:"preferences"`
-	}
-	if err := json.Unmarshal([]byte(raw), &result); err != nil {
-		slog.Warn("语义提炼 JSON 解析失败", "error", err, "raw", raw[:min(len(raw), 200)])
+- 严格输出JSON，不要其他内容。`,
+		contextStr, "semantic extraction failed")
+	if err != nil {
+		slog.Warn("semantic extraction failed", "error", err)
 		return
 	}
 
