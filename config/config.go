@@ -181,6 +181,7 @@ type AgentMemoryConfig struct {
 	SemanticLimit       int     `mapstructure:"semantic_limit"`
 	EpisodicLimit       int     `mapstructure:"episodic_limit"`        // 情景记忆检索条数
 	EpisodicDecayFactor float64 `mapstructure:"episodic_decay_factor"` // 时间衰减因子，0 表示不衰减（默认 0）
+	HydeMaxTokens       int     `mapstructure:"hyde_max_tokens"`       // HyDE 文档生成最大 token 数
 }
 
 func (c *RateLimitConfig) IsWhitelisted(userID uint) bool {
