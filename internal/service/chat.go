@@ -80,13 +80,12 @@ func (s *ChatService) DeleteSession(sessionID uint, userID uint) error {
 
 // Run 执行对话，返回 RunResult + SSE 事件通过回调推送
 func (s *ChatService) Run(ctx context.Context, sessionID uint, userMessage string, role string, onEvent func(agent.SSEEvent)) (*agent.RunResult, error) {
-	// 请求级超时
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(s.cfg.RequestTimeoutSec)*time.Second)
 	defer cancel()
 
 	result, err := s.engine.Run(ctx, sessionID, userMessage, role, onEvent)
 	if err == nil && result.ReflectTrigger {
-		go s.writeLesson(agent.UserIDFromCtx(ctx), result.Messages)
+		go s.writeSemantic(agent.UserIDFromCtx(ctx), result.Messages)
 	}
 	return result, err
 }
@@ -185,28 +184,22 @@ func (s *ChatService) AddSemanticMemory(ctx context.Context, userID uint, conten
 	return s.memory.AddSemantic(ctx, userID, content, 0.5, category)
 }
 
-// writeLesson 用 LLM 分析对话上下文，提炼可复用的教训写入语义记忆。
-func (s *ChatService) writeLesson(userID uint, msgs []agent.ChatMessageRecord) {
+// writeSemantic 用 LLM 分析对话上下文，同时提炼操作教训和用户偏好写入语义记忆。
+func (s *ChatService) writeSemantic(userID uint, msgs []agent.ChatMessageRecord) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	// 构建对话上下文：工具调用 + 工具返回 + 用户消息
 	var b strings.Builder
-	type toolCallInfo struct {
-		Function struct {
-			Name      string `json:"name"`
-			Arguments string `json:"arguments"`
-		} `json:"function"`
-	}
 	for _, m := range msgs {
-		if m.Role == "assistant" && m.ToolCalls != "" {
-			var calls []toolCallInfo
-			if json.Unmarshal([]byte(m.ToolCalls), &calls) == nil {
-				for _, c := range calls {
-					fmt.Fprintf(&b, "调用工具: %s, 参数: %s\n", c.Function.Name, c.Function.Arguments)
-				}
+		switch m.Role {
+		case "user":
+			fmt.Fprintf(&b, "用户: %s\n", m.Content)
+		case "assistant":
+			if m.ToolCalls != "" {
+				b.WriteString("助手调用了工具\n")
 			}
-		}
-		if m.Role == "tool" {
+		case "tool":
 			fmt.Fprintf(&b, "工具返回: %s\n", m.Content)
 		}
 	}
@@ -218,18 +211,62 @@ func (s *ChatService) writeLesson(userID uint, msgs []agent.ChatMessageRecord) {
 	resp, err := s.ai.ChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model: s.ai.Model(),
 		Messages: []openai.ChatCompletionMessage{
-			{Role: openai.ChatMessageRoleSystem, Content: "你是一个AI学习助手。请分析以下对话中工具调用的执行情况，提炼一条简短的教训。教训应包含: 哪个工具失败了、失败原因是什么、应该如何避免或替代。用一句话总结，不超过80字。"},
+			{Role: openai.ChatMessageRoleSystem, Content: `你是一个AI学习助手。分析以下对话，输出 JSON：
+
+{
+  "lessons": [],
+  "preferences": []
+}
+
+规则：
+- lessons: 工具调用失败的教训。每条一句话，包含"哪个工具失败了、原因、如何避免"。无失败则留空数组。
+- preferences: 用户明确表达的偏好或反馈。如"更喜欢饼图"、"回复简洁些"、"默认用PDF"。无偏好则留空数组。
+- 每条不超过80字，数组最多3条。
+- 严格输出JSON，不要其他内容。`},
 			{Role: openai.ChatMessageRoleUser, Content: contextStr},
 		},
 	})
 	if err != nil || len(resp.Choices) == 0 {
-		slog.Warn("提炼教训失败", "error", err)
+		slog.Warn("语义提炼失败", "error", err)
 		return
 	}
-	lesson := strings.TrimSpace(resp.Choices[0].Message.Content)
-	if lesson != "" {
-		if err := s.AddSemanticMemory(ctx, userID, lesson, agentmemory.CategoryLesson); err != nil {
-			slog.Error("写入语义记忆失败", "error", err)
+
+	raw := strings.TrimSpace(resp.Choices[0].Message.Content)
+	// 清理 LLM 输出的 Markdown 围栏
+	for _, prefix := range []string{"```json", "```"} {
+		if idx := strings.Index(raw, prefix); idx >= 0 {
+			raw = raw[idx+len(prefix):]
+			break
+		}
+	}
+	if idx := strings.LastIndex(raw, "```"); idx >= 0 {
+		raw = raw[:idx]
+	}
+	raw = strings.TrimSpace(raw)
+
+	var result struct {
+		Lessons     []string `json:"lessons"`
+		Preferences []string `json:"preferences"`
+	}
+	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		slog.Warn("语义提炼 JSON 解析失败", "error", err, "raw", raw[:min(len(raw), 200)])
+		return
+	}
+
+	for _, lesson := range result.Lessons {
+		lesson = strings.TrimSpace(lesson)
+		if lesson != "" {
+			if err := s.AddSemanticMemory(ctx, userID, lesson, agentmemory.CategoryLesson); err != nil {
+				slog.Error("写入教训失败", "error", err)
+			}
+		}
+	}
+	for _, pref := range result.Preferences {
+		pref = strings.TrimSpace(pref)
+		if pref != "" {
+			if err := s.AddSemanticMemory(ctx, userID, pref, agentmemory.CategoryPreference); err != nil {
+				slog.Error("写入偏好失败", "error", err)
+			}
 		}
 	}
 }
