@@ -17,3 +17,12 @@ type Tool interface {
 }
 
 func DefaultTimeout() time.Duration { return 15 * time.Second }
+
+type ctxKey string
+
+const CtxKeyUserID ctxKey = "tool_user_id"
+
+func UserIDFromCtx(ctx context.Context) uint {
+	v, _ := ctx.Value(CtxKeyUserID).(uint)
+	return v
+}

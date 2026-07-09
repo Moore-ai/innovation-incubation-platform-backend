@@ -128,16 +128,29 @@ func (e *Engine) executeToolCalls(ctx context.Context, calls []openai.ToolCall) 
 	return out
 }
 
+const silentToolName = "record_semantic_memory"
+
 // observeToolResults 处理工具执行结果：脱敏 → 追加消息 → Reflect 检查 → 注入反思 Prompt。
+// 返回 (messages, records, reflectTrigger, allSilent)：allSilent=true 表示全部结果为静默工具。
 func (e *Engine) observeToolResults(
 	ctx context.Context,
 	results []toolResult,
 	messages []openai.ChatCompletionMessage,
 	records []ChatMessageRecord,
 	onEvent func(SSEEvent),
-) ([]openai.ChatCompletionMessage, []ChatMessageRecord, bool) {
+) ([]openai.ChatCompletionMessage, []ChatMessageRecord, bool, bool) {
 	reflectTrigger := false
+	allSilent := true
 	for _, res := range results {
+		if res.name == silentToolName {
+			// 静默工具：不追加到 messages/records，不触发 reflect
+			onEvent(SSEEvent{Type: "tool_result", Data: map[string]any{
+				"tool": res.name, "result": string(res.content), "reflect": false,
+			}})
+			continue
+		}
+		allSilent = false
+
 		if res.content != nil {
 			res.content = maskSensitive(res.content)
 		}
@@ -175,7 +188,7 @@ func (e *Engine) observeToolResults(
 			}})
 		}
 	}
-	return messages, records, reflectTrigger
+	return messages, records, reflectTrigger, allSilent
 }
 
 // promptModel 返回使用的模型名。
@@ -197,7 +210,7 @@ func (e *Engine) startChatStream(ctx context.Context, messages []openai.ChatComp
 }
 
 // finishReply 构造纯文本回复的 RunResult。
-func (e *Engine) finishReply(thinkContent string, records []ChatMessageRecord, step int, reflectTrigger bool, onEvent func(SSEEvent)) (*RunResult, error) {
+func (e *Engine) finishReply(thinkContent string, records []ChatMessageRecord, step int, onEvent func(SSEEvent)) (*RunResult, error) {
 	records = append(records, ChatMessageRecord{
 		Role:    "assistant",
 		Content: thinkContent,
@@ -205,10 +218,9 @@ func (e *Engine) finishReply(thinkContent string, records []ChatMessageRecord, s
 	onEvent(SSEEvent{Type: "reply", Data: thinkContent})
 	onEvent(SSEEvent{Type: "done", Data: nil})
 	return &RunResult{
-		FinalReply:     thinkContent,
-		Messages:       records,
-		StepsUsed:      step + 1,
-		ReflectTrigger: reflectTrigger,
+		FinalReply: thinkContent,
+		Messages:   records,
+		StepsUsed:  step + 1,
 	}, nil
 }
 

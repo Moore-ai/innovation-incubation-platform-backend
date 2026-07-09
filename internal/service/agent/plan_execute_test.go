@@ -194,8 +194,8 @@ func TestPlanExecute_Replan_RealAI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Engine.Run: %v", err)
 	}
-	t.Logf("plan=%v replan=%v tools=%v reflect=%v final=%s",
-		planEmitted, replanEmitted, calledTools, result.ReflectTrigger,
+	t.Logf("plan=%v replan=%v tools=%v final=%s",
+		planEmitted, replanEmitted, calledTools,
 		result.FinalReply[:min(len(result.FinalReply), 120)])
 
 	// Plan mode 被尝试，但解析可能失败 → fallback ReAct。
@@ -207,9 +207,7 @@ func TestPlanExecute_Replan_RealAI(t *testing.T) {
 		// ReAct fallback 路径：解析失败但 Reflect 在 ReAct 中仍触发
 		t.Log("Plan parse failed, fell back to ReAct — verifying Reflect still works")
 	}
-	if !result.ReflectTrigger {
-		t.Error("expected ReflectTrigger=true")
-	}
+	
 	if !slices.Contains(calledTools, "policy_detail") {
 		t.Error("expected policy_detail to be called (and fail)")
 	}

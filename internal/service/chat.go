@@ -2,33 +2,24 @@ package service
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"log/slog"
-	"strings"
 	"time"
-
-	openai "github.com/sashabaranov/go-openai"
 
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/repository"
 	agent "innovation-incubation-platform-backend/internal/service/agent"
-	agentmemory "innovation-incubation-platform-backend/internal/service/agent/memory"
-	"innovation-incubation-platform-backend/pkg/aiclient"
 	"innovation-incubation-platform-backend/pkg/errcode"
 )
 
 type ChatService struct {
 	engine *agent.Engine
 	repo   *repository.ChatRepo
-	memory *agentmemory.MemoryManager
-	ai     *aiclient.Client
 	cfg    config.AgentConfig
 }
 
-func NewChatService(engine *agent.Engine, repo *repository.ChatRepo, memory *agentmemory.MemoryManager, ai *aiclient.Client, cfg config.AgentConfig) *ChatService {
-	return &ChatService{engine: engine, repo: repo, memory: memory, ai: ai, cfg: cfg}
+func NewChatService(engine *agent.Engine, repo *repository.ChatRepo, cfg config.AgentConfig) *ChatService {
+	return &ChatService{engine: engine, repo: repo, cfg: cfg}
 }
 
 // CreateSession 创建新会话
@@ -80,14 +71,10 @@ func (s *ChatService) DeleteSession(sessionID uint, userID uint) error {
 
 // Run 执行对话，返回 RunResult + SSE 事件通过回调推送
 func (s *ChatService) Run(ctx context.Context, sessionID uint, userMessage string, role string, onEvent func(agent.SSEEvent)) (*agent.RunResult, error) {
-	// 请求级超时
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(s.cfg.RequestTimeoutSec)*time.Second)
 	defer cancel()
 
 	result, err := s.engine.Run(ctx, sessionID, userMessage, role, onEvent)
-	if err == nil && result.ReflectTrigger {
-		go s.writeLesson(result.Messages)
-	}
 	return result, err
 }
 
@@ -171,7 +158,7 @@ func (s *ChatService) EditAndResend(ctx context.Context, sessionID uint, message
 		slog.Error("替换消息事务失败", "error", err, "session_id", sessionID)
 		return result, errcode.ErrInternal.WithMsg("替换消息失败")
 	}
-		// 6. 更新会话统计
+	// 6. 更新会话统计
 	delta := len(newRecords) - int(deletedCount)
 	if err := s.repo.UpdateSessionStats(sessionID, time.Now(), delta); err != nil {
 		slog.Error("更新会话统计失败", "error", err, "session_id", sessionID)
@@ -180,56 +167,3 @@ func (s *ChatService) EditAndResend(ctx context.Context, sessionID uint, message
 	return result, nil
 }
 
-// AddSemanticMemory 写入语义记忆（Reflect 触发后调用）
-func (s *ChatService) AddSemanticMemory(ctx context.Context, content string) error {
-	return s.memory.AddSemantic(ctx, content, 0.5, "lesson")
-}
-
-// writeLesson 用 LLM 分析对话上下文，提炼可复用的教训写入语义记忆。
-func (s *ChatService) writeLesson(msgs []agent.ChatMessageRecord) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	var b strings.Builder
-	type toolCallInfo struct {
-		Function struct {
-			Name      string `json:"name"`
-			Arguments string `json:"arguments"`
-		} `json:"function"`
-	}
-	for _, m := range msgs {
-		if m.Role == "assistant" && m.ToolCalls != "" {
-			var calls []toolCallInfo
-			if json.Unmarshal([]byte(m.ToolCalls), &calls) == nil {
-				for _, c := range calls {
-					fmt.Fprintf(&b, "调用工具: %s, 参数: %s\n", c.Function.Name, c.Function.Arguments)
-				}
-			}
-		}
-		if m.Role == "tool" {
-			fmt.Fprintf(&b, "工具返回: %s\n", m.Content)
-		}
-	}
-	contextStr := b.String()
-	if contextStr == "" {
-		return
-	}
-
-	resp, err := s.ai.ChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: s.ai.Model(),
-		Messages: []openai.ChatCompletionMessage{
-			{Role: openai.ChatMessageRoleSystem, Content: "你是一个AI学习助手。请分析以下对话中工具调用的执行情况，提炼一条简短的教训。教训应包含: 哪个工具失败了、失败原因是什么、应该如何避免或替代。用一句话总结，不超过80字。"},
-			{Role: openai.ChatMessageRoleUser, Content: contextStr},
-		},
-	})
-	if err != nil || len(resp.Choices) == 0 {
-		slog.Warn("提炼教训失败", "error", err)
-		return
-	}
-	lesson := strings.TrimSpace(resp.Choices[0].Message.Content)
-	if lesson != "" {
-		if err := s.AddSemanticMemory(ctx, lesson); err != nil {
-			slog.Error("写入语义记忆失败", "error", err)
-		}
-	}
-}

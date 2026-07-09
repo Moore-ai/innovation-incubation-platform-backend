@@ -7,6 +7,8 @@ import (
 	"log/slog"
 
 	openai "github.com/sashabaranov/go-openai"
+
+	agenttools "innovation-incubation-platform-backend/internal/service/agent/tools"
 )
 
 // Run 执行 ReAct 循环。onEvent 回调推送 SSE 事件。
@@ -54,8 +56,7 @@ func (e *Engine) runReAct(ctx context.Context, sessionID uint, userMessage strin
 		{Role: openai.ChatMessageRoleUser, Content: userMessage},
 	}
 	var records []ChatMessageRecord
-	reflectTrigger := false
-
+	
 	for step := 0; step < e.cfg.MaxSteps; step++ {
 		if ctx.Err() != nil {
 			onEvent(SSEEvent{Type: "error", Data: map[string]string{"message": "请求超时，请重试"}})
@@ -72,7 +73,7 @@ func (e *Engine) runReAct(ctx context.Context, sessionID uint, userMessage strin
 		stream.Close()
 
 		if len(toolCalls) == 0 {
-			return e.finishReply(thinkContent, records, step, reflectTrigger, onEvent)
+			return e.finishReply(thinkContent, records, step, onEvent)
 		}
 
 		// 记录 Assistant 消息
@@ -98,13 +99,17 @@ func (e *Engine) runReAct(ctx context.Context, sessionID uint, userMessage strin
 		execCtx := WithProgressWriter(ctx, func(typ string, data map[string]any) {
 			onEvent(SSEEvent{Type: typ, Data: data})
 		})
+		// 注入 userID 供 record_semantic_memory 等工具读取
+		execCtx = context.WithValue(execCtx, agenttools.CtxKeyUserID, userID)
 		results := e.executeToolCalls(execCtx, toolCalls)
 
 		// Observe: 处理工具结果
-		var hit bool
-		messages, records, hit = e.observeToolResults(ctx, results, messages, records, onEvent)
-		if hit {
-			reflectTrigger = true
+		var allSilent bool
+		messages, records, _, allSilent = e.observeToolResults(ctx, results, messages, records, onEvent)
+
+		// 全部为静默工具 → 直接返回当前 thinkContent 作为最终回复
+		if allSilent {
+			return e.finishReply(thinkContent, records, step, onEvent)
 		}
 	}
 
@@ -133,10 +138,9 @@ func (e *Engine) runReAct(ctx context.Context, sessionID uint, userMessage strin
 	onEvent(SSEEvent{Type: "done", Data: nil})
 
 	return &RunResult{
-		FinalReply:     finalReply,
-		Messages:       records,
-		StepsUsed:      e.cfg.MaxSteps,
-		ReflectTrigger: reflectTrigger,
+		FinalReply: finalReply,
+		Messages:   records,
+		StepsUsed:  e.cfg.MaxSteps,
 	}, nil
 }
 
