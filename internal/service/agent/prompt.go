@@ -27,6 +27,10 @@ func buildSystemPrompt(memoryContext string, tools []agenttools.Tool) (string, i
 		fmt.Fprintf(&sb, "- %s：%s\n", t.Name(), t.Description())
 	}
 
+	sb.WriteString("\n\n")
+	sb.WriteString("每次回复结束后，调用 record_semantic_memory 记录本轮的用户偏好和工具教训。")
+	sb.WriteString("lessons 记录工具调用失败的教训，preferences 记录用户明确表达的偏好。无可留空数组。")
+
 	templateLen := tokenutil.Estimate(sb.String())
 	return sb.String(), templateLen
 }
