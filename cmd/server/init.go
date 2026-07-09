@@ -115,15 +115,16 @@ func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, e
 	converterAddr := fmt.Sprintf("127.0.0.1:%d", cfg.ReportConverter.Port)
 	converter := agentbuiltin.NewReportConverter(converterAddr, cfg.ReportConverter.TimeoutSec)
 	registry.Register(agentbuiltin.NewGenerateReport(aiClient, db, converter, r.file, fileStorage, notifSvc))
+	registry.Register(agentbuiltin.NewRecordSemanticMemory(r.chat, embedClient))
 
 	workingMem := agentmemory.NewWorkingMemory(r.chat, cfg.Agent.WorkingMemory.PageSize)
-	semanticMem := agentmemory.NewSemanticMemory(r.chat, embedClient, cfg.Agent.Memory.SemanticLimit)
+	semanticMem := agentmemory.NewSemanticMemory(r.chat, aiClient, embedClient, cfg.Agent.Memory.SemanticLimit, cfg.Agent.Memory.HydeMaxTokens)
 	memMgr := agentmemory.NewMemoryManager(workingMem, semanticMem, r.chat, embedClient, cfg.Agent)
 
 	reflect := agentpkg.NewReflectChecker(registry)
 	engine := agentpkg.NewEngine(aiClient, registry, memMgr, reflect, cfg.Agent)
 
-	chatSvc := service.NewChatService(engine, r.chat, memMgr, aiClient, aiSvc, cfg.Agent)
+	chatSvc := service.NewChatService(engine, r.chat, aiClient, aiSvc, cfg.Agent)
 	return chatSvc, engine
 }
 
