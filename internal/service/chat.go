@@ -2,17 +2,13 @@ package service
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/repository"
 	agent "innovation-incubation-platform-backend/internal/service/agent"
-	agentmemory "innovation-incubation-platform-backend/internal/service/agent/memory"
 	"innovation-incubation-platform-backend/pkg/aiclient"
 	"innovation-incubation-platform-backend/pkg/errcode"
 )
@@ -20,14 +16,13 @@ import (
 type ChatService struct {
 	engine *agent.Engine
 	repo   *repository.ChatRepo
-	memory *agentmemory.MemoryManager
 	ai     *aiclient.Client
 	aiSvc  *AIService
 	cfg    config.AgentConfig
 }
 
-func NewChatService(engine *agent.Engine, repo *repository.ChatRepo, memory *agentmemory.MemoryManager, ai *aiclient.Client, aiSvc *AIService, cfg config.AgentConfig) *ChatService {
-	return &ChatService{engine: engine, repo: repo, memory: memory, ai: ai, aiSvc: aiSvc, cfg: cfg}
+func NewChatService(engine *agent.Engine, repo *repository.ChatRepo, ai *aiclient.Client, aiSvc *AIService, cfg config.AgentConfig) *ChatService {
+	return &ChatService{engine: engine, repo: repo, ai: ai, aiSvc: aiSvc, cfg: cfg}
 }
 
 // CreateSession 创建新会话
@@ -83,9 +78,6 @@ func (s *ChatService) Run(ctx context.Context, sessionID uint, userMessage strin
 	defer cancel()
 
 	result, err := s.engine.Run(ctx, sessionID, userMessage, role, onEvent)
-	if err == nil && result.ReflectTrigger {
-		go s.writeSemantic(agent.UserIDFromCtx(ctx), result.Messages)
-	}
 	return result, err
 }
 
@@ -178,83 +170,3 @@ func (s *ChatService) EditAndResend(ctx context.Context, sessionID uint, message
 	return result, nil
 }
 
-// AddSemanticMemory 写入语义记忆（Reflect 触发后调用）
-func (s *ChatService) AddSemanticMemory(ctx context.Context, userID uint, content string, category agentmemory.Category) error {
-	return s.memory.AddSemantic(ctx, userID, content, 0.5, category)
-}
-
-// writeSemantic 用 LLM 分析对话上下文，同时提炼操作教训和用户偏好写入语义记忆。
-func (s *ChatService) writeSemantic(userID uint, msgs []agent.ChatMessageRecord) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// 构建对话上下文：工具调用 + 工具返回 + 用户消息
-	var b strings.Builder
-	type toolCallInfo struct {
-		Function struct {
-			Name      string `json:"name"`
-			Arguments string `json:"arguments"`
-		} `json:"function"`
-	}
-	for _, m := range msgs {
-		switch m.Role {
-		case "user":
-			fmt.Fprintf(&b, "用户: %s\n", m.Content)
-		case "assistant":
-			if m.ToolCalls != "" {
-				var calls []toolCallInfo
-				if json.Unmarshal([]byte(m.ToolCalls), &calls) == nil {
-					for _, call := range calls {
-						fmt.Fprintf(&b, "调用工具: %s, 参数: %s\n", call.Function.Name, call.Function.Arguments)
-					}
-				}
-			}
-		case "tool":
-			fmt.Fprintf(&b, "工具返回: %s\n", m.Content)
-		}
-	}
-	contextStr := b.String()
-	if contextStr == "" {
-		return
-	}
-
-	type semanticResult struct {
-		Lessons     []string `json:"lessons"`
-		Preferences []string `json:"preferences"`
-	}
-	result, err := ChatAndParse[semanticResult](s.aiSvc, ctx, "semantic-extract",
-		`你是一个AI学习助手。分析以下对话，输出 JSON：
-
-{
-  "lessons": [],
-  "preferences": []
-}
-
-规则：
-- lessons: 工具调用失败的教训。每条一句话，包含"哪个工具失败了、原因、如何避免"。无失败则留空数组。
-- preferences: 用户明确表达的偏好或反馈。如"更喜欢饼图"、"回复简洁些"、"默认用PDF"。无偏好则留空数组。
-- 每条不超过80字，数组最多3条。
-- 严格输出JSON，不要其他内容。`,
-		contextStr, "semantic extraction failed")
-	if err != nil {
-		slog.Warn("semantic extraction failed", "error", err)
-		return
-	}
-
-	for _, lesson := range result.Lessons {
-		lesson = strings.TrimSpace(lesson)
-		if lesson != "" {
-			if err := s.AddSemanticMemory(ctx, userID, lesson, agentmemory.CategoryLesson); err != nil {
-				slog.Error("写入教训失败", "error", err)
-			}
-		}
-	}
-	for _, pref := range result.Preferences {
-		pref = strings.TrimSpace(pref)
-		if pref != "" {
-			if err := s.AddSemanticMemory(ctx, userID, pref, agentmemory.CategoryPreference); err != nil {
-				slog.Error("写入偏好失败", "error", err)
-			}
-		}
-	}
-}
