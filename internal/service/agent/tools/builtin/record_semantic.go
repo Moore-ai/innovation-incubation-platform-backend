@@ -8,21 +8,25 @@ import (
 	"time"
 
 	"innovation-incubation-platform-backend/internal/model"
-	"innovation-incubation-platform-backend/internal/repository"
 	agentmemory "innovation-incubation-platform-backend/internal/service/agent/memory"
 	agenttools "innovation-incubation-platform-backend/internal/service/agent/tools"
 	"innovation-incubation-platform-backend/pkg/aiclient"
 )
 
+// semanticCreator 写入语义记忆所需的最小接口。
+type semanticCreator interface {
+	CreateSemanticMemory(m *model.SemanticMemory) error
+}
+
 var _ agenttools.Tool = (*RecordSemanticMemory)(nil)
 
 type RecordSemanticMemory struct {
-	chatRepo    *repository.ChatRepo
+	store       semanticCreator
 	embedClient *aiclient.EmbeddingClient
 }
 
-func NewRecordSemanticMemory(chatRepo *repository.ChatRepo, embedClient *aiclient.EmbeddingClient) *RecordSemanticMemory {
-	return &RecordSemanticMemory{chatRepo: chatRepo, embedClient: embedClient}
+func NewRecordSemanticMemory(store semanticCreator, embedClient *aiclient.EmbeddingClient) *RecordSemanticMemory {
+	return &RecordSemanticMemory{store: store, embedClient: embedClient}
 }
 
 func (t *RecordSemanticMemory) Name() string { return "record_semantic_memory" }
@@ -101,5 +105,5 @@ func (t *RecordSemanticMemory) save(ctx context.Context, userID uint, content, c
 			mem.Embedding = vec
 		}
 	}
-	return t.chatRepo.CreateSemanticMemory(mem)
+	return t.store.CreateSemanticMemory(mem)
 }
