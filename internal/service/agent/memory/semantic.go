@@ -36,10 +36,19 @@ func NewSemanticMemory(repo *repository.ChatRepo, embedClient *aiclient.Embeddin
 }
 
 func (m *SemanticMemory) Add(ctx context.Context, item *MemoryItem) error {
+	category := string(item.Category)
+	if category == "" {
+		category = string(CategoryLesson)
+	}
+	var uid *uint
+	if item.UserID != 0 {
+		uid = &item.UserID
+	}
 	mem := &model.SemanticMemory{
 		Content:    item.Content,
 		Importance: item.Importance,
-		Category:   "lesson",
+		Category:   category,
+		UserID:     uid,
 	}
 	if m.embedClient != nil {
 		vec, _ := m.embedClient.Embed(ctx, item.Content)

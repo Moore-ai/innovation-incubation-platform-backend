@@ -51,11 +51,11 @@ type AIService struct {
 
 func NewAIService(client *aiclient.Client, entRepo *repository.EnterpriseRepo, govRepo *repository.GovernmentRepo, fileRepo *repository.FileRepo, cfg *config.Config) *AIService {
 	return &AIService{
-		client:                  client,
-		entRepo:                 entRepo,
-		govRepo:                 govRepo,
-		fileRepo:                fileRepo,
-		fileMatchCfg:            cfg.FileMatch,
+		client:       client,
+		entRepo:      entRepo,
+		govRepo:      govRepo,
+		fileRepo:     fileRepo,
+		fileMatchCfg: cfg.FileMatch,
 		prompts: PromptSet{
 			extract:        cfg.AI.Prompts.Extract,
 			match:          cfg.AI.Prompts.Match,

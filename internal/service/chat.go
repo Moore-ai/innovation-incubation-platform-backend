@@ -86,7 +86,7 @@ func (s *ChatService) Run(ctx context.Context, sessionID uint, userMessage strin
 
 	result, err := s.engine.Run(ctx, sessionID, userMessage, role, onEvent)
 	if err == nil && result.ReflectTrigger {
-		go s.writeLesson(result.Messages)
+		go s.writeLesson(agent.UserIDFromCtx(ctx), result.Messages)
 	}
 	return result, err
 }
@@ -181,12 +181,12 @@ func (s *ChatService) EditAndResend(ctx context.Context, sessionID uint, message
 }
 
 // AddSemanticMemory 写入语义记忆（Reflect 触发后调用）
-func (s *ChatService) AddSemanticMemory(ctx context.Context, content string) error {
-	return s.memory.AddSemantic(ctx, content, 0.5, "lesson")
+func (s *ChatService) AddSemanticMemory(ctx context.Context, userID uint, content string, category agentmemory.Category) error {
+	return s.memory.AddSemantic(ctx, userID, content, 0.5, category)
 }
 
 // writeLesson 用 LLM 分析对话上下文，提炼可复用的教训写入语义记忆。
-func (s *ChatService) writeLesson(msgs []agent.ChatMessageRecord) {
+func (s *ChatService) writeLesson(userID uint, msgs []agent.ChatMessageRecord) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -228,7 +228,7 @@ func (s *ChatService) writeLesson(msgs []agent.ChatMessageRecord) {
 	}
 	lesson := strings.TrimSpace(resp.Choices[0].Message.Content)
 	if lesson != "" {
-		if err := s.AddSemanticMemory(ctx, lesson); err != nil {
+		if err := s.AddSemanticMemory(ctx, userID, lesson, agentmemory.CategoryLesson); err != nil {
 			slog.Error("写入语义记忆失败", "error", err)
 		}
 	}

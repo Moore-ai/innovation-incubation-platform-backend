@@ -176,9 +176,11 @@ func rankWithDecay(msgs []model.ChatMessage, distances []float64, decayFactor fl
 }
 
 // AddSemantic 写入语义记忆（外部触发）
-func (m *MemoryManager) AddSemantic(ctx context.Context, content string, importance float64, category string) error {
+func (m *MemoryManager) AddSemantic(ctx context.Context, userID uint, content string, importance float64, category Category) error {
 	return m.semantic.Add(ctx, &MemoryItem{
 		Content:    content,
 		Importance: importance,
+		Category:   category,
+		UserID:     userID,
 	})
 }
