@@ -29,7 +29,7 @@ func (r *CarrierRepo) ListAll(page, pageSize int) ([]model.Carrier, int64, error
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
+	err := q.Order("created_at ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
 	return list, total, err
 }
 
@@ -52,7 +52,7 @@ func (r *CarrierRepo) ListPendingIncubations(carrierID uint, page, pageSize int)
 	excludeSub := "AND NOT EXISTS (SELECT 1 FROM major_changes WHERE enterprise_id = incubation_records.enterprise_id AND change_type = '入孵协议文件' AND status = 'pending')"
 	q := r.db.Model(&model.IncubationRecord{}).Where("carrier_id = ? AND status = 'pending' "+excludeSub, carrierID)
 	q.Count(&total)
-	err := q.Preload("Enterprise").Order("created_at DESC").
+	err := q.Preload("Enterprise").Order("created_at ASC").
 		Offset((page-1)*pageSize).Limit(pageSize).Find(&records).Error
 	return records, total, err
 }
@@ -65,7 +65,7 @@ func (r *CarrierRepo) ListAllIncubationsByCarrier(carrierID uint, page, pageSize
 	q := r.db.Model(&model.IncubationRecord{}).
 		Where("carrier_id = ? AND status = ?", carrierID, model.ApprovalApproved)
 	q.Count(&total)
-	err := q.Preload("Enterprise").Order("created_at DESC").
+	err := q.Preload("Enterprise").Order("created_at ASC").
 		Offset((page-1)*pageSize).Limit(pageSize).Find(&records).Error
 	return records, total, err
 }
@@ -90,7 +90,7 @@ func (r *CarrierRepo) ListPendingChanges(carrierID uint, page, pageSize int) ([]
 		Joins("JOIN incubation_records ON incubation_records.enterprise_id = major_changes.enterprise_id").
 		Where("incubation_records.carrier_id = ? AND major_changes.status = 'pending'", carrierID)
 	q.Count(&total)
-	err := q.Preload("Enterprise").Order("major_changes.created_at DESC").
+	err := q.Preload("Enterprise").Order("major_changes.created_at ASC").
 		Offset((page-1)*pageSize).Limit(pageSize).Find(&changes).Error
 	return changes, total, err
 }
@@ -112,10 +112,11 @@ func (r *CarrierRepo) ListEnterpriseApplicationsForCarrier(carrierID uint, page,
 	var apps []model.PolicyApplication
 	var total int64
 	q := r.db.Model(&model.PolicyApplication{}).
-		Joins("JOIN incubation_records ON incubation_records.enterprise_id = policy_applications.applicant_id").
-		Where("incubation_records.carrier_id = ? AND policy_applications.status = 'pending' AND policy_applications.applicant_type = 'enterprise'", carrierID)
+		Where("policy_applications.status = ? AND policy_applications.applicant_type = ?",
+			model.ApprovalPending, model.ApplicantEnterprise).
+		Where("EXISTS (SELECT 1 FROM incubation_records WHERE incubation_records.enterprise_id = policy_applications.applicant_id AND incubation_records.carrier_id = ?)", carrierID)
 	q.Count(&total)
-	err := q.Preload("Policy").Order("policy_applications.created_at DESC").
+	err := q.Preload("Policy").Order("policy_applications.created_at ASC").
 		Offset((page-1)*pageSize).Limit(pageSize).Find(&apps).Error
 	return apps, total, err
 }
@@ -124,10 +125,11 @@ func (r *CarrierRepo) ListEnterpriseApplicationsByStatus(carrierID uint, status 
 	var apps []model.PolicyApplication
 	var total int64
 	q := r.db.Model(&model.PolicyApplication{}).
-		Joins("JOIN incubation_records ON incubation_records.enterprise_id = policy_applications.applicant_id").
-		Where("incubation_records.carrier_id = ? AND policy_applications.status = ? AND policy_applications.applicant_type = 'enterprise'", carrierID, status)
+		Where("policy_applications.status = ? AND policy_applications.applicant_type = ?",
+			status, model.ApplicantEnterprise).
+		Where("EXISTS (SELECT 1 FROM incubation_records WHERE incubation_records.enterprise_id = policy_applications.applicant_id AND incubation_records.carrier_id = ?)", carrierID)
 	q.Count(&total)
-	err := q.Preload("Policy").Order("policy_applications.created_at DESC").
+	err := q.Preload("Policy").Order("policy_applications.created_at ASC").
 		Offset((page-1)*pageSize).Limit(pageSize).Find(&apps).Error
 	return apps, total, err
 }
@@ -150,7 +152,7 @@ func (r *CarrierRepo) ListActiveCampaigns(page, pageSize int) ([]model.Performan
 	var total int64
 	q := r.db.Model(&model.PerformanceCampaign{}).Where("is_active = true")
 	q.Count(&total)
-	err := q.Preload("Template").Order("created_at DESC").
+	err := q.Preload("Template").Order("created_at ASC").
 		Offset((page-1)*pageSize).Limit(pageSize).Find(&campaigns).Error
 	return campaigns, total, err
 }

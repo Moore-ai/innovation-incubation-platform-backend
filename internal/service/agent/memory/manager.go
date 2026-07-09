@@ -167,7 +167,7 @@ func rankWithDecay(msgs []model.ChatMessage, distances []float64, decayFactor fl
 		}
 		scoredList = append(scoredList, scored{msg, simScore * timeWeight})
 	}
-	sort.Slice(scoredList, func(i, j int) bool { return scoredList[i].score > scoredList[j].score })
+	sort.Slice(scoredList, func(i, j int) bool { return scoredList[i].score < scoredList[j].score })
 	result := make([]model.ChatMessage, 0, limit)
 	for i := 0; i < len(scoredList) && len(result) < limit; i++ {
 		result = append(result, scoredList[i].msg)

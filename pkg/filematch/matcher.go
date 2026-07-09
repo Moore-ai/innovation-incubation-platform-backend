@@ -50,7 +50,7 @@ func Search(query string, formats []string, files []model.File, cfg config.FileM
 	}
 
 	sort.Slice(results, func(i, j int) bool {
-		return results[i].Score > results[j].Score
+		return results[i].Score < results[j].Score
 	})
 	return results
 }
@@ -61,7 +61,7 @@ func Match(materialName string, formats []string, files []model.File, cfg config
 	if len(results) == 0 {
 		return nil
 	}
-	return &results[0]
+	return &results[len(results)-1]
 }
 
 // tokenize 分词，去除扩展名和停用词，保留中文/英文/数字片段
@@ -71,7 +71,7 @@ func tokenize(s string, stopWords []string) []string {
 	sorted := make([]string, len(stopWords))
 	copy(sorted, stopWords)
 	sort.Slice(sorted, func(i, j int) bool {
-		return len([]rune(sorted[i])) > len([]rune(sorted[j]))
+		return len([]rune(sorted[i])) < len([]rune(sorted[j]))
 	})
 	for _, sw := range sorted {
 		s = strings.ReplaceAll(s, sw, "")

@@ -46,9 +46,15 @@ func main() {
 		slog.Warn("embedding 未配置，跳过向量生成")
 	}
 
-	basisMap := readBasisMap("policy-samples/zcdx_policy_basis_links.csv")
+	basisMap := readBasisMap(firstExistingPath(
+		"policy-samples/zcdx_policy_basis_links.csv",
+		"zcdx_policy_basis_links.csv",
+	))
 
-	detailsF, err := os.Open("policy-samples/zcdx_details_with_policy_links.csv")
+	detailsF, err := os.Open(firstExistingPath(
+		"policy-samples/zcdx_details_with_policy_links.csv",
+		"zcdx_details_with_policy_links.csv",
+	))
 	if err != nil {
 		slog.Error("打开 CSV 失败", "error", err)
 		os.Exit(1)
@@ -70,7 +76,7 @@ func main() {
 	header := records[0]
 	col := make(map[string]int)
 	for i, h := range header {
-		col[h] = i
+		col[cleanHeader(h)] = i
 	}
 	for _, c := range []string{"id", "serviceName", "orgName", "applyCondition", "cashStandard"} {
 		if _, ok := col[c]; !ok {
@@ -99,6 +105,7 @@ func main() {
 		serviceID := row[col["id"]]
 		title := row[col["serviceName"]]
 		dept := row[col["orgName"]]
+		area := csvField(row, col, "areaName")
 		condition := row[col["applyCondition"]]
 		standard := row[col["cashStandard"]]
 		startDate := csvField(row, col, "applyStartTime")
@@ -122,6 +129,26 @@ func main() {
 					FileID:         b.fileID,
 				})
 			}
+		}
+
+		var existing model.Policy
+		if err := db.Where("title = ? AND department = ?", title, dept).First(&existing).Error; err == nil {
+			updates := map[string]any{
+				"requirements": req,
+				"start_date":   startDate,
+				"end_date":     endDate,
+				"status":       model.PolicyPublished,
+			}
+			if existing.ExtractedFields == nil {
+				updates["extracted_fields"] = fallbackExtractedPolicy(title, condition, standard, area, req)
+			}
+			if err := db.Model(&existing).Updates(updates).Error; err != nil {
+				slog.Error("update existing policy failed", "title", title, "error", err)
+				continue
+			}
+			success++
+			slog.Info("existing policy updated", "ID", existing.ID, "title", title)
+			continue
 		}
 
 		policy := &model.Policy{
@@ -184,6 +211,58 @@ func main() {
 	fmt.Printf("\n导入结果：%d/%d 成功，共 %d 次 API 调用\n", success, len(rows), apiCalls)
 }
 
+func firstExistingPath(paths ...string) string {
+	for _, path := range paths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+	if len(paths) == 0 {
+		return ""
+	}
+	return paths[0]
+}
+
+func cleanHeader(value string) string {
+	return strings.TrimSpace(strings.TrimPrefix(value, "\ufeff"))
+}
+
+func fallbackExtractedPolicy(title, condition, standard, area string, req *model.PolicyRequirement) *model.ExtractedPolicy {
+	summaryParts := nonEmpty(condition, standard)
+	var documents []string
+	if req != nil {
+		for _, material := range req.ApplicationMaterials {
+			if strings.TrimSpace(material.Name) != "" {
+				documents = append(documents, strings.TrimSpace(material.Name))
+			}
+		}
+		for _, basis := range req.LegalBasis {
+			if strings.TrimSpace(basis.Title) != "" {
+				documents = append(documents, strings.TrimSpace(basis.Title))
+			}
+		}
+	}
+	return &model.ExtractedPolicy{
+		PolicyName:        title,
+		PolicySummary:     strings.Join(summaryParts, "；"),
+		ApplicableRegion:  area,
+		SubsidyType:       "奖补",
+		Subsidies:         []model.SubsidyDetail{{Condition: condition, Amount: standard}},
+		RequiredDocuments: documents,
+	}
+}
+
+func nonEmpty(values ...string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			result = append(result, value)
+		}
+	}
+	return result
+}
+
 func readBasisMap(path string) map[string][]legalBasisRow {
 	result := make(map[string][]legalBasisRow)
 
@@ -208,7 +287,7 @@ func readBasisMap(path string) map[string][]legalBasisRow {
 	header := records[0]
 	col := make(map[string]int)
 	for i, h := range header {
-		col[h] = i
+		col[cleanHeader(h)] = i
 	}
 
 	svcIdx, ok1 := col["serviceId"]

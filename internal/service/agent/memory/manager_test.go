@@ -148,7 +148,7 @@ func TestRankWithDecay_SingleMessage(t *testing.T) {
 	}
 }
 
-func TestRankWithDecay_HigherSimilarityFirst(t *testing.T) {
+func TestRankWithDecay_LowerScoreFirst(t *testing.T) {
 	now := time.Now()
 	msgs := []model.ChatMessage{
 		{BaseModel: model.BaseModel{CreatedAt: now}, Content: "far"},
@@ -157,8 +157,8 @@ func TestRankWithDecay_HigherSimilarityFirst(t *testing.T) {
 	// distance 0.1 → sim 0.9; distance 0.8 → sim 0.2
 	distances := []float64{0.8, 0.1}
 	result := rankWithDecay(msgs, distances, 1.0, 5) // decay=1 → no time effect
-	if result[0].Content != "near" {
-		t.Errorf("expected 'near' first (higher similarity), got %q", result[0].Content)
+	if result[0].Content != "far" {
+		t.Errorf("expected 'far' first (lower score), got %q", result[0].Content)
 	}
 }
 
@@ -172,8 +172,8 @@ func TestRankWithDecay_OlderPenalized(t *testing.T) {
 	// decay=0.5: old→0.5^(90/30)=0.5^3=0.125; recent→0.5^(0/30)=1.0
 	distances := []float64{0.2, 0.2}
 	result := rankWithDecay(msgs, distances, 0.5, 5)
-	if result[0].Content != "recent" {
-		t.Errorf("expected 'recent' first (less decay), got %q", result[0].Content)
+	if result[0].Content != "old" {
+		t.Errorf("expected 'old' first (lower decayed score), got %q", result[0].Content)
 	}
 }
 
@@ -220,8 +220,8 @@ func TestRankWithDecay_NoDecayWhenZero(t *testing.T) {
 	result := rankWithDecay(msgs, distances, 0.0, 5)
 	// decay=0 → timeWeight=1 for both, pure similarity ranking
 	// sim: a=0.7, b=0.5
-	if result[0].Content != "a" {
-		t.Errorf("expected 'a' first (higher similarity, no decay), got %q", result[0].Content)
+	if result[0].Content != "b" {
+		t.Errorf("expected 'b' first (lower similarity score, no decay), got %q", result[0].Content)
 	}
 }
 

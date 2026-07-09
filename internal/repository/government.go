@@ -40,7 +40,7 @@ func (r *GovernmentRepo) ListPolicies(page, pageSize int) ([]model.Policy, int64
 	var total int64
 	q := r.db.Model(&model.Policy{})
 	q.Count(&total)
-	err := q.Order("created_at DESC").
+	err := q.Order("created_at ASC").
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&policies).Error
 	return policies, total, err
 }
@@ -52,7 +52,7 @@ func (r *GovernmentRepo) SearchEnterprises(keyword string, page, pageSize int) (
 	q := r.db.Model(&model.Enterprise{}).
 		Where("name LIKE ? OR credit_code LIKE ? OR industry LIKE ?", like, like, like)
 	q.Count(&total)
-	err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&ents).Error
+	err := q.Order("created_at ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&ents).Error
 	return ents, total, err
 }
 
@@ -75,7 +75,7 @@ func (r *GovernmentRepo) SearchCarriers(keyword string, page, pageSize int) ([]m
 	like := "%" + keyword + "%"
 	q := r.db.Model(&model.Carrier{}).Where("name LIKE ? OR address LIKE ?", like, like)
 	q.Count(&total)
-	err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&carriers).Error
+	err := q.Order("created_at ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&carriers).Error
 	return carriers, total, err
 }
 
@@ -93,7 +93,7 @@ func (r *GovernmentRepo) ListPolicyApplicationsForReview(page, pageSize int) ([]
 	var total int64
 	q := r.db.Model(&model.PolicyApplication{}).Where("status = 'pending' OR status = 'gov_review'")
 	q.Count(&total)
-	err := q.Preload("Policy").Order("created_at DESC").
+	err := q.Preload("Policy").Order("created_at ASC").
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&apps).Error
 	return apps, total, err
 }
@@ -109,7 +109,7 @@ func (r *GovernmentRepo) ListCompletableIncubations(today string, page, pageSize
 		Where("status = ? AND incubate_status = ? AND incubate_end <> '' AND incubate_end <= ?",
 			model.ApprovalApproved, model.IncubateInIncubation, today)
 	q.Count(&total)
-	err := q.Preload("Enterprise").Preload("Carrier").Order("incubate_end ASC, created_at DESC").
+	err := q.Preload("Enterprise").Preload("Carrier").Order("incubate_end ASC, created_at ASC").
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&records).Error
 	return records, total, err
 }
@@ -137,7 +137,7 @@ func (r *GovernmentRepo) ListIncubations(keyword, category, today string, page, 
 	}
 	q.Count(&total)
 	err := q.Preload("Enterprise").Preload("Carrier").
-		Order("incubation_records.created_at DESC").
+		Order("incubation_records.created_at ASC").
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&records).Error
 	return records, total, err
 }
@@ -148,7 +148,7 @@ func (r *GovernmentRepo) CreatePerformanceTemplate(t *model.PerformanceTemplate)
 
 func (r *GovernmentRepo) ListPerformanceTemplates() ([]model.PerformanceTemplate, error) {
 	var templates []model.PerformanceTemplate
-	err := r.db.Order("year DESC, created_at DESC").Find(&templates).Error
+	err := r.db.Order("year ASC, created_at ASC").Find(&templates).Error
 	return templates, err
 }
 
@@ -170,7 +170,7 @@ func (r *GovernmentRepo) ListPerformanceSubmissions(page, pageSize int) ([]model
 	var total int64
 	q := r.db.Model(&model.PerformanceSubmission{})
 	q.Count(&total)
-	err := q.Preload("Campaign").Preload("Carrier").Order("created_at DESC").
+	err := q.Preload("Campaign").Preload("Carrier").Order("created_at ASC").
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&subs).Error
 	return subs, total, err
 }

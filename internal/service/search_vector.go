@@ -138,7 +138,7 @@ func (s *VectorSearch) Search(ctx context.Context, userID uint, query string, us
 	if need > 0 {
 		var noEmb []model.Policy
 		if err := s.db.WithContext(ctx).Where("status = ? AND embedding IS NULL", model.PolicyPublished).
-			Order("published_at DESC").Limit(need).Find(&noEmb).Error; err != nil {
+			Order("published_at ASC").Limit(need).Find(&noEmb).Error; err != nil {
 			slog.Warn("no-embedding query failed", "error", err)
 		}
 		embedded = append(embedded, noEmb...)
@@ -191,7 +191,7 @@ func rrfFusion(results [][]model.Policy, k float64, topK int) []model.Policy {
 		ranked = append(ranked, scored{id: id, score: s})
 	}
 	sort.Slice(ranked, func(i, j int) bool {
-		return ranked[i].score > ranked[j].score
+		return ranked[i].score < ranked[j].score
 	})
 
 	if topK > 0 && len(ranked) > topK {

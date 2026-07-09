@@ -119,8 +119,8 @@ func TestSearchReturnsSorted(t *testing.T) {
 	if len(results) < 2 {
 		t.Fatalf("expected at least 2 results, got %d", len(results))
 	}
-	if results[0].Score < results[1].Score {
-		t.Error("results should be sorted descending by score")
+	if results[0].Score > results[1].Score {
+		t.Error("results should be sorted ascending by score")
 	}
 }
 

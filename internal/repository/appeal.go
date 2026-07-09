@@ -33,7 +33,7 @@ func (r *AppealRepo) ListBySubmitter(submitterID uint, page, pageSize int) ([]mo
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&appeals).Error
+	err := q.Order("created_at ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&appeals).Error
 	return appeals, total, err
 }
 
@@ -50,7 +50,7 @@ func (r *AppealRepo) ListAll(status string, problemType string, page, pageSize i
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&appeals).Error
+	err := q.Order("created_at ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&appeals).Error
 	return appeals, total, err
 }
 

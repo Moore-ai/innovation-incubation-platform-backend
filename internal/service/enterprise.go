@@ -327,7 +327,7 @@ func (s *EnterpriseService) ApplyChange(userID uint, req *dto.ChangeApplyReq) (*
 	})
 	// 通知企业所属载体（通过入驻记录查找最新关联的载体）
 	var carrierID uint
-	s.db.Model(&model.IncubationRecord{}).Select("carrier_id").Where("enterprise_id = ?", ent.ID).Order("created_at DESC").Limit(1).Take(&carrierID)
+	s.db.Model(&model.IncubationRecord{}).Select("carrier_id").Where("enterprise_id = ?", ent.ID).Order("created_at ASC").Limit(1).Take(&carrierID)
 	if carrierID > 0 {
 		var carrierUserID uint
 		s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", carrierID).Take(&carrierUserID)
@@ -351,7 +351,7 @@ func (s *EnterpriseService) changeOldValue(ent *model.Enterprise, changeType str
 	}
 	var record model.IncubationRecord
 	if err := s.db.Where("enterprise_id = ? AND agreement_file_id IS NOT NULL", ent.ID).
-		Order("created_at DESC").First(&record).Error; err != nil || record.AgreementFileID == nil {
+		Order("created_at ASC").First(&record).Error; err != nil || record.AgreementFileID == nil {
 		return model.JSONMap{}
 	}
 	result := model.JSONMap{"file_id": *record.AgreementFileID}
@@ -432,7 +432,7 @@ func (s *EnterpriseService) ReeditChange(id uint, userID uint, req *dto.ChangeAp
 	})
 	// 通知载体
 	var entCarrierID uint
-	s.db.Model(&model.IncubationRecord{}).Select("carrier_id").Where("enterprise_id = ?", change.EnterpriseID).Order("created_at DESC").Limit(1).Take(&entCarrierID)
+	s.db.Model(&model.IncubationRecord{}).Select("carrier_id").Where("enterprise_id = ?", change.EnterpriseID).Order("created_at ASC").Limit(1).Take(&entCarrierID)
 	if entCarrierID > 0 {
 		var carrierUserID uint
 		s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", entCarrierID).Take(&carrierUserID)
@@ -503,7 +503,7 @@ func (s *EnterpriseService) ApplyPolicy(userID uint, policyID uint, req *dto.Pol
 		PolicyID:      policyID,
 		ApplicantID:   ent.ID,
 		ApplicantType: model.ApplicantEnterprise,
-		Materials:     req.Materials,
+		Materials:     model.MaterialFileItems(req.Materials),
 		Status:        model.ApprovalPending,
 	}
 	if err := s.commonRepo.CreatePolicyApplication(app); err != nil {
@@ -517,7 +517,7 @@ func (s *EnterpriseService) ApplyPolicy(userID uint, policyID uint, req *dto.Pol
 	})
 	// 通知所属载体
 	var carrierID uint
-	s.db.Model(&model.IncubationRecord{}).Select("carrier_id").Where("enterprise_id = ?", ent.ID).Order("created_at DESC").Limit(1).Take(&carrierID)
+	s.db.Model(&model.IncubationRecord{}).Select("carrier_id").Where("enterprise_id = ?", ent.ID).Order("created_at ASC").Limit(1).Take(&carrierID)
 	if carrierID > 0 {
 		var carrierUserID uint
 		s.db.Model(&model.Carrier{}).Select("user_id").Where("id = ?", carrierID).Take(&carrierUserID)

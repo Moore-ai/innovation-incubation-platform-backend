@@ -33,7 +33,7 @@ func (r *EnterpriseRepo) ListIncubationByEnterprise(enterpriseID uint, page, pag
 	var total int64
 	q := r.db.Model(&model.IncubationRecord{}).Where("enterprise_id = ?", enterpriseID)
 	q.Count(&total)
-	err := q.Preload("Carrier").Order("created_at DESC").
+	err := q.Preload("Carrier").Order("created_at ASC").
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&records).Error
 	return records, total, err
 }
@@ -46,7 +46,7 @@ func (r *EnterpriseRepo) FindActiveIncubation(enterpriseID uint) (*model.Incubat
 	err := r.db.Where(
 		"enterprise_id = ? AND status = ? AND incubate_status = ? AND incubate_end >= ?",
 		enterpriseID, model.ApprovalApproved, model.IncubateInIncubation, today,
-	).Order("incubate_end DESC").First(&record).Error
+	).Order("incubate_end ASC").First(&record).Error
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (r *EnterpriseRepo) ListChangesByEnterprise(entID uint, page, pageSize int)
 	var total int64
 	q := r.db.Model(&model.MajorChange{}).Where("enterprise_id = ?", entID)
 	q.Count(&total)
-	err := q.Order("created_at DESC").Offset((page-1)*pageSize).Limit(pageSize).Find(&changes).Error
+	err := q.Order("created_at ASC").Offset((page-1)*pageSize).Limit(pageSize).Find(&changes).Error
 	return changes, total, err
 }
 
@@ -100,7 +100,7 @@ func (r *EnterpriseRepo) FindApprovedApplicationsPaginated(entID uint, page, pag
 	q := r.db.Model(&model.PolicyApplication{}).
 		Where("applicant_id = ? AND applicant_type = ? AND status = ?", entID, string(model.ApplicantEnterprise), string(model.ApprovalApproved))
 	q.Count(&total)
-	err := q.Preload("Policy").Order("created_at DESC").
+	err := q.Preload("Policy").Order("created_at ASC").
 		Offset((page-1)*pageSize).Limit(pageSize).Find(&apps).Error
 	return apps, total, err
 }
@@ -108,6 +108,6 @@ func (r *EnterpriseRepo) FindApprovedApplicationsPaginated(entID uint, page, pag
 func (r *EnterpriseRepo) FindApprovedApplications(entID uint) ([]model.PolicyApplication, error) {
 	var apps []model.PolicyApplication
 	err := r.db.Where("applicant_type = ? AND applicant_id = ? AND status IN ?", string(model.ApplicantEnterprise), entID, []string{string(model.ApprovalApproved)}).
-		Preload("Policy").Order("created_at DESC").Find(&apps).Error
+		Preload("Policy").Order("created_at ASC").Find(&apps).Error
 	return apps, err
 }

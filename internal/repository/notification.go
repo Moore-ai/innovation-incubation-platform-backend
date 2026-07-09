@@ -28,14 +28,14 @@ func (r *NotificationRepo) ListByUser(userID uint, page, pageSize int) ([]model.
 	if err := r.db.Model(&model.Notification{}).Where("user_id = ? AND is_read = ?", userID, false).Count(&unreadCount).Error; err != nil {
 		return nil, 0, 0, err
 	}
-	err := r.db.Where("user_id = ?", userID).Order("created_at DESC").
+	err := r.db.Where("user_id = ?", userID).Order("created_at ASC").
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
 	return list, total, unreadCount, err
 }
 
 func (r *NotificationRepo) FindRecentByUser(userID uint, limit int) ([]model.Notification, error) {
 	var list []model.Notification
-	err := r.db.Where("user_id = ?", userID).Order("created_at DESC").Limit(limit).Find(&list).Error
+	err := r.db.Where("user_id = ?", userID).Order("created_at ASC").Limit(limit).Find(&list).Error
 	return list, err
 }
 

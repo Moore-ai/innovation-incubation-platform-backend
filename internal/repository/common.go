@@ -19,7 +19,7 @@ func (r *CommonRepo) ListPoliciesByTarget(role string, page, pageSize int) ([]mo
 	q := r.db.Model(&model.Policy{}).
 		Where("status = ? AND (target_role = ? OR target_role = 'both')", model.PolicyPublished, role)
 	q.Count(&total)
-	err := q.Order("created_at DESC").
+	err := q.Order("created_at ASC").
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&policies).Error
 	return policies, total, err
 }
@@ -43,13 +43,22 @@ func (r *CommonRepo) CreatePolicyApplication(app *model.PolicyApplication) error
 	return r.db.Create(app).Error
 }
 
+func (r *CommonRepo) HasUnapprovedPolicyApplication(applicantType string, applicantID uint, policyID uint) (bool, error) {
+	var count int64
+	err := r.db.Model(&model.PolicyApplication{}).
+		Where("applicant_type = ? AND applicant_id = ? AND policy_id = ? AND status <> ?",
+			applicantType, applicantID, policyID, model.ApprovalApproved).
+		Count(&count).Error
+	return count > 0, err
+}
+
 func (r *CommonRepo) ListApplicationsByApplicant(applicantType string, applicantID uint, page, pageSize int) ([]model.PolicyApplication, int64, error) {
 	var apps []model.PolicyApplication
 	var total int64
 	q := r.db.Model(&model.PolicyApplication{}).
 		Where("applicant_type = ? AND applicant_id = ?", applicantType, applicantID)
 	q.Count(&total)
-	err := q.Preload("Policy").Order("created_at DESC").
+	err := q.Preload("Policy").Order("created_at ASC").
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&apps).Error
 	return apps, total, err
 }

@@ -340,7 +340,7 @@ func applyChange(ent *model.Enterprise, change *model.MajorChange, db *gorm.DB) 
 		ent.LegalPerson = v
 	case "入孵协议文件":
 		var record model.IncubationRecord
-		if err := db.Where("enterprise_id = ?", change.EnterpriseID).Order("created_at DESC").First(&record).Error; err != nil {
+		if err := db.Where("enterprise_id = ?", change.EnterpriseID).Order("created_at ASC").First(&record).Error; err != nil {
 			return err
 		}
 		if record.AgreementFileID != nil {
@@ -405,20 +405,31 @@ func (s *CarrierService) ApplyCarrierPolicy(userID uint, policyID uint, req *dto
 	if err != nil {
 		return nil, errcode.ErrNotFound.WithMsg("政策不存在")
 	}
+	exists, err := s.commonRepo.HasUnapprovedPolicyApplication(string(model.ApplicantCarrier), carrier.ID, policyID)
+	if err != nil {
+		return nil, errcode.ErrInternal
+	}
+	if exists {
+		return nil, errcode.ErrDuplicate.WithMsg("该政策已提交申报，审核通过前不可重复申报")
+	}
 	app := &model.PolicyApplication{
 		PolicyID:      policyID,
 		ApplicantID:   carrier.ID,
 		ApplicantType: model.ApplicantCarrier,
-		Materials:     req.Materials,
+		Materials:     model.MaterialFileItems(req.Materials),
 		Status:        model.ApprovalPending,
 	}
-	s.commonRepo.CreatePolicyApplication(app)
-	s.db.Create(&model.Approval{
+	if err := s.commonRepo.CreatePolicyApplication(app); err != nil {
+		return nil, errcode.ErrInternal
+	}
+	if err := s.db.Create(&model.Approval{
 		TargetType: model.TargetPolicy,
 		TargetID:   app.ID,
 		Step:       model.StepGovReview,
 		Action:     model.ActionSubmit,
-	})
+	}).Error; err != nil {
+		return nil, errcode.ErrInternal
+	}
 	return app, nil
 }
 

@@ -115,7 +115,7 @@ func (s *StructuredSearch) searchPolicies(ctx context.Context, criteria *SearchC
 	if len(matches) == 0 {
 		var policies []model.Policy
 		if err := s.db.WithContext(ctx).Where("status = ?", model.PolicyPublished).
-			Order("published_at DESC").Limit(maxResults).Find(&policies).Error; err != nil {
+			Order("published_at ASC").Limit(maxResults).Find(&policies).Error; err != nil {
 			slog.Error("search policies failed", "error", err)
 			return nil, errcode.ErrInternal
 		}
@@ -139,7 +139,7 @@ func (s *StructuredSearch) searchPolicies(ctx context.Context, criteria *SearchC
 	whereClause := "(" + strings.Join(orParts, " OR ") + ") AND status = ?"
 
 	var policies []model.Policy
-	tx := s.db.WithContext(ctx).Where(whereClause, args...).Order("published_at DESC").Limit(maxResults)
+	tx := s.db.WithContext(ctx).Where(whereClause, args...).Order("published_at ASC").Limit(maxResults)
 	if err := tx.Find(&policies).Error; err != nil {
 		slog.Error("search policies failed", "error", err)
 		return nil, errcode.ErrInternal

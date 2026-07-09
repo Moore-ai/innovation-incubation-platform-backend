@@ -142,6 +142,46 @@ func (e *ExtractedPolicy) Value() (driver.Value, error) {
 
 func (Policy) TableName() string { return "policies" }
 
+type MaterialFileItems []MaterialFileItem
+
+func (items *MaterialFileItems) Scan(src any) error {
+	if src == nil {
+		*items = MaterialFileItems{}
+		return nil
+	}
+	var data []byte
+	switch v := src.(type) {
+	case []byte:
+		data = v
+	case string:
+		data = []byte(v)
+	default:
+		return fmt.Errorf("unsupported material items type: %T", src)
+	}
+	if len(data) == 0 || string(data) == "null" {
+		*items = MaterialFileItems{}
+		return nil
+	}
+	var list []MaterialFileItem
+	if err := json.Unmarshal(data, &list); err == nil {
+		*items = list
+		return nil
+	}
+	var single MaterialFileItem
+	if err := json.Unmarshal(data, &single); err != nil {
+		return err
+	}
+	*items = MaterialFileItems{single}
+	return nil
+}
+
+func (items MaterialFileItems) Value() (driver.Value, error) {
+	if items == nil {
+		return "[]", nil
+	}
+	return json.Marshal(items)
+}
+
 type MaterialFileItem struct {
 	Name    string `json:"name"`     // 材料名称
 	FileIDs []uint `json:"file_ids"` // 已选择的文件ID列表
@@ -152,9 +192,9 @@ type PolicyApplication struct {
 	PolicyID      uint               `gorm:"index;not null" json:"policy_id"`
 	ApplicantID   uint               `gorm:"index;not null" json:"applicant_id"`
 	ApplicantType ApplicantType      `gorm:"size:16;not null" json:"applicant_type"` // enterprise, carrier
-	Materials     []MaterialFileItem `gorm:"type:jsonb;column:form_data" json:"materials"`
+	Materials     MaterialFileItems  `gorm:"type:jsonb;column:form_data" json:"materials"`
 	Status        ApprovalStatus     `gorm:"size:32;default:draft" json:"status"` // draft, pending, carrier_review, gov_review, approved, rejected, returned
-	Policy        Policy             `gorm:"foreignKey:PolicyID" json:"-"`
+	Policy        Policy             `gorm:"foreignKey:PolicyID" json:"policy,omitempty"`
 }
 
 func (PolicyApplication) TableName() string { return "policy_applications" }

@@ -32,7 +32,7 @@ func (r *DeletionRepo) ListPending(page, pageSize int) ([]model.AccountDeletionR
 	var total int64
 	q := r.db.Model(&model.AccountDeletionRequest{}).Where("status = ?", model.ApprovalPending)
 	q.Count(&total)
-	err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
+	err := q.Order("created_at ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
 	return list, total, err
 }
 

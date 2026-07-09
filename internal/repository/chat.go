@@ -57,7 +57,7 @@ func (r *ChatRepo) FindSessionByID(id uint) (*model.ChatSession, error) {
 
 func (r *ChatRepo) ListSessionsByUser(userID uint) ([]model.ChatSession, error) {
 	var sessions []model.ChatSession
-	err := r.db.Where("user_id = ?", userID).Order("last_message_at DESC").Find(&sessions).Error
+	err := r.db.Where("user_id = ?", userID).Order("last_message_at ASC").Find(&sessions).Error
 	return sessions, err
 }
 
@@ -91,7 +91,7 @@ func (r *ChatRepo) SearchMessages(userID uint, query string, limit int) ([]model
 	var msgs []model.ChatMessage
 	err := r.db.Where("user_id = ?", userID).
 		Where("to_tsvector('simple', content) @@ plainto_tsquery('simple', ?)", query).
-		Order("created_at DESC").Limit(limit).Find(&msgs).Error
+		Order("created_at ASC").Limit(limit).Find(&msgs).Error
 	return msgs, err
 }
 
@@ -129,12 +129,12 @@ func (r *ChatRepo) SearchMessagesByVectorWithDistance(userID uint, embedding []f
 	return msgs, dists, nil
 }
 
-// LoadMessagesPage 游标分页加载消息（按 created_at DESC），返回 (消息, 下一页 cursor, 是否有更多, error)
+// LoadMessagesPage 游标分页加载消息（按 created_at ASC），返回 (消息, 下一页 cursor, 是否有更多, error)
 func (r *ChatRepo) LoadMessagesPage(sessionID uint, cursorID uint, limit int) ([]model.ChatMessage, uint, bool, error) {
 	var msgs []model.ChatMessage
-	q := r.db.Where("session_id = ?", sessionID).Order("created_at DESC, id DESC").Limit(limit + 1)
+	q := r.db.Where("session_id = ?", sessionID).Order("created_at ASC, id ASC").Limit(limit + 1)
 	if cursorID > 0 {
-		q = q.Where("id < ?", cursorID)
+		q = q.Where("id > ?", cursorID)
 	}
 	if err := q.Find(&msgs).Error; err != nil {
 		return nil, 0, false, err
@@ -163,7 +163,7 @@ func (r *ChatRepo) RetrieveSemanticByCategory(userID uint, categories []string, 
 	if keyword != "" {
 		q = q.Where("content ILIKE ?", "%"+keyword+"%")
 	}
-	err := q.Order("importance DESC").Limit(limit).Find(&ms).Error
+	err := q.Order("importance ASC").Limit(limit).Find(&ms).Error
 	return ms, err
 }
 

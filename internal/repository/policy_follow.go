@@ -33,7 +33,7 @@ func (r *PolicyFollowRepo) ListByEnterprise(entID uint, page, pageSize int) ([]m
 	var total int64
 	q := r.db.Model(&model.PolicyFollow{}).Where("enterprise_id = ?", entID)
 	q.Count(&total)
-	err := q.Preload("Policy").Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
+	err := q.Preload("Policy").Order("created_at ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
 	return list, total, err
 }
 

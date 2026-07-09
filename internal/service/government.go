@@ -463,7 +463,7 @@ func (s *GovernmentService) ListDeletionRequests(page, pageSize int, status stri
 	var total int64
 	q := s.db.Model(&model.AccountDeletionRequest{}).Where("status = ?", status)
 	q.Count(&total)
-	err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
+	err := q.Order("created_at ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
 	return list, total, err
 }
 
