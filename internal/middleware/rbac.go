@@ -28,13 +28,14 @@ func NewEnforcer(db *gorm.DB) (*casbin.Enforcer, error) {
 func SeedPolicies(e *casbin.Enforcer) {
 	policies := [][]string{
 		{"enterprise", "/api/v1/enterprise/*", "(GET|POST|PUT|PATCH|DELETE)"},
+		{"enterprise", "/api/v1/users/*", "(GET)"},
 		{"carrier", "/api/v1/carrier/*", "(GET|POST|PUT|PATCH|DELETE)"},
+		{"carrier", "/api/v1/users/*", "(GET)"},
 		{"government", "/api/v1/gov/*", "(GET|POST|PUT|PATCH|DELETE)"},
-		{"enterprise", "/api/v1/chat/*", "(GET|POST|PUT|PATCH|DELETE)"},
-		{"carrier", "/api/v1/chat/*", "(GET|POST|PUT|PATCH|DELETE)"},
-		{"government", "/api/v1/chat/*", "(GET|POST|PUT|PATCH|DELETE)"},
-		{"*", "/api/v1/auth/*", "(GET|POST|PUT)"},
-		{"*", "/api/v1/users/me", "GET"},
+		{"government", "/api/v1/enterprise/*", "(GET)"},
+		{"government", "/api/v1/carrier/*", "(GET)"},
+		{"government", "/api/v1/files/*", "(GET|DELETE)"},
+		{"government", "/api/v1/users/*", "(GET)"},
 	}
 	for _, p := range policies {
 		args := make([]any, len(p))

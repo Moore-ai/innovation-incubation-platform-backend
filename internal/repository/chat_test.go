@@ -188,3 +188,50 @@ func TestReplaceMessages_SoftDeleteAndInsert(t *testing.T) {
 		t.Errorf("期望 MessageCount=2，实际 %d", updatedSess.MessageCount)
 	}
 }
+
+func TestNormalizeChatMessageJSONFields_DefaultsEmptyToolCalls(t *testing.T) {
+	msgs := []model.ChatMessage{
+		{Role: "user", Content: "hello"},
+		{Role: "assistant", Content: "hi", ToolCalls: "   "},
+		{Role: "assistant", Content: "tool call", ToolCalls: `[{"id":"call_1"}]`},
+	}
+
+	normalizeChatMessageJSONFields(msgs)
+
+	if msgs[0].ToolCalls != "[]" {
+		t.Fatalf("expected empty ToolCalls to default to [], got %q", msgs[0].ToolCalls)
+	}
+	if msgs[1].ToolCalls != "[]" {
+		t.Fatalf("expected whitespace ToolCalls to default to [], got %q", msgs[1].ToolCalls)
+	}
+	if msgs[2].ToolCalls != `[{"id":"call_1"}]` {
+		t.Fatalf("expected existing ToolCalls to be preserved, got %q", msgs[2].ToolCalls)
+	}
+}
+
+func TestCreateMessages_DefaultsEmptyToolCallsForJSONB(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewChatRepo(db)
+	sess := createTestSession(t, db)
+
+	msgs := []model.ChatMessage{
+		{SessionID: sess.ID, UserID: 9999, Role: "user", Content: "hello"},
+		{SessionID: sess.ID, UserID: 9999, Role: "assistant", Content: "hi"},
+	}
+	if err := repo.CreateMessages(msgs); err != nil {
+		t.Fatalf("CreateMessages should accept empty ToolCalls by defaulting it to []: %v", err)
+	}
+
+	var visibleMsgs []model.ChatMessage
+	if err := db.Where("session_id = ?", sess.ID).Order("id ASC").Find(&visibleMsgs).Error; err != nil {
+		t.Fatalf("failed to read saved messages: %v", err)
+	}
+	if len(visibleMsgs) != 2 {
+		t.Fatalf("expected 2 saved messages, got %d", len(visibleMsgs))
+	}
+	for _, msg := range visibleMsgs {
+		if msg.ToolCalls != "[]" {
+			t.Fatalf("expected saved ToolCalls to be [], got %q", msg.ToolCalls)
+		}
+	}
+}

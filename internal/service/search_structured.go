@@ -70,7 +70,7 @@ func (s *StructuredSearch) analyzeQuery(ctx context.Context, query string, profi
 		"如果未提及某个字段，用空值表示（字符串用空字符串，数组用空数组）。",
 		profileStr, query,
 	)
-	return chatAndParse[SearchCriteria](s.aiSvc, ctx, "search", s.aiSvc.prompts.search, userMsg, "AI搜索分析失败")
+	return ChatAndParse[SearchCriteria](s.aiSvc, ctx, "search", s.aiSvc.prompts.search, userMsg, "AI搜索分析失败")
 }
 
 func (s *StructuredSearch) searchPolicies(ctx context.Context, criteria *SearchCriteria) ([]model.Policy, error) {

@@ -59,12 +59,11 @@ func TestPlanExecute_RealAI(t *testing.T) {
 	})
 
 	eng := NewEngine(client, reg, agentmemory.NewMemoryManager(nil, nil, nil, nil, config.AgentConfig{PublicSSETypes: sseAll}),
-		NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3}),
+		NewReflectChecker(reg),
 		config.AgentConfig{
 			PublicSSETypes:  sseAll,
 			PlanningEnabled: true,
 			MaxSteps:        8,
-			ToolTimeoutSec:  30,
 		})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
@@ -162,12 +161,11 @@ func TestPlanExecute_Replan_RealAI(t *testing.T) {
 	})
 
 	eng := NewEngine(client, reg, agentmemory.NewMemoryManager(nil, nil, nil, nil, config.AgentConfig{PublicSSETypes: sseAll}),
-		NewReflectChecker(nil, reg, config.ReflectConfig{SimilarityThreshold: 0.3}),
+		NewReflectChecker(reg),
 		config.AgentConfig{
 			PublicSSETypes:  sseAll,
 			PlanningEnabled: true,
 			MaxSteps:        10,
-			ToolTimeoutSec:  30,
 		})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)

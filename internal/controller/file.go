@@ -8,6 +8,7 @@ import (
 
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/middleware"
+	"innovation-incubation-platform-backend/internal/model"
 	"innovation-incubation-platform-backend/internal/service"
 	"innovation-incubation-platform-backend/pkg/errcode"
 	"innovation-incubation-platform-backend/pkg/response"
@@ -62,7 +63,7 @@ func (ctl *FileController) ListFiles(c *gin.Context) {
 		pageSize = 20
 	}
 
-	if role == "government" {
+	if role == string(model.UserRoleGovernment) {
 		if userIDStr := c.Query("user_id"); userIDStr != "" {
 			id, err := strconv.ParseUint(userIDStr, 10, 64)
 			if err != nil {
@@ -95,7 +96,7 @@ func (ctl *FileController) ListFiles(c *gin.Context) {
 }
 
 func (ctl *FileController) DeleteFile(c *gin.Context) {
-	if middleware.GetRole(c) != "government" {
+	if middleware.GetRole(c) != string(model.UserRoleGovernment) {
 		response.Error(c, errcode.ErrForbidden)
 		return
 	}
@@ -147,7 +148,7 @@ func (ctl *FileController) Download(c *gin.Context) {
 		return
 	}
 
-	if f.UploadedBy != userID && role != "government" {
+	if f.UploadedBy != userID && role != string(model.UserRoleGovernment) {
 		hasAccess, err := ctl.svc.HasFileAccess(f.ID, userID)
 		if err != nil {
 			response.Error(c, errcode.ErrInternal)

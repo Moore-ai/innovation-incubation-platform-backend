@@ -23,8 +23,15 @@ type Config struct {
 	Notification NotificationConfig `mapstructure:"notification"`
 	FileMatch    FileMatchConfig    `mapstructure:"filematch"`
 	Search       SearchConfig       `mapstructure:"search"`
-	FileParser   FileParserConfig   `mapstructure:"file_parser"`
-	Agent        AgentConfig        `mapstructure:"agent"`
+	FileParser       FileParserConfig       `mapstructure:"file_parser"`
+	ReportConverter ReportConverterConfig `mapstructure:"report_converter"`
+	Agent            AgentConfig            `mapstructure:"agent"`
+}
+
+type ReportConverterConfig struct {
+	VenvPath   string `mapstructure:"venv_path"`
+	Port       int    `mapstructure:"port"`
+	TimeoutSec int    `mapstructure:"timeout_sec"`
 }
 
 type FileParserConfig struct {
@@ -139,7 +146,7 @@ type RedisConfig struct {
 
 type UploadConfig struct {
 	MaxSizeMB         int64    `mapstructure:"max_size_mb"`
-	Dir               string   `mapstructure:"dir"`
+	FileDir           string   `mapstructure:"file_dir"`
 	AllowedExtensions []string `mapstructure:"allowed_extensions"`
 }
 
@@ -155,7 +162,6 @@ type AgentConfig struct {
 	MaxSteps           int                 `mapstructure:"max_steps"`
 	MessageMaxChars    int                 `mapstructure:"message_max_chars"`
 	RequestTimeoutSec  int                 `mapstructure:"request_timeout_sec"`
-	ToolTimeoutSec     int                 `mapstructure:"tool_timeout_sec"`
 	ContextWindow      int                 `mapstructure:"context_window"`
 	HistoryBudgetRatio float64             `mapstructure:"history_budget_ratio"`
 	PlanningEnabled    bool                `mapstructure:"planning_enabled"`
@@ -164,7 +170,7 @@ type AgentConfig struct {
 	TokenEstimation    string              `mapstructure:"token_estimation"`
 	WorkingMemory      WorkingMemoryConfig `mapstructure:"working_memory"`
 	Memory             AgentMemoryConfig   `mapstructure:"memory"`
-	Reflect            ReflectConfig       `mapstructure:"reflect"`
+
 }
 
 type WorkingMemoryConfig struct {
@@ -175,10 +181,6 @@ type AgentMemoryConfig struct {
 	SemanticLimit       int     `mapstructure:"semantic_limit"`
 	EpisodicLimit       int     `mapstructure:"episodic_limit"`        // 情景记忆检索条数
 	EpisodicDecayFactor float64 `mapstructure:"episodic_decay_factor"` // 时间衰减因子，0 表示不衰减（默认 0）
-}
-
-type ReflectConfig struct {
-	SimilarityThreshold float64 `mapstructure:"similarity_threshold"`
 }
 
 func (c *RateLimitConfig) IsWhitelisted(userID uint) bool {
@@ -263,6 +265,9 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("file_parser.venv_path", "sidecar/file-parser/venv")
 	v.SetDefault("file_parser.script_path", "sidecar/file-parser/server.py")
 	v.SetDefault("file_parser.timeout_sec", 30)
+	v.SetDefault("report_converter.venv_path", "sidecar/report-converter/venv")
+	v.SetDefault("report_converter.port", 9800)
+	v.SetDefault("report_converter.timeout_sec", 60)
 
 	v.SetDefault("ai.use_legal_raw_for_summary", true)
 	v.SetDefault("ai.use_legal_raw_for_embedding", false)
@@ -274,19 +279,16 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("agent.max_steps", 10)
 	v.SetDefault("agent.message_max_chars", 2000)
 	v.SetDefault("agent.request_timeout_sec", 120)
-	v.SetDefault("agent.tool_timeout_sec", 10)
 	v.SetDefault("agent.context_window", 512000)
 	v.SetDefault("agent.history_budget_ratio", 0.7)
 	v.SetDefault("agent.planning_enabled", false)
 	v.SetDefault("agent.planning_model", "")
-	v.SetDefault("agent.public_sse_types", []string{"reply", "done", "thinking", "error"})
+	v.SetDefault("agent.public_sse_types", []string{"reply", "done", "thinking", "error", "report_start", "report_progress", "report_done"})
 	v.SetDefault("agent.token_estimation", "better")
 	v.SetDefault("agent.working_memory.page_size", 10)
 	v.SetDefault("agent.memory.semantic_limit", 3)
 	v.SetDefault("agent.memory.episodic_limit", 3)
 	v.SetDefault("agent.memory.episodic_decay_factor", 0.0)
-	v.SetDefault("agent.reflect.similarity_threshold", 0.3)
-
 	if err := v.ReadConfig(bytes.NewReader([]byte(expanded))); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}

@@ -23,7 +23,7 @@ type PromptSet struct {
 	searchAnalysis string
 }
 
-func chatAndParse[T any](s *AIService, ctx context.Context, opName, systemPrompt, userMsg, parseErrMsg string) (*T, error) {
+func ChatAndParse[T any](s *AIService, ctx context.Context, opName, systemPrompt, userMsg, parseErrMsg string) (*T, error) {
 	text, err := s.client.Chat(ctx, systemPrompt, userMsg)
 	if err != nil {
 		slog.Warn("AI chat failed", "op", opName, "error", err)
@@ -95,7 +95,7 @@ func (s *AIService) SummarizeFile(ctx context.Context, file *model.File) error {
 	if s.maxFileChars > 0 && len(text) > s.maxFileChars {
 		text = text[:s.maxFileChars]
 	}
-	result, err := chatAndParse[summaryResult](s, ctx, "summarize", s.prompts.summarize,
+	result, err := ChatAndParse[summaryResult](s, ctx, "summarize", s.prompts.summarize,
 		fmt.Sprintf("请概括以下政策文件的核心内容：\n\n%s", text),
 		"AI摘要生成失败")
 	if err != nil {
@@ -154,7 +154,7 @@ func (s *AIService) AnalyzeAndRankResults(ctx context.Context, query string, pro
 			"严格按照以下 JSON 格式返回，不要附带其他内容：(注意，ranked_ids必须是一个空数组，即[])\n"+
 			`{"text":"你的分析内容，200字以内","ranked_ids":[],"found":false,"effect":"low"}`,
 			profile, query)
-		r, err := chatAndParse[analysisResult](s, ctx, "search_analysis", s.prompts.searchAnalysis, userMsg, "AI分析失败")
+		r, err := ChatAndParse[analysisResult](s, ctx, "search_analysis", s.prompts.searchAnalysis, userMsg, "AI分析失败")
 		if err != nil {
 			return nil, nil, err
 		}
@@ -170,7 +170,7 @@ func (s *AIService) AnalyzeAndRankResults(ctx context.Context, query string, pro
 		"严格按照以下 JSON 格式返回，不要附带其他内容：\n"+
 		`{"text":"你的分析内容，200字以内","ranked_ids":[最匹配的ID,按推荐度降序],"found":true,"effect":"high、partial或者low，分别代表高、一般、低，用于评估本次检索的效果"}`,
 		profile, query, strings.Join(briefs, "\n"))
-	r, err := chatAndParse[analysisResult](s, ctx, "search_analysis", s.prompts.searchAnalysis, userMsg, "AI分析失败")
+	r, err := ChatAndParse[analysisResult](s, ctx, "search_analysis", s.prompts.searchAnalysis, userMsg, "AI分析失败")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -205,7 +205,7 @@ func (s *AIService) AnalyzeResults(ctx context.Context, query string, profile st
 			"严格按照以下 JSON 格式返回，不要附带其他内容：\n"+
 			`{"text":"你的分析内容，200字以内","found":false,"effect":"low"}`,
 			profile, query)
-		r, err := chatAndParse[analyzeText](s, ctx, "search_analysis", s.prompts.searchAnalysis, userMsg, "AI分析失败")
+		r, err := ChatAndParse[analyzeText](s, ctx, "search_analysis", s.prompts.searchAnalysis, userMsg, "AI分析失败")
 		if err != nil {
 			return nil, err
 		}
@@ -221,7 +221,7 @@ func (s *AIService) AnalyzeResults(ctx context.Context, query string, profile st
 		"严格按照以下 JSON 格式返回，不要附带其他内容：\n"+
 		`{"text":"你的分析内容，200字以内","found":true,"effect":"high、partial或者low，分别代表高、一般、低，用于评估本次检索的效果"}`,
 		profile, query, strings.Join(briefs, "\n"))
-	r, err := chatAndParse[analyzeText](s, ctx, "search_analysis", s.prompts.searchAnalysis, userMsg, "AI分析失败")
+	r, err := ChatAndParse[analyzeText](s, ctx, "search_analysis", s.prompts.searchAnalysis, userMsg, "AI分析失败")
 	if err != nil {
 		return nil, err
 	}

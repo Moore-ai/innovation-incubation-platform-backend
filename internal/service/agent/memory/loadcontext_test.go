@@ -60,6 +60,13 @@ func newTestCfg() config.AgentConfig {
 	}
 }
 
+func TestNewMemoryManager_NilEmbeddingClientStaysNil(t *testing.T) {
+	mgr := NewMemoryManager(nil, nil, nil, nil, newTestCfg())
+	if mgr.embedClient != nil {
+		t.Fatal("nil embedding client should not be stored as a non-nil interface")
+	}
+}
+
 func TestLoadContext_SemanticOnly(t *testing.T) {
 	mgr := &MemoryManager{
 		working: &mockWorkingProvider{ctx: ""},

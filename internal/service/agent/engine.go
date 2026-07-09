@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	openai "github.com/sashabaranov/go-openai"
 	"golang.org/x/sync/errgroup"
@@ -106,14 +105,14 @@ func (e *Engine) executeToolCalls(ctx context.Context, calls []openai.ToolCall) 
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			tctx, cancel := context.WithTimeout(gctx, time.Duration(e.cfg.ToolTimeoutSec)*time.Second)
-			defer cancel()
-
 			tool, ok := e.tools.Get(tc.Function.Name)
 			if !ok {
 				results <- toolResult{callID: tc.ID, name: tc.Function.Name, err: fmt.Errorf("tool %s not found", tc.Function.Name)}
 				return nil
 			}
+
+			tctx, cancel := context.WithTimeout(gctx, tool.Timeout())
+			defer cancel()
 			raw, execErr := tool.Execute(tctx, json.RawMessage(tc.Function.Arguments))
 			results <- toolResult{callID: tc.ID, name: tc.Function.Name, content: raw, err: execErr}
 			return nil
