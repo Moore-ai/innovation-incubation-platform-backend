@@ -202,7 +202,7 @@ func (e *Engine) RunWithPlan(ctx context.Context, sessionID uint, userMessage st
 		messages, records, hit, allSilent = e.observeToolResults(ctx, results, messages, records, onEvent)
 		completedSteps++
 		if allSilent {
-			break
+			return e.finishReply(thinkContent, records, completedSteps, reflectTrigger, onEvent)
 		}
 		if !hit {
 			continue

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strings"
 	"time"
 
 	"innovation-incubation-platform-backend/internal/model"
@@ -65,7 +66,7 @@ func (t *RecordSemanticMemory) Execute(ctx context.Context, args json.RawMessage
 	saved := 0
 
 	for _, lesson := range input.Lessons {
-		if lesson = trimStr(lesson); lesson == "" {
+		if lesson = strings.TrimSpace(lesson); lesson == "" {
 			continue
 		}
 		if err := t.save(ctx, userID, lesson, string(agentmemory.CategoryLesson)); err == nil {
@@ -73,7 +74,7 @@ func (t *RecordSemanticMemory) Execute(ctx context.Context, args json.RawMessage
 		}
 	}
 	for _, pref := range input.Preferences {
-		if pref = trimStr(pref); pref == "" {
+		if pref = strings.TrimSpace(pref); pref == "" {
 			continue
 		}
 		if err := t.save(ctx, userID, pref, string(agentmemory.CategoryPreference)); err == nil {
@@ -101,14 +102,4 @@ func (t *RecordSemanticMemory) save(ctx context.Context, userID uint, content, c
 		}
 	}
 	return t.chatRepo.CreateSemanticMemory(mem)
-}
-
-func trimStr(s string) string {
-	for len(s) > 0 && (s[0] == ' ' || s[0] == '\t' || s[0] == '\n' || s[0] == '\r') {
-		s = s[1:]
-	}
-	for len(s) > 0 && (s[len(s)-1] == ' ' || s[len(s)-1] == '\t' || s[len(s)-1] == '\n' || s[len(s)-1] == '\r') {
-		s = s[:len(s)-1]
-	}
-	return s
 }

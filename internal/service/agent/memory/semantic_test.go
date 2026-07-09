@@ -10,9 +10,8 @@ import (
 // --- mocks ---
 
 type mockSemanticRepo struct {
-	createFn   func(m *model.SemanticMemory) error
-	categoryFn func(userID uint, categories []string, keyword string, limit int) ([]model.SemanticMemory, error)
-	vectorFn   func(userID uint, embedding []float32, limit int) ([]model.SemanticMemory, error)
+	createFn func(m *model.SemanticMemory) error
+	vectorFn func(userID uint, embedding []float32, limit int) ([]model.SemanticMemory, error)
 }
 
 func (m *mockSemanticRepo) CreateSemanticMemory(mem *model.SemanticMemory) error {
@@ -20,13 +19,6 @@ func (m *mockSemanticRepo) CreateSemanticMemory(mem *model.SemanticMemory) error
 		return m.createFn(mem)
 	}
 	return nil
-}
-
-func (m *mockSemanticRepo) RetrieveSemanticByCategory(userID uint, categories []string, keyword string, limit int) ([]model.SemanticMemory, error) {
-	if m.categoryFn != nil {
-		return m.categoryFn(userID, categories, keyword, limit)
-	}
-	return nil, nil
 }
 
 func (m *mockSemanticRepo) RetrieveSemanticByVector(userID uint, embedding []float32, limit int) ([]model.SemanticMemory, error) {

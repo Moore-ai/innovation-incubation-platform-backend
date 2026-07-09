@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"innovation-incubation-platform-backend/internal/model"
@@ -68,8 +69,12 @@ func (m *SemanticMemory) Add(ctx context.Context, item *MemoryItem) error {
 		UserID:     uid,
 	}
 	if m.embedClient != nil {
-		vec, _ := m.embedClient.Embed(ctx, item.Content)
-		mem.Embedding = vec
+		vec, err := m.embedClient.Embed(ctx, item.Content)
+		if err != nil {
+			slog.Warn("semantic memory embedding failed", "error", err)
+		} else {
+			mem.Embedding = vec
+		}
 	}
 	return m.repo.CreateSemanticMemory(mem)
 }

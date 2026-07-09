@@ -17,12 +17,11 @@ type ChatService struct {
 	engine *agent.Engine
 	repo   *repository.ChatRepo
 	ai     *aiclient.Client
-	aiSvc  *AIService
 	cfg    config.AgentConfig
 }
 
-func NewChatService(engine *agent.Engine, repo *repository.ChatRepo, ai *aiclient.Client, aiSvc *AIService, cfg config.AgentConfig) *ChatService {
-	return &ChatService{engine: engine, repo: repo, ai: ai, aiSvc: aiSvc, cfg: cfg}
+func NewChatService(engine *agent.Engine, repo *repository.ChatRepo, ai *aiclient.Client, cfg config.AgentConfig) *ChatService {
+	return &ChatService{engine: engine, repo: repo, ai: ai, cfg: cfg}
 }
 
 // CreateSession 创建新会话
