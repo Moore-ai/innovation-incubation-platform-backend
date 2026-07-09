@@ -6,6 +6,7 @@ type Enterprise struct {
 	Name                 string  `gorm:"size:255;not null;uniqueIndex" json:"name"`
 	CreditCode           string  `gorm:"size:64;uniqueIndex" json:"credit_code"`
 	Industry             string  `gorm:"size:64" json:"industry"`
+	Description          string  `gorm:"type:text" json:"description"`
 	Scale                string  `gorm:"size:32" json:"scale"`
 	Address              string  `gorm:"size:255" json:"address"`
 	LegalPerson          string  `gorm:"size:64" json:"legal_person"`
@@ -34,7 +35,7 @@ type Enterprise struct {
 	BachelorAboveCount   int     `json:"bachelor_above_count"`
 	TrainedStaffCount    int     `json:"trained_staff_count"`
 	SeedFundAmount       float64 `json:"seed_fund_amount"`
-	SiteProofMaterial     string  `gorm:"size:255" json:"site_proof_material"`
+	SiteProofMaterial    string  `gorm:"size:255" json:"site_proof_material"`
 	SeedFundMaterial     string  `gorm:"size:255" json:"seed_fund_material"`
 }
 

@@ -1,10 +1,12 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"regexp"
 	"strings"
+	"time"
 
 	"innovation-incubation-platform-backend/internal/dto"
 	"innovation-incubation-platform-backend/internal/model"
@@ -24,10 +26,11 @@ type EnterpriseService struct {
 	notifSvc    *NotificationService
 	assigner    *Assigner
 	followRepo  *repository.PolicyFollowRepo
+	aiSvc       *AIService
 }
 
-func NewEnterpriseService(repo *repository.EnterpriseRepo, carrierRepo *repository.CarrierRepo, commonRepo *repository.CommonRepo, db *gorm.DB, notifSvc *NotificationService, assigner *Assigner, followRepo *repository.PolicyFollowRepo) *EnterpriseService {
-	return &EnterpriseService{repo: repo, carrierRepo: carrierRepo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM(), notifSvc: notifSvc, assigner: assigner, followRepo: followRepo}
+func NewEnterpriseService(repo *repository.EnterpriseRepo, carrierRepo *repository.CarrierRepo, commonRepo *repository.CommonRepo, db *gorm.DB, notifSvc *NotificationService, assigner *Assigner, followRepo *repository.PolicyFollowRepo, aiSvc *AIService) *EnterpriseService {
+	return &EnterpriseService{repo: repo, carrierRepo: carrierRepo, commonRepo: commonRepo, db: db, sm: statemachine.DefaultApprovalSM(), notifSvc: notifSvc, assigner: assigner, followRepo: followRepo, aiSvc: aiSvc}
 }
 
 func (s *EnterpriseService) GetMyEnterpriseInfo(userID uint) (*model.Enterprise, error) {
@@ -62,6 +65,7 @@ func (s *EnterpriseService) UpdateMyEnterpriseInfo(userID uint, req *dto.Enterpr
 		"name":                   req.Name,
 		"credit_code":            req.CreditCode,
 		"industry":               strings.TrimSpace(req.Industry),
+		"description":            strings.TrimSpace(req.Description),
 		"scale":                  strings.TrimSpace(req.Scale),
 		"address":                strings.TrimSpace(req.Address),
 		"legal_person":           strings.TrimSpace(req.LegalPerson),
@@ -487,11 +491,40 @@ func (s *EnterpriseService) ListAvailablePolicies(userID uint, role string, page
 	if err != nil {
 		return nil, 0, err
 	}
+	ent, err := s.repo.FindEnterpriseByUserID(userID)
+	if err != nil {
+		return nil, 0, errcode.ErrNotFound.WithMsg("企业信息未找到")
+	}
+	followedIDs, err := s.followRepo.FindPolicyIDsByEnterprise(ent.ID)
+	if err != nil {
+		return nil, 0, errcode.ErrInternal
+	}
+	followed := make(map[uint]bool, len(followedIDs))
+	for _, id := range followedIDs {
+		followed[id] = true
+	}
+	for i := range policies {
+		policies[i].Followed = followed[policies[i].ID]
+	}
+	if s.aiSvc != nil && role == string(model.UserRoleEnterprise) {
+		matchCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		defer cancel()
+		matches := s.aiSvc.MatchPolicyListForEnterprise(matchCtx, ent, policies)
+		for i := range policies {
+			if match, ok := matches[policies[i].ID]; ok {
+				policies[i].MatchLevel = match.Level
+				policies[i].MatchReason = match.Reason
+			}
+		}
+	}
 	return policies, total, nil
 }
 
 func (s *EnterpriseService) ApplyPolicy(userID uint, policyID uint, req *dto.PolicyApplyReq) (*model.PolicyApplication, error) {
-	ent, _ := s.repo.FindEnterpriseByUserID(userID)
+	ent, err := s.repo.FindEnterpriseByUserID(userID)
+	if err != nil {
+		return nil, errcode.ErrNotFound.WithMsg("企业信息未找到")
+	}
 	policy, err := s.commonRepo.FindPolicyByID(policyID)
 	if err != nil {
 		return nil, errcode.ErrNotFound.WithMsg("政策不存在")
@@ -506,8 +539,12 @@ func (s *EnterpriseService) ApplyPolicy(userID uint, policyID uint, req *dto.Pol
 		Materials:     model.MaterialFileItems(req.Materials),
 		Status:        model.ApprovalPending,
 	}
-	if err := s.commonRepo.CreatePolicyApplication(app); err != nil {
+	created, err := s.commonRepo.CreatePolicyApplicationIfNotBlocked(app)
+	if err != nil {
 		return nil, errcode.ErrInternal
+	}
+	if !created {
+		return nil, errcode.ErrDuplicate.WithMsg("该政策已提交或已通过申报，不能重复申报")
 	}
 	s.db.Create(&model.Approval{
 		TargetType: model.TargetPolicy,
@@ -568,12 +605,12 @@ func (s *EnterpriseService) UnfollowPolicy(userID, policyID uint) error {
 	return nil
 }
 
-func (s *EnterpriseService) ListFollowedPolicies(userID uint, page, pageSize int) ([]model.PolicyFollow, int64, error) {
+func (s *EnterpriseService) ListFollowedPolicies(userID uint, page, pageSize int) ([]model.Policy, int64, error) {
 	ent, err := s.repo.FindEnterpriseByUserID(userID)
 	if err != nil {
 		return nil, 0, errcode.ErrNotFound.WithMsg("企业信息未找到")
 	}
-	return s.followRepo.ListByEnterprise(ent.ID, page, pageSize)
+	return s.followRepo.ListPoliciesByEnterprise(ent.ID, page, pageSize)
 }
 
 func (s *EnterpriseService) ListCarriers(page, pageSize int) ([]model.Carrier, int64, error) {

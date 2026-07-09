@@ -94,6 +94,9 @@ type Policy struct {
 	Embedding       PGVector           `gorm:"type:vector(1024)" json:"-"`
 	ExtractedFields *ExtractedPolicy   `gorm:"type:jsonb" json:"extracted_fields"`
 	ChangeLog       []string           `gorm:"type:jsonb;default:'[]';serializer:json" json:"change_log"`
+	Followed        bool               `gorm:"-" json:"followed"`
+	MatchLevel      string             `gorm:"-" json:"match_level,omitempty"`
+	MatchReason     string             `gorm:"-" json:"match_reason,omitempty"`
 }
 
 type SubsidyDetail struct {
@@ -189,12 +192,12 @@ type MaterialFileItem struct {
 
 type PolicyApplication struct {
 	BaseModel
-	PolicyID      uint               `gorm:"index;not null" json:"policy_id"`
-	ApplicantID   uint               `gorm:"index;not null" json:"applicant_id"`
-	ApplicantType ApplicantType      `gorm:"size:16;not null" json:"applicant_type"` // enterprise, carrier
-	Materials     MaterialFileItems  `gorm:"type:jsonb;column:form_data" json:"materials"`
-	Status        ApprovalStatus     `gorm:"size:32;default:draft" json:"status"` // draft, pending, carrier_review, gov_review, approved, rejected, returned
-	Policy        Policy             `gorm:"foreignKey:PolicyID" json:"policy,omitempty"`
+	PolicyID      uint              `gorm:"index;not null" json:"policy_id"`
+	ApplicantID   uint              `gorm:"index;not null" json:"applicant_id"`
+	ApplicantType ApplicantType     `gorm:"size:16;not null" json:"applicant_type"` // enterprise, carrier
+	Materials     MaterialFileItems `gorm:"type:jsonb;column:form_data" json:"materials"`
+	Status        ApprovalStatus    `gorm:"size:32;default:draft" json:"status"` // draft, pending, carrier_review, gov_review, approved, rejected, returned
+	Policy        Policy            `gorm:"foreignKey:PolicyID" json:"policy,omitempty"`
 }
 
 func (PolicyApplication) TableName() string { return "policy_applications" }

@@ -12,20 +12,20 @@ import (
 )
 
 type Config struct {
-	Server       ServerConfig       `mapstructure:"server"`
-	DB           DBConfig           `mapstructure:"db"`
-	JWT          JWTConfig          `mapstructure:"jwt"`
-	AI           AIConfig           `mapstructure:"ai"`
-	Redis        RedisConfig        `mapstructure:"redis"`
-	RateLimit    RateLimitConfig    `mapstructure:"rate_limit"`
-	Upload       UploadConfig       `mapstructure:"upload"`
-	Log          LogConfig          `mapstructure:"log"`
-	Notification NotificationConfig `mapstructure:"notification"`
-	FileMatch    FileMatchConfig    `mapstructure:"filematch"`
-	Search       SearchConfig       `mapstructure:"search"`
-	FileParser       FileParserConfig       `mapstructure:"file_parser"`
+	Server          ServerConfig          `mapstructure:"server"`
+	DB              DBConfig              `mapstructure:"db"`
+	JWT             JWTConfig             `mapstructure:"jwt"`
+	AI              AIConfig              `mapstructure:"ai"`
+	Redis           RedisConfig           `mapstructure:"redis"`
+	RateLimit       RateLimitConfig       `mapstructure:"rate_limit"`
+	Upload          UploadConfig          `mapstructure:"upload"`
+	Log             LogConfig             `mapstructure:"log"`
+	Notification    NotificationConfig    `mapstructure:"notification"`
+	FileMatch       FileMatchConfig       `mapstructure:"filematch"`
+	Search          SearchConfig          `mapstructure:"search"`
+	FileParser      FileParserConfig      `mapstructure:"file_parser"`
 	ReportConverter ReportConverterConfig `mapstructure:"report_converter"`
-	Agent            AgentConfig            `mapstructure:"agent"`
+	Agent           AgentConfig           `mapstructure:"agent"`
 }
 
 type ReportConverterConfig struct {
@@ -170,7 +170,6 @@ type AgentConfig struct {
 	TokenEstimation    string              `mapstructure:"token_estimation"`
 	WorkingMemory      WorkingMemoryConfig `mapstructure:"working_memory"`
 	Memory             AgentMemoryConfig   `mapstructure:"memory"`
-
 }
 
 type WorkingMemoryConfig struct {
@@ -272,7 +271,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("ai.use_legal_raw_for_summary", true)
 	v.SetDefault("ai.use_legal_raw_for_embedding", false)
 	v.SetDefault("upload.max_size_mb", 20)
-	v.SetDefault("upload.dir", "./uploads")
+	v.SetDefault("upload.file_dir", "./uploads")
 	v.SetDefault("upload.allowed_extensions", []string{".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".jpg", ".jpeg", ".png", ".zip", ".rar"})
 	v.SetDefault("server.rbac_enabled", true)
 	v.SetDefault("agent.model", "")

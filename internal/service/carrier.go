@@ -405,13 +405,6 @@ func (s *CarrierService) ApplyCarrierPolicy(userID uint, policyID uint, req *dto
 	if err != nil {
 		return nil, errcode.ErrNotFound.WithMsg("政策不存在")
 	}
-	exists, err := s.commonRepo.HasUnapprovedPolicyApplication(string(model.ApplicantCarrier), carrier.ID, policyID)
-	if err != nil {
-		return nil, errcode.ErrInternal
-	}
-	if exists {
-		return nil, errcode.ErrDuplicate.WithMsg("该政策已提交申报，审核通过前不可重复申报")
-	}
 	app := &model.PolicyApplication{
 		PolicyID:      policyID,
 		ApplicantID:   carrier.ID,
@@ -419,8 +412,12 @@ func (s *CarrierService) ApplyCarrierPolicy(userID uint, policyID uint, req *dto
 		Materials:     model.MaterialFileItems(req.Materials),
 		Status:        model.ApprovalPending,
 	}
-	if err := s.commonRepo.CreatePolicyApplication(app); err != nil {
+	created, err := s.commonRepo.CreatePolicyApplicationIfNotBlocked(app)
+	if err != nil {
 		return nil, errcode.ErrInternal
+	}
+	if !created {
+		return nil, errcode.ErrDuplicate.WithMsg("该政策已提交或已通过申报，不能重复申报")
 	}
 	if err := s.db.Create(&model.Approval{
 		TargetType: model.TargetPolicy,

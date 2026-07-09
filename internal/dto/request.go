@@ -81,6 +81,7 @@ type EnterpriseEditReq struct {
 	Name                 string  `json:"name"`
 	CreditCode           string  `json:"credit_code"`
 	Industry             string  `json:"industry"`
+	Description          string  `json:"description"`
 	Scale                string  `json:"scale"`
 	Address              string  `json:"address"`
 	LegalPerson          string  `json:"legal_person"`
@@ -109,7 +110,7 @@ type EnterpriseEditReq struct {
 	BachelorAboveCount   int     `json:"bachelor_above_count"`
 	TrainedStaffCount    int     `json:"trained_staff_count"`
 	SeedFundAmount       float64 `json:"seed_fund_amount"`
-	SiteProofMaterial     string  `json:"site_proof_material"`
+	SiteProofMaterial    string  `json:"site_proof_material"`
 	SeedFundMaterial     string  `json:"seed_fund_material"`
 }
 
