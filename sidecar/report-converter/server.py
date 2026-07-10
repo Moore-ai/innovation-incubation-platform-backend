@@ -10,6 +10,7 @@ app = FastAPI()
 class ConvertRequest(BaseModel):
     markdown: str
     title: str = ""
+    font_path: str = ""
 
 def _render_mermaid(md: str, out_dir: str) -> str:
     """用 md2pdf 的渲染器将 Mermaid 块转为 PNG，替换为 ![]() 引用。"""
@@ -37,8 +38,9 @@ def convert_pdf(req: ConvertRequest):
         with open(md_path, "w", encoding="utf-8") as f:
             f.write(req.markdown)
         output = os.path.join(workdir, f"report_{uuid.uuid4().hex}.pdf")
+        font = req.font_path or r"C:\Windows\Fonts\simhei.ttf"
         subprocess.run([_MD2PDF, md_path, "-o", output,
-                        "--font", r"C:\Windows\Fonts\simhei.ttf",
+                        "--font", font,
                         "--mermaid-scale", "2"],
                       capture_output=True, timeout=120, check=True)
         return {"file_path": output}
@@ -120,4 +122,7 @@ def convert_docx(req: ConvertRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=9800)
+    try: 
+        uvicorn.run(app, host="127.0.0.1", port=9800)
+    except KeyboardInterrupt:
+        pass

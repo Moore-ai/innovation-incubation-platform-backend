@@ -32,6 +32,7 @@ type ReportConverterConfig struct {
 	VenvPath   string `mapstructure:"venv_path"`
 	Port       int    `mapstructure:"port"`
 	TimeoutSec int    `mapstructure:"timeout_sec"`
+	FontPath   string `mapstructure:"font_path"`
 }
 
 type FileParserConfig struct {

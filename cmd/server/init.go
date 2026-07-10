@@ -113,7 +113,7 @@ func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, e
 		registry.Register(agentbuiltin.NewGenericQueryTool(tcfg, db))
 	}
 	converterAddr := fmt.Sprintf("127.0.0.1:%d", cfg.ReportConverter.Port)
-	converter := agentbuiltin.NewReportConverter(converterAddr, cfg.ReportConverter.TimeoutSec)
+	converter := agentbuiltin.NewReportConverter(converterAddr, cfg.ReportConverter.FontPath, cfg.ReportConverter.TimeoutSec)
 	registry.Register(agentbuiltin.NewGenerateReport(aiClient, db, converter, r.file, fileStorage, notifSvc))
 	registry.Register(agentbuiltin.NewRecordSemanticMemory(r.chat, embedClient))
 

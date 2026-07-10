@@ -12,12 +12,14 @@ import (
 
 type ReportConverter struct {
 	baseURL    string
+	fontPath   string
 	httpClient *http.Client
 }
 
-func NewReportConverter(addr string, timeoutSec int) *ReportConverter {
+func NewReportConverter(addr string, fontPath string, timeoutSec int) *ReportConverter {
 	return &ReportConverter{
-		baseURL: fmt.Sprintf("http://%s", addr),
+		baseURL:  fmt.Sprintf("http://%s", addr),
+		fontPath: fontPath,
 		httpClient: &http.Client{Timeout: time.Duration(timeoutSec) * time.Second},
 	}
 }
@@ -25,6 +27,7 @@ func NewReportConverter(addr string, timeoutSec int) *ReportConverter {
 type convertRequest struct {
 	Markdown string `json:"markdown"`
 	Title    string `json:"title"`
+	FontPath string `json:"font_path"`
 }
 
 type convertResponse struct {
@@ -40,7 +43,7 @@ func (c *ReportConverter) ConvertDOCX(markdown, title string) (string, error) {
 }
 
 func (c *ReportConverter) convert(endpoint, markdown, title string) (string, error) {
-	body, _ := json.Marshal(convertRequest{Markdown: markdown, Title: title})
+	body, _ := json.Marshal(convertRequest{Markdown: markdown, Title: title, FontPath: c.fontPath})
 	resp, err := c.httpClient.Post(c.baseURL+endpoint, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return "", fmt.Errorf("converter request failed: %w", err)
