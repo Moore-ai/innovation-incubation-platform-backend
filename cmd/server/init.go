@@ -165,7 +165,10 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 		ent:     service.NewEnterpriseService(r.ent, r.carrier, r.common, db, notifSvc, assigner, r.policyFollow),
 		ai:      aiSvc,
 		carrier: service.NewCarrierService(r.carrier, r.common, db, notifSvc, assigner),
-		gov:     service.NewGovernmentService(r.gov, r.deletion, r.policyFollow, db, aiSvc, notifSvc, r.file, embedClient),
+		gov:     service.NewGovernmentService(service.GovServiceDeps{
+				Repo: r.gov, DeletionRepo: r.deletion, FollowRepo: r.policyFollow,
+				FileRepo: r.file, DB: db, AISvc: aiSvc, NotifSvc: notifSvc, EmbedClient: embedClient,
+			}),
 		notif:   notifSvc,
 		file:    fileSvc,
 		search:  searchSvc,

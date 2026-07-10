@@ -29,8 +29,19 @@ type GovernmentService struct {
 	embedClient  *aiclient.EmbeddingClient
 }
 
-func NewGovernmentService(repo *repository.GovernmentRepo, deletionRepo *repository.DeletionRepo, followRepo *repository.PolicyFollowRepo, db *gorm.DB, aiSvc *AIService, notifSvc *NotificationService, fileRepo *repository.FileRepo, embedClient *aiclient.EmbeddingClient) *GovernmentService {
-	return &GovernmentService{repo: repo, deletionRepo: deletionRepo, followRepo: followRepo, fileRepo: fileRepo, db: db, sm: statemachine.DefaultApprovalSM(), policySM: statemachine.PolicyApprovalSM(), aiSvc: aiSvc, notifSvc: notifSvc, embedClient: embedClient}
+type GovServiceDeps struct {
+	Repo         *repository.GovernmentRepo
+	DeletionRepo *repository.DeletionRepo
+	FollowRepo   *repository.PolicyFollowRepo
+	FileRepo     *repository.FileRepo
+	DB           *gorm.DB
+	AISvc        *AIService
+	NotifSvc     *NotificationService
+	EmbedClient  *aiclient.EmbeddingClient
+}
+
+func NewGovernmentService(deps GovServiceDeps) *GovernmentService {
+	return &GovernmentService{repo: deps.Repo, deletionRepo: deps.DeletionRepo, followRepo: deps.FollowRepo, fileRepo: deps.FileRepo, db: deps.DB, sm: statemachine.DefaultApprovalSM(), policySM: statemachine.PolicyApprovalSM(), aiSvc: deps.AISvc, notifSvc: deps.NotifSvc, embedClient: deps.EmbedClient}
 }
 
 func (s *GovernmentService) validatePolicyReq(req *dto.PublishPolicyReq) error {
