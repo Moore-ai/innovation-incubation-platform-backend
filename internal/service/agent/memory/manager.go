@@ -10,7 +10,6 @@ import (
 
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/model"
-	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/pkg/aiclient"
 	"innovation-incubation-platform-backend/pkg/tokenutil"
 )
@@ -38,7 +37,7 @@ type MemoryManager struct {
 	cfg         config.AgentConfig
 }
 
-func NewMemoryManager(working *WorkingMemory, semantic *SemanticMemory, repo *repository.ChatRepo, embedClient *aiclient.EmbeddingClient, cfg config.AgentConfig) *MemoryManager {
+func NewMemoryManager(working *WorkingMemory, semantic *SemanticMemory, repo episodicRepo, embedClient *aiclient.EmbeddingClient, cfg config.AgentConfig) *MemoryManager {
 	var embed embedder
 	if embedClient != nil {
 		embed = embedClient

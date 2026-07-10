@@ -96,6 +96,7 @@ report_converter:
   venv_path: "sidecar/report-converter/venv"
   port: 9800
   timeout_sec: 60
+  font_path: "C:/Windows/Fonts/simhei.ttf"
 
 agent:
   model: ""               # 空字符串表示沿用 ai.openai.model

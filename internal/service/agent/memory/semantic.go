@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"innovation-incubation-platform-backend/internal/model"
-	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/pkg/aiclient"
 )
 
@@ -29,7 +28,7 @@ type SemanticMemory struct {
 	hydeMaxTokens int
 }
 
-func NewSemanticMemory(repo *repository.ChatRepo, aiClient *aiclient.Client, embedClient *aiclient.EmbeddingClient, limit int, hydeMaxTokens int) *SemanticMemory {
+func NewSemanticMemory(repo semanticRepo, aiClient *aiclient.Client, embedClient *aiclient.EmbeddingClient, limit int, hydeMaxTokens int) *SemanticMemory {
 	var embed embedder
 	if embedClient != nil {
 		embed = embedClient
