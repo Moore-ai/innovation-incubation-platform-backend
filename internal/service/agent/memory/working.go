@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"innovation-incubation-platform-backend/internal/model"
-	"innovation-incubation-platform-backend/internal/repository"
 	"innovation-incubation-platform-backend/pkg/tokenutil"
 )
 
@@ -20,7 +19,7 @@ type WorkingMemory struct {
 	pageSize int
 }
 
-func NewWorkingMemory(repo *repository.ChatRepo, pageSize int) *WorkingMemory {
+func NewWorkingMemory(repo workingRepo, pageSize int) *WorkingMemory {
 	return &WorkingMemory{repo: repo, pageSize: pageSize}
 }
 

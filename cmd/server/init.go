@@ -91,40 +91,51 @@ func initSearchService(r *repositories, cfg *config.Config, db *gorm.DB, aiClien
 	}
 }
 
-func initAgent(r *repositories, cfg *config.Config, aiClient *aiclient.Client, embedClient *aiclient.EmbeddingClient, searchSvc service.PolicySearch, db *gorm.DB, fileStorage storage.Storage, notifSvc *service.NotificationService, aiSvc *service.AIService) (*service.ChatService, *agentpkg.Engine) {
+type agentDeps struct {
+	repos       *repositories
+	cfg         *config.Config
+	aiClient    *aiclient.Client
+	embedClient *aiclient.EmbeddingClient
+	searchSvc   service.PolicySearch
+	db          *gorm.DB
+	fileStorage storage.Storage
+	notifSvc    *service.NotificationService
+}
+
+func initAgent(d agentDeps) (*service.ChatService, *agentpkg.Engine) {
 	registry := agenttools.NewToolRegistry()
-	registry.Register(agentbuiltin.NewSearchPolicy(searchSvc))
-	registry.Register(agentbuiltin.NewQueryEnterpriseInfo(r.ent))
-	registry.Register(agentbuiltin.NewQueryAppeal(r.appeal))
-	registry.Register(agentbuiltin.NewQueryPolicyFollow(r.policyFollow))
-	registry.Register(agentbuiltin.NewQueryIncubationRecords(r.ent))
-	registry.Register(agentbuiltin.NewQueryChangeHistory(r.ent))
-	registry.Register(agentbuiltin.NewQueryMyPolicyApplications(r.ent))
-	registry.Register(agentbuiltin.NewQueryMyCarrierInfo(r.carrier))
-	registry.Register(agentbuiltin.NewQueryPendingIncubations(r.carrier))
-	registry.Register(agentbuiltin.NewQueryPendingChanges(r.carrier))
-	registry.Register(agentbuiltin.NewQueryEnterpriseApplications(r.carrier))
-	registry.Register(agentbuiltin.NewQueryPerformanceCampaigns(r.carrier))
-	registry.Register(agentbuiltin.NewQueryApplicationsByStatus(r.carrier))
-	registry.Register(agentbuiltin.NewQueryPolicyDetail(r.gov))
-	registry.Register(agentbuiltin.NewQueryMyFiles(r.file))
+	registry.Register(agentbuiltin.NewSearchPolicy(d.searchSvc))
+	registry.Register(agentbuiltin.NewQueryEnterpriseInfo(d.repos.ent))
+	registry.Register(agentbuiltin.NewQueryAppeal(d.repos.appeal))
+	registry.Register(agentbuiltin.NewQueryPolicyFollow(d.repos.policyFollow))
+	registry.Register(agentbuiltin.NewQueryIncubationRecords(d.repos.ent))
+	registry.Register(agentbuiltin.NewQueryChangeHistory(d.repos.ent))
+	registry.Register(agentbuiltin.NewQueryMyPolicyApplications(d.repos.ent))
+	registry.Register(agentbuiltin.NewQueryMyCarrierInfo(d.repos.carrier))
+	registry.Register(agentbuiltin.NewQueryPendingIncubations(d.repos.carrier))
+	registry.Register(agentbuiltin.NewQueryPendingChanges(d.repos.carrier))
+	registry.Register(agentbuiltin.NewQueryEnterpriseApplications(d.repos.carrier))
+	registry.Register(agentbuiltin.NewQueryPerformanceCampaigns(d.repos.carrier))
+	registry.Register(agentbuiltin.NewQueryApplicationsByStatus(d.repos.carrier))
+	registry.Register(agentbuiltin.NewQueryPolicyDetail(d.repos.gov))
+	registry.Register(agentbuiltin.NewQueryMyFiles(d.repos.file))
 
 	for _, tcfg := range agentbuiltin.TableConfigs {
-		registry.Register(agentbuiltin.NewGenericQueryTool(tcfg, db))
+		registry.Register(agentbuiltin.NewGenericQueryTool(tcfg, d.db))
 	}
-	converterAddr := fmt.Sprintf("127.0.0.1:%d", cfg.ReportConverter.Port)
-	converter := agentbuiltin.NewReportConverter(converterAddr, cfg.ReportConverter.FontPath, cfg.ReportConverter.TimeoutSec)
-	registry.Register(agentbuiltin.NewGenerateReport(aiClient, db, converter, r.file, fileStorage, notifSvc))
-	registry.Register(agentbuiltin.NewRecordSemanticMemory(r.chat, embedClient))
+	converterAddr := fmt.Sprintf("127.0.0.1:%d", d.cfg.ReportConverter.Port)
+	converter := agentbuiltin.NewReportConverter(converterAddr, d.cfg.ReportConverter.FontPath, d.cfg.ReportConverter.TimeoutSec)
+	registry.Register(agentbuiltin.NewGenerateReport(d.aiClient, d.db, converter, d.repos.file, d.fileStorage, d.notifSvc))
+	registry.Register(agentbuiltin.NewRecordSemanticMemory(d.repos.chat, d.embedClient))
 
-	workingMem := agentmemory.NewWorkingMemory(r.chat, cfg.Agent.WorkingMemory.PageSize)
-	semanticMem := agentmemory.NewSemanticMemory(r.chat, aiClient, embedClient, cfg.Agent.Memory.SemanticLimit, cfg.Agent.Memory.HydeMaxTokens)
-	memMgr := agentmemory.NewMemoryManager(workingMem, semanticMem, r.chat, embedClient, cfg.Agent)
+	workingMem := agentmemory.NewWorkingMemory(d.repos.chat, d.cfg.Agent.WorkingMemory.PageSize)
+	semanticMem := agentmemory.NewSemanticMemory(d.repos.chat, d.aiClient, d.embedClient, d.cfg.Agent.Memory.SemanticLimit, d.cfg.Agent.Memory.HydeMaxTokens)
+	memMgr := agentmemory.NewMemoryManager(workingMem, semanticMem, d.repos.chat, d.embedClient, d.cfg.Agent)
 
 	reflect := agentpkg.NewReflectChecker(registry)
-	engine := agentpkg.NewEngine(aiClient, registry, memMgr, reflect, cfg.Agent)
+	engine := agentpkg.NewEngine(d.aiClient, registry, memMgr, reflect, d.cfg.Agent)
 
-	chatSvc := service.NewChatService(engine, r.chat, cfg.Agent)
+	chatSvc := service.NewChatService(engine, d.repos.chat, d.cfg.Agent)
 	return chatSvc, engine
 }
 
@@ -147,7 +158,7 @@ func initServices(r *repositories, cfg *config.Config, db *gorm.DB, hub *service
 	}
 
 	searchSvc := initSearchService(r, cfg, db, aiClient, aiSvc, embedClient)
-	chatSvc, _ := initAgent(r, cfg, aiClient, embedClient, searchSvc, db, fileStorage, notifSvc, aiSvc)
+	chatSvc, _ := initAgent(agentDeps{r, cfg, aiClient, embedClient, searchSvc, db, fileStorage, notifSvc})
 
 	return &services{
 		auth:    service.NewAuthService(r.auth, cfg.JWT),
