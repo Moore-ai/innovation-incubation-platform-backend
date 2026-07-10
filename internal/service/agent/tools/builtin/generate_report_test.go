@@ -12,10 +12,14 @@ import (
 
 	"innovation-incubation-platform-backend/config"
 	"innovation-incubation-platform-backend/internal/model"
+	"innovation-incubation-platform-backend/internal/repository"
 	agent "innovation-incubation-platform-backend/internal/service/agent"
 	agentmemory "innovation-incubation-platform-backend/internal/service/agent/memory"
 	agenttools "innovation-incubation-platform-backend/internal/service/agent/tools"
+	"innovation-incubation-platform-backend/internal/storage"
 	"innovation-incubation-platform-backend/pkg/aiclient"
+
+	"github.com/glebarez/sqlite"
 )
 
 func seedReportData(t *testing.T, db *gorm.DB) {
@@ -274,5 +278,43 @@ func TestGenerateReport_ChartOutput(t *testing.T) {
 	}
 	if !strings.Contains(markdown, "#") {
 		t.Error("expected Markdown headings")
+	}
+}
+
+func TestGenerateReport_SaveMarkdownFallback(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.File{}); err != nil {
+		t.Fatalf("migrate files: %v", err)
+	}
+	fileStorage, err := storage.NewLocalFileStorage(t.TempDir())
+	if err != nil {
+		t.Fatalf("new storage: %v", err)
+	}
+
+	report := &GenerateReport{
+		fileRepo:    repository.NewFileRepo(db),
+		fileStorage: fileStorage,
+	}
+
+	fileURL, err := report.saveMarkdownFallback(context.Background(), "# 高新区企业行业分布报告\n\n正文")
+	if err != nil {
+		t.Fatalf("saveMarkdownFallback: %v", err)
+	}
+	if !strings.Contains(fileURL, "/api/v1/files/") || !strings.Contains(fileURL, "/download") {
+		t.Fatalf("unexpected file URL: %s", fileURL)
+	}
+
+	var file model.File
+	if err := db.First(&file).Error; err != nil {
+		t.Fatalf("find file: %v", err)
+	}
+	if file.MimeType != "text/markdown; charset=utf-8" {
+		t.Fatalf("unexpected mime type: %s", file.MimeType)
+	}
+	if !strings.HasSuffix(file.Filename, ".md") {
+		t.Fatalf("expected markdown filename, got %s", file.Filename)
 	}
 }

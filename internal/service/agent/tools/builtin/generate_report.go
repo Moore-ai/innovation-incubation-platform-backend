@@ -1,12 +1,14 @@
 package builtin
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -101,26 +103,26 @@ func (t *GenerateReport) Execute(ctx context.Context, args json.RawMessage) (jso
 	sendProgress(pw, "report_progress", map[string]any{"phase": "converter"})
 	fileURL, err := t.runConverter(ctx, markdown, input.Format, pw)
 	if err != nil {
-		return nil, fmt.Errorf("格式转换失败: %w", err)
+		fileURL, err = t.saveMarkdownFallback(ctx, markdown)
+		if err != nil {
+			return nil, fmt.Errorf("格式转换失败，Markdown 兜底保存也失败: %w", err)
+		}
+		input.Format = "md"
 	}
 
 	if t.notif != nil {
 		userID := agent.UserIDFromCtx(ctx)
 		var fileID uint64
 		fmt.Sscanf(fileURL, "/api/v1/files/%d/download", &fileID)
-		notifData, err := json.Marshal(map[string]any{"file_id": fileID, "format": input.Format})
-		if err != nil {
-			return nil, fmt.Errorf("信息发送失败")
-		}
-		content := string(notifData)
+		content := fmt.Sprintf("%s 政务数据分析报告已生成，可在通知中心下载留存或归档。", strings.ToUpper(input.Format))
 		if err := t.notif.Send(userID, model.NotifReportGenerated, "报告已生成",
-			content, "", 0); err != nil {
+			content, "", uint(fileID)); err != nil {
 			return nil, fmt.Errorf("信息发送失败")
 		}
 	}
 
 	sendProgress(pw, "report_done", map[string]any{"file_url": fileURL, "format": input.Format})
-	result, _ := json.Marshal(map[string]string{"file_url": fileURL, "format": input.Format})
+	result, _ := json.Marshal(map[string]string{"file_url": fileURL, "format": input.Format, "markdown": markdown})
 	return json.RawMessage(result), nil
 }
 
@@ -240,6 +242,9 @@ func (t *GenerateReport) runSummarizer(ctx context.Context, prompt string, chart
 // --- Phase 4: Converter ---
 
 func (t *GenerateReport) runConverter(ctx context.Context, markdown, format string, pw agent.ProgressWriter) (string, error) {
+	if t.converter == nil || t.fileStorage == nil || t.fileRepo == nil {
+		return "", fmt.Errorf("报告转换组件未初始化")
+	}
 	title := extractTitle(markdown)
 	var filePath string
 	var err error
@@ -285,6 +290,35 @@ func (t *GenerateReport) runConverter(ctx context.Context, markdown, format stri
 		return "", fmt.Errorf("创建文件记录失败: %w", err)
 	}
 
+	return fmt.Sprintf("/api/v1/files/%d/download", fileRecord.ID), nil
+}
+
+func (t *GenerateReport) saveMarkdownFallback(ctx context.Context, markdown string) (string, error) {
+	if t.fileStorage == nil || t.fileRepo == nil {
+		return "", fmt.Errorf("报告文件存储组件未初始化")
+	}
+
+	title := extractTitle(markdown)
+	if title == "" {
+		title = "政务数据分析报告"
+	}
+	filename := sanitizeReportFilename(title) + ".md"
+	storagePath := filepath.ToSlash(filepath.Join("reports", fmt.Sprintf("%d-%s", time.Now().UnixNano(), filename)))
+	data := []byte(markdown)
+	if err := t.fileStorage.Save(ctx, storagePath, bytes.NewReader(data)); err != nil {
+		return "", fmt.Errorf("保存 Markdown 报告失败: %w", err)
+	}
+
+	fileRecord := &model.File{
+		Filename:    filename,
+		MimeType:    mimeTypeByFormat("md"),
+		Size:        int64(len(data)),
+		StoragePath: storagePath,
+		UploadedBy:  0,
+	}
+	if err := t.fileRepo.Create(fileRecord); err != nil {
+		return "", fmt.Errorf("创建 Markdown 报告记录失败: %w", err)
+	}
 	return fmt.Sprintf("/api/v1/files/%d/download", fileRecord.ID), nil
 }
 
@@ -355,7 +389,25 @@ func mimeTypeByFormat(format string) string {
 		return "application/pdf"
 	case "docx":
 		return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	case "md":
+		return "text/markdown; charset=utf-8"
 	default:
 		return "application/octet-stream"
 	}
+}
+
+func sanitizeReportFilename(title string) string {
+	name := strings.TrimSpace(title)
+	if name == "" {
+		return "report"
+	}
+	name = regexp.MustCompile(`[\\/:*?"<>|]+`).ReplaceAllString(name, "-")
+	name = strings.Trim(name, " .")
+	if name == "" {
+		return "report"
+	}
+	if len([]rune(name)) > 80 {
+		return string([]rune(name)[:80])
+	}
+	return name
 }

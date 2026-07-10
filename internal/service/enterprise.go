@@ -507,7 +507,7 @@ func (s *EnterpriseService) ListAvailablePolicies(userID uint, role string, page
 		policies[i].Followed = followed[policies[i].ID]
 	}
 	if s.aiSvc != nil && role == string(model.UserRoleEnterprise) {
-		matchCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		matchCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		matches := s.aiSvc.MatchPolicyListForEnterprise(matchCtx, ent, policies)
 		for i := range policies {

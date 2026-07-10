@@ -75,7 +75,7 @@ upload:
 rate_limit:
   enabled: true
   algorithm: token_bucket
-  default_rpm: 60
+  default_rpm: 300
   whitelist: []
 
 log:
